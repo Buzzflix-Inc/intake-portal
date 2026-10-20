@@ -182,7 +182,7 @@
   .msg.ok { background: var(--ok-soft); color: var(--ok); }
 
   /* Sections */
-  #portalTab, #adminTab {
+  #portalTab, #adminTab, #deptTab {
     display: grid;
     grid-template-columns: 1fr;
     gap: 20px;
@@ -215,7 +215,7 @@
     background: var(--surface);
     color: var(--ink);
   }
-  input[type="text"], input[type="date"], input[type="tel"], input[type="number"], textarea {
+  input[type="text"], input[type="date"], input[type="time"], input[type="tel"], input[type="number"], textarea {
     padding: 8px 11px;
     border: 1px solid var(--line);
     border-radius: 7px;
@@ -606,6 +606,68 @@
   .logo-preview img { width: 100%; height: 100%; object-fit: cover; }
   .company-tagline { font-size: 12px; color: var(--ink-faint); margin: 2px 0 0; }
 
+  /* Weekly timesheet entry */
+  .ts-grid { display: flex; flex-direction: column; gap: 6px; margin: 14px 0 10px; }
+  .ts-head, .ts-row {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) minmax(0, 1fr) 72px 56px;
+    gap: 8px;
+    align-items: center;
+  }
+  .ts-grid.has-kit .ts-head, .ts-grid.has-kit .ts-row { grid-template-columns: 56px minmax(0, 1fr) minmax(0, 1fr) 72px 40px 56px; }
+  .ts-kit { text-align: center; }
+  .ts-kit input { width: 18px; height: 18px; cursor: pointer; }
+  .ts-brk input { text-align: center; }
+  .ts-kit-note { font-size: 13px; color: var(--ink-soft); margin: 0 0 8px; display: flex; justify-content: space-between; gap: 12px; }
+  .ts-head { font-size: 11.5px; font-weight: 600; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .03em; }
+  .ts-head span:last-child, .ts-hrs { text-align: right; }
+  .ts-day { font-size: 13px; font-weight: 500; color: var(--ink); line-height: 1.25; }
+  .ts-day small { display: block; font-size: 11.5px; font-weight: 400; color: var(--ink-faint); }
+  .ts-hrs { font-size: 13px; font-weight: 600; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .ts-row input[type="time"] { padding: 7px 8px; min-width: 0; }
+  .ts-lab { display: none; font-size: 11.5px; color: var(--ink-faint); margin-bottom: 3px; }
+  .ts-total-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    border-top: 1px solid var(--line); padding: 10px 0 14px; font-size: 13.5px; color: var(--ink-soft);
+  }
+  .ts-total-row strong { font-size: 16px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .ts-note { font-size: 12px; color: var(--ink-faint); margin: 0 0 10px; }
+
+  /* Department heads + review */
+  .dh-add { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }
+  .dept-filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+  .dept-details { margin-top: 6px; font-size: 12.5px; }
+  .dept-details summary { cursor: pointer; color: var(--link); font-weight: 600; }
+  .dept-details .tbl-wrap { overflow-x: auto; margin-top: 8px; }
+  .dept-details table { border-collapse: collapse; width: 100%; min-width: 280px; }
+  .dept-details th, .dept-details td { text-align: left; padding: 4px 10px 4px 0; border-bottom: 1px dotted var(--line); font-variant-numeric: tabular-nums; }
+  .dept-details th { color: var(--ink-faint); font-weight: 600; font-size: 11.5px; }
+  .btn-approve, .btn-reject {
+    border: none; border-radius: 7px; padding: 7px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  }
+  .btn-approve { background: var(--ok-soft); color: var(--ok); }
+  .btn-reject { background: var(--error-soft); color: var(--error); }
+  .btn-approve:disabled, .btn-reject:disabled { opacity: .5; cursor: not-allowed; }
+
+  @media (max-width: 520px) {
+    .ts-head { display: none; }
+    .ts-grid .ts-row, .ts-grid.has-kit .ts-row {
+      grid-template-columns: 1fr 1fr;
+      grid-template-areas: "day hrs" "call wrap" "brk kit";
+      padding: 8px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .ts-row .ts-day { grid-area: day; }
+    .ts-row .ts-hrs { grid-area: hrs; }
+    .ts-row .ts-call { grid-area: call; }
+    .ts-row .ts-wrap { grid-area: wrap; }
+    .ts-row .ts-brk { grid-area: brk; }
+    .ts-row .ts-kit { grid-area: kit; text-align: left; align-self: end; }
+    .ts-kit label { display: flex; align-items: center; gap: 8px; margin: 0; padding-bottom: 8px; }
+    .ts-lab { display: block; }
+    .dh-add { grid-template-columns: 1fr; }
+  }
+
   @media (max-width: 520px) {
     .shell { padding: 36px 16px 72px; }
     section.panel { padding: 20px; }
@@ -660,6 +722,7 @@
 
       <div class="tabs" id="tabs">
         <button class="tab-btn active" id="tabPortalBtn">My Portal</button>
+        <button class="tab-btn hidden" id="tabDeptBtn">Department Review</button>
         <button class="tab-btn hidden" id="tabAdminBtn">Admin Review</button>
       </div>
     </div>
@@ -688,11 +751,14 @@
 
       <section class="panel">
         <h2>Timesheets</h2>
-        <p class="desc">Submit your timesheet for the current pay period.</p>
-        <div class="upload-row">
-          <input type="file" id="timesheetsFile" />
-          <button class="btn-secondary" data-bucket="timesheets" data-table="timesheets">Upload</button>
-        </div>
+        <p class="desc">Pick a pay period (Sunday to Saturday) and enter your call and wrap time for each day you worked. Leave days off blank.</p>
+        <label for="tsPeriodSelect">Pay period</label>
+        <select id="tsPeriodSelect"></select>
+        <div class="ts-grid" id="tsGrid"></div>
+        <p class="ts-note">Break is unpaid minutes taken off the day. If wrap is earlier than call, it counts as the next morning.</p>
+        <div class="ts-total-row"><span>Total hours</span><strong id="tsTotal">0.00</strong></div>
+        <div class="ts-total-row hidden" id="tsKitRow" style="border-top:none;padding-top:0;"><span>Kit fee</span><strong id="tsKitTotal">0 days</strong></div>
+        <button class="btn-secondary" id="tsSubmitBtn">Submit timesheet</button>
         <div id="timesheetsMsg"></div>
         <ul class="file-list" id="timesheetsList"></ul>
       </section>
@@ -702,6 +768,30 @@
         <p class="desc">Issued by payroll. View and download only.</p>
         <ul class="file-list" id="paystubsList"></ul>
         <p class="empty hidden" id="paystubsEmpty">No paystubs on file yet.</p>
+      </section>
+    </div>
+
+    <!-- Department head view -->
+    <div id="deptTab" class="hidden">
+      <section class="panel">
+        <h2>Department timesheets</h2>
+        <p class="desc">Review timesheets from crew in the departments you head. Approved timesheets move on to admin for final approval.</p>
+        <div class="dept-filters">
+          <div>
+            <label for="deptFilterDept">Department</label>
+            <select id="deptFilterDept"></select>
+          </div>
+          <div>
+            <label for="deptFilterStatus">Show</label>
+            <select id="deptFilterStatus">
+              <option value="needs">Needs my review</option>
+              <option value="all">Everything</option>
+            </select>
+          </div>
+        </div>
+        <div id="deptTimesheetsMsg"></div>
+        <ul class="file-list" id="deptTimesheetsList"></ul>
+        <p class="empty hidden" id="deptTimesheetsEmpty">No timesheets to review.</p>
       </section>
     </div>
 
@@ -849,6 +939,25 @@
         <div id="inviteMsg"></div>
         <ul class="file-list" id="pendingInvitesList"></ul>
         <p class="empty hidden" id="pendingInvitesEmpty">No pending invites.</p>
+      </section>
+
+      <section class="panel span-2">
+        <h2>Department heads</h2>
+        <p class="desc">Heads review their department's timesheets before they reach admin. A department can have more than one head, and one person can head several departments.</p>
+        <div class="dh-add">
+          <div>
+            <label for="deptHeadDeptSelect">Department</label>
+            <select id="deptHeadDeptSelect"></select>
+          </div>
+          <div>
+            <label for="deptHeadUserSelect">Employee</label>
+            <select id="deptHeadUserSelect"></select>
+          </div>
+          <button class="btn-secondary" id="addDeptHeadBtn">Add head</button>
+        </div>
+        <div id="deptHeadsMsg"></div>
+        <ul class="file-list" id="deptHeadsList"></ul>
+        <p class="empty hidden" id="deptHeadsEmpty">No department heads assigned yet.</p>
       </section>
 
       <section class="panel">
@@ -1110,18 +1219,19 @@
   const portalTab = document.getElementById("portalTab");
   const adminTab = document.getElementById("adminTab");
 
-  tabPortalBtn.addEventListener("click", () => {
-    tabPortalBtn.classList.add("active");
-    tabAdminBtn.classList.remove("active");
-    portalTab.classList.remove("hidden");
-    adminTab.classList.add("hidden");
-  });
-  tabAdminBtn.addEventListener("click", () => {
-    tabAdminBtn.classList.add("active");
-    tabPortalBtn.classList.remove("active");
-    adminTab.classList.remove("hidden");
-    portalTab.classList.add("hidden");
-  });
+  const tabDeptBtn = document.getElementById("tabDeptBtn");
+  const deptTab = document.getElementById("deptTab");
+
+  function switchTab(which) {
+    [[tabPortalBtn, portalTab, "portal"], [tabDeptBtn, deptTab, "dept"], [tabAdminBtn, adminTab, "admin"]]
+      .forEach(([btn, panel, key]) => {
+        btn.classList.toggle("active", key === which);
+        panel.classList.toggle("hidden", key !== which);
+      });
+  }
+  tabPortalBtn.addEventListener("click", () => switchTab("portal"));
+  tabAdminBtn.addEventListener("click", () => switchTab("admin"));
+  tabDeptBtn.addEventListener("click", () => { switchTab("dept"); loadDeptTimesheets(); });
 
   // ---- Blank-file guard (documents & timesheets) ----
   // Two checks: (1) reject files that are empty or implausibly tiny to
@@ -1300,18 +1410,28 @@
 
   // ---- Employee listing (own records only) ----
   let myRequestedDocs = [];
+  let myFullName = null;
+  let myDepartment = null;
+  let myKitEnabled = false;
+  let myKitRate = 0;
 
   async function loadMyRequestedDocuments() {
     const { data: { user } } = await client.auth.getUser();
     if (!user || !user.email) { myRequestedDocs = []; return; }
     const { data } = await client
       .from("company_invites")
-      .select("requested_documents")
+      .select("requested_documents, full_name, department, kit_fee_enabled, kit_fee_rate")
       .eq("email", user.email)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     myRequestedDocs = (data && data.requested_documents) || [];
+    myFullName = (data && data.full_name) || null;
+    myDepartment = (data && data.department) || null;
+    myKitEnabled = !!(data && data.kit_fee_enabled);
+    myKitRate = myKitEnabled ? Number(data.kit_fee_rate || 0) : 0;
+    tsGridWeek = null;   // redraw the grid with or without the kit column
+    buildPeriodOptions();
   }
 
   function renderDocumentsChecklist(rows) {
@@ -1357,16 +1477,23 @@
 
     const cols = bucket === "documents"
       ? "id, status, file_path, created_at, doc_type"
-      : "id, status, file_path, created_at";
+      : bucket === "timesheets"
+        ? "id, user_id, status, file_path, created_at, week_start, total_hours, dept_status, kit_days, kit_total"
+        : "id, status, file_path, created_at";
 
-    const { data: rows, error } = await client
-      .from(table)
-      .select(cols)
-      .order("created_at", { ascending: false });
+    let query = client.from(table).select(cols).order("created_at", { ascending: false });
+    // Department heads and admins can read other people's timesheets too;
+    // this list is only ever the signed-in person's own.
+    if (bucket === "timesheets") query = query.eq("user_id", user.id);
+    const { data: rows, error } = await query;
 
     if (bucket === "documents") {
       populateDocumentsTypeSelect(rows || []);
       renderDocumentsChecklist(rows || []);
+    }
+    if (bucket === "timesheets") {
+      myTimesheetRows = rows || [];
+      buildPeriodOptions();
     }
 
     if (error || !rows || rows.length === 0) {
@@ -1383,12 +1510,20 @@
       left.className = "info";
       left.innerHTML = row.doc_type
         ? `<span class="name">${row.doc_type}</span><span class="email">${name}</span>`
-        : `<span class="name">${name}</span>`;
+        : row.week_start
+          ? `<span class="name">Week of ${periodLabel(row.week_start)}</span><span class="email">${Number(row.total_hours || 0).toFixed(2)} hrs${Number(row.kit_days) > 0 ? ` · kit $${Number(row.kit_total || 0).toFixed(2)}` : ""} · ${name}</span>`
+          : `<span class="name">${name}</span>`;
 
       const right = document.createElement("span");
       right.className = "actions";
 
       if (showDownload) {
+        if (bucket === "timesheets" && row.status === "pending" && row.dept_status === "approved") {
+          const chip = document.createElement("span");
+          chip.className = "chain-badge";
+          chip.textContent = "Dept head approved";
+          right.appendChild(chip);
+        }
         const status = document.createElement("span");
         status.className = `status-badge status-${row.status}`;
         status.textContent = row.status;
@@ -1428,6 +1563,482 @@
     }
     loadList(bucket, table, true);
   }
+
+  // ---- Timesheets: weekly call/wrap entry ----
+  // Pay periods run Sunday to Saturday. The dropdown is rebuilt from today's
+  // date every time it loads (and when the tab regains focus), so it always
+  // shows this week plus the previous TS_WEEKS_BACK weeks.
+  const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const TS_WEEKS_BACK = 8;
+  let myTimesheetRows = [];
+  let tsGridWeek = null;
+
+  function escHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function pad2(n) { return String(n).padStart(2, "0"); }
+  function ymd(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+  function parseYmd(s) { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); }
+  function addDays(d, n) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() + n); return x; }
+  function weekStartOf(d) { return addDays(d, -d.getDay()); }
+  function fmtShort(d) { return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
+  function periodLabel(startStr) {
+    const s = parseYmd(startStr), e = addDays(s, 6);
+    return `${fmtShort(s)} – ${e.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
+  }
+  function fmtTime(v) {
+    if (!v) return "-";
+    const [h, m] = v.split(":").map(Number);
+    return `${((h + 11) % 12) + 1}:${pad2(m)} ${h < 12 ? "AM" : "PM"}`;
+  }
+  function fmtHours(mins) { return (mins / 60).toFixed(2); }
+  function toMinutes(v) { if (!v) return null; const [h, m] = v.split(":").map(Number); return h * 60 + m; }
+  // Minutes between call and wrap. A wrap earlier than call is treated as
+  // the next morning. Returns null if either is blank, NaN if they match.
+  function shiftMinutes(call, wrap) {
+    const c = toMinutes(call), w = toMinutes(wrap);
+    if (c == null || w == null) return null;
+    if (c === w) return NaN;
+    let diff = w - c;
+    if (diff < 0) diff += 1440;
+    return diff;
+  }
+
+  function buildPeriodOptions() {
+    const sel = document.getElementById("tsPeriodSelect");
+    if (!sel) return;
+    const prev = sel.value;
+    const submitted = new Set(myTimesheetRows.filter((r) => r.week_start && r.status !== "rejected").map((r) => r.week_start));
+    const thisWeek = weekStartOf(new Date());
+    sel.innerHTML = "";
+    let firstOpen = null;
+    for (let i = 0; i <= TS_WEEKS_BACK; i++) {
+      const key = ymd(addDays(thisWeek, -7 * i));
+      const done = submitted.has(key);
+      const opt = document.createElement("option");
+      opt.value = key;
+      opt.textContent = periodLabel(key) + (i === 0 ? " (this week)" : i === 1 ? " (last week)" : "") + (done ? " — submitted" : "");
+      opt.disabled = done;
+      if (!done && !firstOpen) firstOpen = key;
+      sel.appendChild(opt);
+    }
+    const keep = prev && [...sel.options].some((o) => o.value === prev && !o.disabled);
+    sel.value = keep ? prev : (firstOpen || sel.options[0].value);
+    if (sel.value !== tsGridWeek) renderTimesheetGrid();
+  }
+
+  function renderTimesheetGrid() {
+    const sel = document.getElementById("tsPeriodSelect");
+    const grid = document.getElementById("tsGrid");
+    tsGridWeek = sel.value;
+    if (!tsGridWeek) { grid.innerHTML = ""; return; }
+    const start = parseYmd(tsGridWeek);
+    grid.classList.toggle("has-kit", myKitEnabled);
+    let html = `<div class="ts-head"><span>Day</span><span>Call</span><span>Wrap</span><span>Break</span>${myKitEnabled ? "<span>Kit</span>" : ""}<span>Hours</span></div>`;
+    for (let i = 0; i < 7; i++) {
+      html += `<div class="ts-row">
+        <div class="ts-day">${DAY_NAMES[i].slice(0, 3)}<small>${fmtShort(addDays(start, i))}</small></div>
+        <div class="ts-call"><span class="ts-lab">Call</span><input type="time" id="tsCall${i}" aria-label="Call time, ${DAY_NAMES[i]}" /></div>
+        <div class="ts-wrap"><span class="ts-lab">Wrap</span><input type="time" id="tsWrap${i}" aria-label="Wrap time, ${DAY_NAMES[i]}" /></div>
+        <div class="ts-brk"><span class="ts-lab">Break (min)</span><input type="number" id="tsBrk${i}" min="0" max="240" step="5" inputmode="numeric" placeholder="0" aria-label="Unpaid break in minutes, ${DAY_NAMES[i]}" /></div>
+        ${myKitEnabled ? `<div class="ts-kit"><label><input type="checkbox" id="tsKit${i}" aria-label="Kit fee, ${DAY_NAMES[i]}" /><span class="ts-lab">Kit fee</span></label></div>` : ""}
+        <div class="ts-hrs" id="tsHrs${i}">–</div>
+      </div>`;
+    }
+    grid.innerHTML = html;
+    grid.querySelectorAll("input").forEach((inp) => {
+      inp.addEventListener("input", updateTimesheetTotals);
+      inp.addEventListener("change", updateTimesheetTotals);
+    });
+    updateTimesheetTotals();
+  }
+
+  // Worked minutes for one day: call to wrap, less any unpaid break.
+  // null = day not filled in, NaN = invalid (same call/wrap, or break too long).
+  function dayMinutes(i) {
+    const gross = shiftMinutes(document.getElementById(`tsCall${i}`).value, document.getElementById(`tsWrap${i}`).value);
+    if (gross == null || Number.isNaN(gross)) return gross;
+    const brk = Math.max(0, parseInt(document.getElementById(`tsBrk${i}`).value, 10) || 0);
+    return brk >= gross ? NaN : gross - brk;
+  }
+
+  function updateTimesheetTotals() {
+    let total = 0, kitDays = 0;
+    for (let i = 0; i < 7; i++) {
+      const m = dayMinutes(i);
+      const out = document.getElementById(`tsHrs${i}`);
+      if (m == null) out.textContent = "–";
+      else if (Number.isNaN(m)) out.textContent = "!";
+      else {
+        out.textContent = fmtHours(m);
+        total += m;
+        const kit = document.getElementById(`tsKit${i}`);
+        if (kit && kit.checked) kitDays++;
+      }
+    }
+    document.getElementById("tsTotal").textContent = fmtHours(total);
+    const kitRow = document.getElementById("tsKitRow");
+    kitRow.classList.toggle("hidden", !myKitEnabled);
+    document.getElementById("tsKitTotal").textContent = `${kitDays} day${kitDays === 1 ? "" : "s"} × $${myKitRate.toFixed(2)} = $${(kitDays * myKitRate).toFixed(2)}`;
+  }
+
+  function readTimesheetForm() {
+    const start = parseYmd(tsGridWeek);
+    const entries = [];
+    let total = 0, kitDays = 0;
+    for (let i = 0; i < 7; i++) {
+      const call = document.getElementById(`tsCall${i}`).value;
+      const wrap = document.getElementById(`tsWrap${i}`).value;
+      const brkRaw = document.getElementById(`tsBrk${i}`).value;
+      const kit = !!(document.getElementById(`tsKit${i}`) && document.getElementById(`tsKit${i}`).checked);
+      if (!call && !wrap) {
+        if (brkRaw || kit) return { error: `${DAY_NAMES[i]} has a break or kit fee but no call and wrap time.` };
+        continue;
+      }
+      const day = DAY_NAMES[i];
+      if (!call || !wrap) return { error: `Enter both a call and a wrap time for ${day}, or clear that day.` };
+      const gross = shiftMinutes(call, wrap);
+      if (!gross) return { error: `Call and wrap are the same time on ${day}.` };
+      const brk = Math.max(0, parseInt(brkRaw, 10) || 0);
+      if (brk > 240) return { error: `${day}'s break is over 4 hours. Check the minutes.` };
+      if (brk >= gross) return { error: `${day}'s break is longer than the shift.` };
+      const mins = gross - brk;
+      if (mins > 20 * 60) return { error: `${day} is over 20 hours. Check the call and wrap times.` };
+      entries.push({ date: ymd(addDays(start, i)), day, call, wrap, break_minutes: brk, kit, minutes: mins });
+      total += mins;
+      if (kit) kitDays++;
+    }
+    if (!entries.length) return { error: "Enter call and wrap times for at least one day." };
+    return { entries, totalMinutes: total, kitDays };
+  }
+
+  // jsPDF is loaded from a CDN the first time someone submits a timesheet.
+  let jsPdfReady = null;
+  function ensureJsPdf() {
+    if (jsPdfReady) return jsPdfReady;
+    jsPdfReady = new Promise((resolve, reject) => {
+      if (window.jspdf && window.jspdf.jsPDF) { resolve(window.jspdf.jsPDF); return; }
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+      script.onload = () => resolve(window.jspdf.jsPDF);
+      script.onerror = () => { jsPdfReady = null; reject(new Error("Couldn't load the PDF library. Check your connection and try again.")); };
+      document.head.appendChild(script);
+    });
+    return jsPdfReady;
+  }
+
+  async function buildTimesheetPdf({ entries, totalMinutes, weekStart, email, name, department, companyName, kitDays, kitRate }) {
+    const JsPDF = await ensureJsPdf();
+    const doc = new JsPDF({ unit: "pt", format: "letter" });
+    const L = 54, R = 558;
+    let y = 66;
+
+    doc.setFont("helvetica", "bold"); doc.setFontSize(18); doc.setTextColor(25);
+    doc.text("Weekly Timesheet", L, y);
+    if (companyName) {
+      doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(110);
+      doc.text(companyName, R, y, { align: "right" });
+    }
+    y += 28;
+
+    const s = parseYmd(weekStart), e = addDays(s, 6);
+    const full = (d) => d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+    const meta = [
+      ["Employee", name || email],
+      ["Email", email],
+      ["Department", department || "-"],
+      ["Pay period", `${full(s)} to ${full(e)}`],
+    ];
+    doc.setFontSize(11); doc.setTextColor(25);
+    meta.forEach(([k, v]) => {
+      doc.setFont("helvetica", "bold"); doc.text(k, L, y);
+      doc.setFont("helvetica", "normal"); doc.text(String(v), L + 90, y);
+      y += 18;
+    });
+    y += 14;
+
+    const cx = [L, L + 88, L + 170, L + 250, L + 330];
+    doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(110);
+    ["DAY", "DATE", "CALL", "WRAP", "BREAK"].forEach((h, i) => doc.text(h, cx[i], y));
+    doc.text("HOURS", R, y, { align: "right" });
+    y += 6; doc.setDrawColor(190); doc.line(L, y, R, y); y += 18;
+
+    doc.setFontSize(11); doc.setTextColor(25);
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(s, i);
+      const entry = entries.find((en) => en.date === ymd(d));
+      doc.setFont("helvetica", "normal");
+      doc.text(DAY_NAMES[i], cx[0], y);
+      doc.text(fmtShort(d), cx[1], y);
+      doc.text(entry ? fmtTime(entry.call) : "-", cx[2], y);
+      doc.text(entry ? fmtTime(entry.wrap) : "-", cx[3], y);
+      doc.text(entry ? (entry.break_minutes ? `${entry.break_minutes} min` : "none") : "-", cx[4], y);
+      doc.text(entry ? fmtHours(entry.minutes) + (entry.kit ? "  (kit)" : "") : "-", R, y, { align: "right" });
+      y += 22;
+      doc.setDrawColor(228); doc.line(L, y - 15, R, y - 15);
+    }
+    y += 6;
+    doc.setFont("helvetica", "bold"); doc.setFontSize(12);
+    doc.text("Total hours", cx[3], y);
+    doc.text(fmtHours(totalMinutes), R, y, { align: "right" });
+    if (kitDays) {
+      y += 20;
+      doc.text("Kit fee", cx[3], y);
+      doc.text(`${kitDays} day${kitDays === 1 ? "" : "s"} x $${kitRate.toFixed(2)} = $${(kitDays * kitRate).toFixed(2)}`, R, y, { align: "right" });
+    }
+
+    y += 44;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(120);
+    doc.text(`Submitted through the crew portal on ${new Date().toLocaleString("en-US")}.`, L, y);
+    doc.text("Hours are call to wrap less unpaid break. A wrap earlier than call is counted as the following morning.", L, y + 13);
+    return doc.output("blob");
+  }
+
+  document.getElementById("tsPeriodSelect").addEventListener("change", renderTimesheetGrid);
+  window.addEventListener("focus", () => { if (currentUserId) buildPeriodOptions(); });
+
+  document.getElementById("tsSubmitBtn").addEventListener("click", async () => {
+    const msgEl = document.getElementById("timesheetsMsg");
+    const btn = document.getElementById("tsSubmitBtn");
+    const week = tsGridWeek;
+    if (!week) { msgEl.innerHTML = `<div class="msg error">Pick a pay period first.</div>`; return; }
+    if (myTimesheetRows.some((r) => r.week_start === week && r.status !== "rejected")) {
+      msgEl.innerHTML = `<div class="msg error">You've already submitted this pay period.</div>`;
+      return;
+    }
+    const form = readTimesheetForm();
+    if (form.error) { msgEl.innerHTML = `<div class="msg error">${form.error}</div>`; return; }
+
+    btn.disabled = true;
+    msgEl.innerHTML = `<div class="msg">Creating your timesheet…</div>`;
+    let uploadedPath = null;
+    try {
+      const { data: { user } } = await client.auth.getUser();
+      if (!user) throw new Error("You're signed out. Sign in again and retry.");
+
+      const pdf = await buildTimesheetPdf({
+        entries: form.entries, totalMinutes: form.totalMinutes, weekStart: week,
+        email: user.email, name: myFullName, department: myDepartment,
+        companyName: (currentCompany && currentCompany.name) || "",
+        kitDays: myKitEnabled ? form.kitDays : 0, kitRate: myKitRate,
+      });
+
+      // A rejected submission for the same week is replaced by this one.
+      for (const old of myTimesheetRows.filter((r) => r.week_start === week && r.status === "rejected")) {
+        await client.storage.from("timesheets").remove([old.file_path]);
+        await client.from("timesheets").delete().eq("id", old.id);
+      }
+
+      uploadedPath = `${user.id}/${Date.now()}-Timesheet-${week}.pdf`;
+      const { error: upErr } = await client.storage.from("timesheets").upload(uploadedPath, pdf, { contentType: "application/pdf" });
+      if (upErr) throw upErr;
+
+      const { error: insErr } = await client.from("timesheets").insert({
+        user_id: user.id, status: "pending", file_path: uploadedPath,
+        week_start: week, entries: form.entries,
+        total_hours: Math.round((form.totalMinutes / 60) * 100) / 100,
+        kit_days: myKitEnabled ? form.kitDays : 0,   // rate and total are stamped server-side from the invite
+      });
+      if (insErr) {
+        await client.storage.from("timesheets").remove([uploadedPath]);
+        throw insErr;
+      }
+
+      msgEl.innerHTML = `<div class="msg ok">Timesheet for ${periodLabel(week)} submitted (${fmtHours(form.totalMinutes)} hours).</div>`;
+      tsGridWeek = null;
+      await loadList("timesheets", "timesheets", true);
+    } catch (err) {
+      const text = err && err.code === "23505"
+        ? "You've already submitted this pay period."
+        : `Couldn't submit: ${(err && err.message) || err}`;
+      msgEl.innerHTML = `<div class="msg error">${escHtml(text)}</div>`;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // ---- Admin: department heads ----
+  let deptHeadRows = [];
+
+  function populateDeptHeadForm() {
+    const deptSel = document.getElementById("deptHeadDeptSelect");
+    if (deptSel && !deptSel.dataset.filled) {
+      Object.keys(DEPARTMENTS).forEach((d) => {
+        const opt = document.createElement("option");
+        opt.value = d; opt.textContent = d;
+        deptSel.appendChild(opt);
+      });
+      deptSel.dataset.filled = "1";
+    }
+    const userSel = document.getElementById("deptHeadUserSelect");
+    if (userSel) {
+      userSel.innerHTML = "";
+      for (const [userId, email] of profileMap.entries()) {
+        const opt = document.createElement("option");
+        opt.value = userId; opt.textContent = email;
+        userSel.appendChild(opt);
+      }
+    }
+  }
+
+  async function loadDepartmentHeads() {
+    const listEl = document.getElementById("deptHeadsList");
+    const emptyEl = document.getElementById("deptHeadsEmpty");
+    const { data } = await client.from("department_heads").select("id, department, head_user_id").order("department");
+    deptHeadRows = data || [];
+    listEl.innerHTML = "";
+    emptyEl.classList.toggle("hidden", deptHeadRows.length > 0);
+    deptHeadRows.forEach((row) => {
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="info"><span class="name">${escHtml(profileMap.get(row.head_user_id) || row.head_user_id)}</span><span class="email">${escHtml(row.department)}</span></span>`;
+      const right = document.createElement("span");
+      right.className = "actions";
+      const rm = document.createElement("button");
+      rm.className = "remove-link";
+      rm.textContent = "Remove";
+      rm.addEventListener("click", async () => {
+        const { error } = await client.from("department_heads").delete().eq("id", row.id);
+        const msgEl = document.getElementById("deptHeadsMsg");
+        msgEl.innerHTML = error ? `<div class="msg error">Couldn't remove: ${escHtml(error.message)}</div>` : "";
+        loadDepartmentHeads();
+      });
+      right.appendChild(rm);
+      li.appendChild(right);
+      listEl.appendChild(li);
+    });
+  }
+
+  document.getElementById("addDeptHeadBtn").addEventListener("click", async () => {
+    const msgEl = document.getElementById("deptHeadsMsg");
+    const department = document.getElementById("deptHeadDeptSelect").value;
+    const head_user_id = document.getElementById("deptHeadUserSelect").value;
+    if (!department || !head_user_id) {
+      msgEl.innerHTML = `<div class="msg error">Pick a department and an employee.</div>`;
+      return;
+    }
+    const { error } = await client.from("department_heads").insert({ company_id: currentCompany.id, department, head_user_id });
+    if (error) {
+      const dup = error.code === "23505";
+      msgEl.innerHTML = `<div class="msg error">${dup ? "They're already a head of that department." : "Couldn't add: " + escHtml(error.message)}</div>`;
+      return;
+    }
+    msgEl.innerHTML = `<div class="msg ok">Department head added.</div>`;
+    loadDepartmentHeads();
+  });
+
+  // ---- Department head: review timesheets ----
+  let myHeadDepartments = [];
+
+  async function loadMyHeadDepartments() {
+    const { data } = await client.from("department_heads").select("department").eq("head_user_id", currentUserId);
+    myHeadDepartments = [...new Set((data || []).map((r) => r.department))].sort();
+    tabDeptBtn.classList.toggle("hidden", myHeadDepartments.length === 0);
+
+    const sel = document.getElementById("deptFilterDept");
+    const prev = sel.value;
+    sel.innerHTML = "";
+    if (myHeadDepartments.length > 1) {
+      const all = document.createElement("option");
+      all.value = "all"; all.textContent = "All my departments";
+      sel.appendChild(all);
+    }
+    myHeadDepartments.forEach((d) => {
+      const opt = document.createElement("option");
+      opt.value = d; opt.textContent = d;
+      sel.appendChild(opt);
+    });
+    if ([...sel.options].some((o) => o.value === prev)) sel.value = prev;
+    sel.parentElement.classList.toggle("hidden", myHeadDepartments.length <= 1);
+  }
+
+  async function loadDeptTimesheets() {
+    const listEl = document.getElementById("deptTimesheetsList");
+    const emptyEl = document.getElementById("deptTimesheetsEmpty");
+    const msgEl = document.getElementById("deptTimesheetsMsg");
+    if (!myHeadDepartments.length) return;
+
+    const deptVal = document.getElementById("deptFilterDept").value;
+    const depts = deptVal && deptVal !== "all" ? [deptVal] : myHeadDepartments;
+    const needsOnly = document.getElementById("deptFilterStatus").value === "needs";
+
+    let q = client
+      .from("timesheets")
+      .select("id, user_id, status, dept_status, file_path, created_at, week_start, total_hours, entries, department, employee_email, employee_name, kit_days, kit_total")
+      .in("department", depts)
+      .neq("user_id", currentUserId)
+      .order("week_start", { ascending: false })
+      .order("created_at", { ascending: false });
+    if (needsOnly) q = q.eq("status", "pending").eq("dept_status", "pending");
+
+    const { data: rows, error } = await q;
+    listEl.innerHTML = "";
+    if (error) { msgEl.innerHTML = `<div class="msg error">${escHtml(error.message)}</div>`; return; }
+    emptyEl.classList.toggle("hidden", !!(rows && rows.length));
+    if (!rows || !rows.length) return;
+
+    for (const row of rows) {
+      const li = document.createElement("li");
+      const who = row.employee_name || row.employee_email || row.user_id;
+      const fileName = row.file_path.split("/").pop();
+
+      const detailRows = (row.entries || []).map((en) =>
+        `<tr><td>${escHtml(en.day)}</td><td>${escHtml(en.date)}</td><td>${fmtTime(en.call)}</td><td>${fmtTime(en.wrap)}</td><td>${en.break_minutes ? en.break_minutes + " min" : "-"}</td><td>${fmtHours(en.minutes)}${en.kit ? " (kit)" : ""}</td></tr>`
+      ).join("");
+      const kitBit = Number(row.kit_days) > 0 ? ` · kit ${row.kit_days} day${row.kit_days === 1 ? "" : "s"} ($${Number(row.kit_total || 0).toFixed(2)})` : "";
+
+      const left = document.createElement("span");
+      left.className = "info";
+      left.innerHTML = `
+        <span class="name">${escHtml(who)}</span>
+        <span class="email">${row.week_start ? periodLabel(row.week_start) : escHtml(fileName)} · ${Number(row.total_hours || 0).toFixed(2)} hrs${kitBit} · ${escHtml(row.department)}</span>
+        ${detailRows ? `<details class="dept-details"><summary>View daily hours</summary><div class="tbl-wrap"><table><thead><tr><th>Day</th><th>Date</th><th>Call</th><th>Wrap</th><th>Break</th><th>Hrs</th></tr></thead><tbody>${detailRows}</tbody></table></div></details>` : ""}`;
+
+      const right = document.createElement("span");
+      right.className = "actions";
+
+      const { data: signed } = await client.storage.from("timesheets").createSignedUrl(row.file_path, 60 * 5);
+      const previewBtn = document.createElement("button");
+      previewBtn.className = "preview-link";
+      previewBtn.textContent = "Preview";
+      previewBtn.addEventListener("click", () => openPreview(signed ? signed.signedUrl : "#", fileName));
+      right.appendChild(previewBtn);
+
+      if (row.status === "pending" && row.dept_status === "pending") {
+        const approve = document.createElement("button");
+        approve.className = "btn-approve";
+        approve.textContent = "Approve";
+        approve.addEventListener("click", () => deptReview(row.id, "approved", [approve, reject]));
+        const reject = document.createElement("button");
+        reject.className = "btn-reject";
+        reject.textContent = "Reject";
+        reject.addEventListener("click", () => deptReview(row.id, "rejected", [approve, reject]));
+        right.appendChild(approve);
+        right.appendChild(reject);
+      } else {
+        const badge = document.createElement("span");
+        badge.className = `status-badge status-${row.status === "pending" ? "pending" : row.status}`;
+        badge.textContent = row.status === "pending" ? "sent to admin" : row.status;
+        right.appendChild(badge);
+      }
+
+      li.appendChild(left);
+      li.appendChild(right);
+      listEl.appendChild(li);
+    }
+  }
+
+  async function deptReview(id, decision, buttons) {
+    const msgEl = document.getElementById("deptTimesheetsMsg");
+    if (decision === "rejected" && !window.confirm("Reject this timesheet? The employee will need to resubmit it.")) return;
+    buttons.forEach((b) => { b.disabled = true; });
+    const { error } = await client.rpc("dept_review_timesheet", { p_id: id, p_decision: decision });
+    msgEl.innerHTML = error
+      ? `<div class="msg error">${escHtml(error.message)}</div>`
+      : `<div class="msg ok">Timesheet ${decision === "approved" ? "approved and sent to admin" : "rejected"}.</div>`;
+    loadDeptTimesheets();
+  }
+  document.getElementById("deptFilterDept").addEventListener("change", loadDeptTimesheets);
+  document.getElementById("deptFilterStatus").addEventListener("change", loadDeptTimesheets);
 
   // ---- Admin: profile map (user_id -> email) ----
   async function loadProfileMap() {
@@ -1544,7 +2155,7 @@
 
     const [{ data: docs }, { data: sheets }, { data: stubs }, { data: deals }] = await Promise.all([
       client.from("documents").select("id, status, file_path, created_at, doc_type").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
-      client.from("timesheets").select("id, status, file_path, created_at").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
+      client.from("timesheets").select("id, status, file_path, created_at, week_start, total_hours").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
       client.from("paystubs").select("id, file_path, created_at").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
       client.from("esign_records").select("id, type, status, template_id, employee_signature, employee_signed_at").eq("user_id", profile.user_id),
     ]);
@@ -1563,7 +2174,7 @@
     (sheets || []).forEach((s) => { if (sheetCounts[s.status] != null) sheetCounts[s.status]++; });
 
     const sheetsHtml = (sheets || []).length
-      ? `<ul class="file-list">${sheets.map((s) => `<li><span class="info"><span class="name">${s.file_path.split("/").pop()}</span><span class="email">${new Date(s.created_at).toLocaleDateString()}</span></span><span class="status-badge status-${s.status}">${s.status}</span></li>`).join("")}</ul>`
+      ? `<ul class="file-list">${sheets.map((s) => `<li><span class="info"><span class="name">${s.week_start ? "Week of " + periodLabel(s.week_start) : s.file_path.split("/").pop()}</span><span class="email">${s.week_start ? Number(s.total_hours || 0).toFixed(2) + " hrs · " : ""}${new Date(s.created_at).toLocaleDateString()}</span></span><span class="status-badge status-${s.status}">${s.status}</span></li>`).join("")}</ul>`
       : `<p class="empty" style="padding:0;text-align:left;">No timesheets submitted yet.</p>`;
 
     const stubsHtml = (stubs || []).length
@@ -1654,7 +2265,9 @@
 
     const cols = bucket === "documents"
       ? "id, user_id, status, file_path, created_at, approval_step"
-      : "id, user_id, status, file_path, created_at";
+      : bucket === "timesheets"
+        ? "id, user_id, status, file_path, created_at, week_start, total_hours, department, dept_status, kit_days, kit_total"
+        : "id, user_id, status, file_path, created_at";
 
     const { data: rows, error } = await client
       .from(table)
@@ -1679,9 +2292,25 @@
         ? `<span class="chain-badge">Step ${row.approval_step || 1}/${approvalChainSteps.length}: ${chainStep.label || chainStep.approver_email}</span>`
         : "";
 
+      // Timesheets go to the department head first, then admin.
+      const deptHeads = bucket === "timesheets" && row.week_start
+        ? deptHeadRows.filter((h) => h.department === row.department)
+        : [];
+      let deptBit = "";
+      if (bucket === "timesheets" && row.week_start) {
+        const deptLabel = escHtml(row.department || "No department");
+        deptBit = deptHeads.length
+          ? `<span class="status-badge status-${row.dept_status}">${deptLabel} head: ${row.dept_status}</span>`
+          : `<span class="chain-badge">${deptLabel}: no head assigned</span>`;
+      }
+      const title = bucket === "timesheets" && row.week_start ? `Week of ${periodLabel(row.week_start)}` : name;
+      const hoursBit = bucket === "timesheets" && row.total_hours != null
+        ? ` · ${Number(row.total_hours).toFixed(2)} hrs${Number(row.kit_days) > 0 ? ` · kit $${Number(row.kit_total || 0).toFixed(2)} (${row.kit_days} day${row.kit_days === 1 ? "" : "s"})` : ""}`
+        : "";
+
       const left = document.createElement("span");
       left.className = "info";
-      left.innerHTML = `<span class="name">${name}</span><span class="email">${email}</span>${chainBit ? `<span style="margin-top:4px;">${chainBit}</span>` : ""}`;
+      left.innerHTML = `<span class="name">${title}</span><span class="email">${email}${hoursBit}</span>${chainBit ? `<span style="margin-top:4px;">${chainBit}</span>` : ""}${deptBit ? `<span style="margin-top:4px;">${deptBit}</span>` : ""}`;
 
       const right = document.createElement("span");
       right.className = "actions";
@@ -1699,8 +2328,14 @@
         select.appendChild(opt);
       });
       select.addEventListener("change", () => {
-        if (bucket === "documents") advanceDocumentApproval(row, select.value);
-        else updateStatus(table, row.id, select.value, bucket);
+        if (bucket === "documents") { advanceDocumentApproval(row, select.value); return; }
+        if (bucket === "timesheets" && select.value === "approved" && deptHeads.length && row.dept_status !== "approved") {
+          if (!window.confirm("The department head hasn't approved this timesheet yet. Approve it anyway?")) {
+            select.value = row.status;
+            return;
+          }
+        }
+        updateStatus(table, row.id, select.value, bucket);
       });
 
       const { data: signed } = await client.storage.from(bucket).createSignedUrl(row.file_path, 60 * 5);
@@ -2730,6 +3365,8 @@
       tabAdminBtn.classList.remove("hidden");
       await loadProfileMap();
       populateEmployeeSelect();
+      populateDeptHeadForm();
+      await loadDepartmentHeads();
       await loadTemplates();
       await loadApprovalChain();
       loadAdminList("documents", "documents");
@@ -2743,6 +3380,10 @@
     await loadCompanyBranding();
     await loadMyRequestedDocuments();
     loadMyDeals();
+
+    buildPeriodOptions();
+    await loadMyHeadDepartments();
+    if (myHeadDepartments.length) loadDeptTimesheets();
 
     loadList("documents", "documents", true);
     loadList("timesheets", "timesheets", true);
