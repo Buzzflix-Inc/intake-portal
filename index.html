@@ -98,6 +98,8 @@
   }
   header.top h1 { font-size: 17px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
   header.top .eyebrow { font-size: 12px; color: var(--link); margin: 0; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+  .top-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+  #companySwitcher { max-width: 220px; }
   #signOutBtn {
     background: none;
     border: 1px solid var(--line);
@@ -677,6 +679,9 @@
     .ts-kit label { display: flex; align-items: center; gap: 8px; margin: 0; padding-bottom: 8px; }
     .ts-lab { display: block; }
     .dh-add, .sa-form, .sa-company-extra { grid-template-columns: 1fr; }
+    header.top { flex-wrap: wrap; gap: 12px; }
+    .top-actions { width: 100%; flex-wrap: nowrap; justify-content: flex-end; }
+    #companySwitcher { flex: 1; min-width: 0; max-width: none; }
   }
 
   @media (max-width: 520px) {
@@ -728,7 +733,10 @@
             <p class="company-tagline" id="brandTagline"></p>
           </div>
         </div>
-        <button id="signOutBtn">Sign out</button>
+        <div class="top-actions">
+          <select id="companySwitcher" class="hidden" aria-label="Switch company"></select>
+          <button id="signOutBtn">Sign out</button>
+        </div>
       </header>
 
       <div class="tabs" id="tabs">
@@ -832,7 +840,7 @@
 
       <section class="panel">
         <h2>Companies</h2>
-        <p class="desc">Every company and who administers it. Each admin email belongs to one company.</p>
+        <p class="desc">Every company and who administers it. One email can administer several companies and switches between them from the picker in the header.</p>
         <ul class="file-list" id="saCompaniesList"></ul>
         <p class="empty hidden" id="saCompaniesEmpty">No companies yet.</p>
       </section>
@@ -2274,7 +2282,21 @@
 
   async function removeEmployee(userId, email) {
     const msgEl = document.getElementById("employeesMsg");
-    if (!window.confirm(`Remove ${email}'s portal access? This deletes their account entirely — they will no longer be able to sign in at all. Their submitted documents, timesheets and paystubs are kept on file.`)) {
+    if (!window.confirm(`Remove ${email}'s portal access? If this is their only company, this deletes their account entirely — they will no longer be able to sign in at all. Their submitted documents, timesheets and paystubs are kept on file.`)) {
+      return;
+    }
+
+    // Someone who belongs to several companies is only removed from this
+    // one. Only their last company deletes the whole account.
+    const { data: removal, error: removalErr } = await client.rpc("remove_from_company", { p_user: userId });
+    if (removalErr) {
+      msgEl.innerHTML = `<div class="msg error">Couldn't remove access: ${escHtml(removalErr.message)}</div>`;
+      return;
+    }
+    if (removal === "removed") {
+      msgEl.innerHTML = `<div class="msg ok">${escHtml(email)} was removed from this company. Their account stays active for their other companies.</div>`;
+      loadProfileMap().then(populateEmployeeSelect);
+      loadEmployees();
       return;
     }
 
@@ -3453,9 +3475,11 @@
         const name = extra.querySelector(".sa-n").value.trim();
         const email = extra.querySelector(".sa-e").value.trim();
         if (!name || !email) { msgEl.innerHTML = `<div class="msg error">Enter the admin's name and email.</div>`; return; }
-        const { error: e2 } = await client.rpc("superadmin_invite_admin", { p_company: c.id, p_email: email, p_name: name });
+        const { data: outcome, error: e2 } = await client.rpc("superadmin_invite_admin", { p_company: c.id, p_email: email, p_name: name });
         if (e2) { msgEl.innerHTML = `<div class="msg error">${escHtml(e2.message)}</div>`; return; }
-        msgEl.innerHTML = `<div class="msg ok">Invite created for ${escHtml(email)}. Use "Copy invite" to send it.</div>`;
+        msgEl.innerHTML = outcome === "added"
+          ? `<div class="msg ok">${escHtml(email)} already has an account and is now an admin of ${escHtml(c.name)}. They switch to it from the picker in the header.</div>`
+          : `<div class="msg ok">Invite created for ${escHtml(email)}. Use "Copy invite" to send it.</div>`;
         loadSuperOverview();
       });
 
@@ -3477,12 +3501,38 @@
       return;
     }
     btn.disabled = true;
-    const { error } = await client.rpc("superadmin_create_company", { p_name: name, p_admin_email: adminEmail, p_admin_name: adminName });
+    const { data: outcome, error } = await client.rpc("superadmin_create_company", { p_name: name, p_admin_email: adminEmail, p_admin_name: adminName });
     btn.disabled = false;
     if (error) { msgEl.innerHTML = `<div class="msg error">${escHtml(error.message)}</div>`; return; }
-    msgEl.innerHTML = `<div class="msg ok">${escHtml(name)} created. Copy the invite below and send it to ${escHtml(adminEmail)}.</div>`;
+    msgEl.innerHTML = outcome === "added"
+      ? `<div class="msg ok">${escHtml(name)} created. ${escHtml(adminEmail)} already has an account and can switch to it from the picker in the header.</div>`
+      : `<div class="msg ok">${escHtml(name)} created. Copy the invite below and send it to ${escHtml(adminEmail)}.</div>`;
     ["saCompanyName", "saAdminName", "saAdminEmail"].forEach((id) => { document.getElementById(id).value = ""; });
     loadSuperOverview();
+  });
+
+  // ---- Company switcher (people who belong to more than one company) ----
+  async function loadMyCompanies() {
+    const sel = document.getElementById("companySwitcher");
+    const { data } = await client.rpc("my_companies");
+    const list = data || [];
+    sel.innerHTML = "";
+    sel.classList.toggle("hidden", list.length < 2);
+    if (list.length < 2) return;
+    list.forEach((c) => {
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.name + (c.role === "admin" ? " (admin)" : "");
+      if (c.active) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
+  document.getElementById("companySwitcher").addEventListener("change", async (e) => {
+    const sel = e.target;
+    sel.disabled = true;
+    const { error } = await client.rpc("switch_company", { p_company: sel.value });
+    if (error) { sel.disabled = false; window.alert("Couldn't switch company: " + error.message); return; }
+    window.location.reload();
   });
 
   // ---- Session bootstrap ----
@@ -3493,6 +3543,7 @@
     const { data: { user } } = await client.auth.getUser();
     currentUserId = user.id;
     currentUserEmail = user.email;
+    loadMyCompanies();
 
     const { data: roleRow } = await client
       .from("user_roles")
