@@ -2904,7 +2904,25 @@
   // company_invites (see the shape built in sendInviteBtn below), so no
   // other code needs to change — this is the only function to fill in.
   async function dispatchInviteEmail(invite) {
-    return { sent: false };
+    // Calls the "send-invite-email" Edge Function (Resend). If it isn't
+    // deployed or configured yet, this just reports sent:false and the
+    // admin falls back to "Copy Invite".
+    try {
+      const { data, error } = await client.functions.invoke("send-invite-email", {
+        body: invite.id ? { inviteId: invite.id } : { email: invite.email },
+      });
+      if (error) {
+        let detail = error.message;
+        if (error.context && typeof error.context.json === "function") {
+          try { const b = await error.context.json(); if (b && b.error) detail = b.error; } catch (e) { /* keep generic */ }
+        }
+        return { sent: false, error: detail };
+      }
+      if (data && data.error) return { sent: false, error: data.error };
+      return { sent: !!(data && data.sent) };
+    } catch (e) {
+      return { sent: false, error: String(e) };
+    }
   }
 
   document.getElementById("sendInviteBtn").addEventListener("click", async () => {
@@ -2961,7 +2979,7 @@
 
     msgEl.innerHTML = dispatch.sent
       ? `<div class="msg ok">Invite emailed to ${email}.</div>`
-      : `<div class="msg ok">Invite created for ${email}. Use "Copy Invite" below to send it manually.</div>`;
+      : `<div class="msg ok">Invite created for ${email}${dispatch.error ? `, but the email didn't send (${escHtml(dispatch.error)})` : ""}. Use "Copy Invite" below to send it manually.</div>`;
 
     ["inviteNameInput", "inviteEmailInput", "invitePhoneInput", "inviteStartInput", "inviteEndInput", "inviteKitRateInput", "inviteDocsOtherInput"]
       .forEach((id) => { document.getElementById(id).value = ""; });
@@ -3010,6 +3028,20 @@
       const right = document.createElement("span");
       right.className = "actions";
       if (!row.used) {
+        const emailBtn = document.createElement("button");
+        emailBtn.className = "preview-link";
+        emailBtn.textContent = "Email Invite";
+        emailBtn.addEventListener("click", async () => {
+          emailBtn.disabled = true;
+          const r = await dispatchInviteEmail(row);
+          emailBtn.disabled = false;
+          emailBtn.textContent = r.sent ? "Sent" : "Email Invite";
+          document.getElementById("inviteMsg").innerHTML = r.sent
+            ? `<div class="msg ok">Invite emailed to ${escHtml(row.email)}.</div>`
+            : `<div class="msg error">Couldn't email ${escHtml(row.email)}${r.error ? ": " + escHtml(r.error) : ""}. Use Copy Invite instead.</div>`;
+        });
+        right.appendChild(emailBtn);
+
         const copyBtn = document.createElement("button");
         copyBtn.className = "preview-link";
         copyBtn.textContent = "Copy Invite";
@@ -3515,9 +3547,14 @@
         if (!name || !email) { msgEl.innerHTML = `<div class="msg error">Enter the admin's name and email.</div>`; return; }
         const { data: outcome, error: e2 } = await client.rpc("superadmin_invite_admin", { p_company: c.id, p_email: email, p_name: name });
         if (e2) { msgEl.innerHTML = `<div class="msg error">${escHtml(e2.message)}</div>`; return; }
-        msgEl.innerHTML = outcome === "added"
-          ? `<div class="msg ok">${escHtml(email)} already has an account and is now an admin of ${escHtml(c.name)}. They switch to it from the picker in the header.</div>`
-          : `<div class="msg ok">Invite created for ${escHtml(email)}. Use "Copy invite" to send it.</div>`;
+        if (outcome === "added") {
+          msgEl.innerHTML = `<div class="msg ok">${escHtml(email)} already has an account and is now an admin of ${escHtml(c.name)}. They switch to it from the picker in the header.</div>`;
+        } else {
+          const r = await dispatchInviteEmail({ email });
+          msgEl.innerHTML = r.sent
+            ? `<div class="msg ok">Invite emailed to ${escHtml(email)}.</div>`
+            : `<div class="msg ok">Invite created for ${escHtml(email)}${r.error ? `, but the email didn't send (${escHtml(r.error)})` : ""}. Use "Copy invite" to send it.</div>`;
+        }
         loadSuperOverview();
       });
 
@@ -3542,9 +3579,14 @@
     const { data: outcome, error } = await client.rpc("superadmin_create_company", { p_name: name, p_admin_email: adminEmail, p_admin_name: adminName });
     btn.disabled = false;
     if (error) { msgEl.innerHTML = `<div class="msg error">${escHtml(error.message)}</div>`; return; }
-    msgEl.innerHTML = outcome === "added"
-      ? `<div class="msg ok">${escHtml(name)} created. ${escHtml(adminEmail)} already has an account and can switch to it from the picker in the header.</div>`
-      : `<div class="msg ok">${escHtml(name)} created. Copy the invite below and send it to ${escHtml(adminEmail)}.</div>`;
+    if (outcome === "added") {
+      msgEl.innerHTML = `<div class="msg ok">${escHtml(name)} created. ${escHtml(adminEmail)} already has an account and can switch to it from the picker in the header.</div>`;
+    } else {
+      const r = await dispatchInviteEmail({ email: adminEmail });
+      msgEl.innerHTML = r.sent
+        ? `<div class="msg ok">${escHtml(name)} created and the invite was emailed to ${escHtml(adminEmail)}.</div>`
+        : `<div class="msg ok">${escHtml(name)} created${r.error ? `, but the invite email didn't send (${escHtml(r.error)})` : ""}. Use Copy invite below to send it to ${escHtml(adminEmail)}.</div>`;
+    }
     ["saCompanyName", "saAdminName", "saAdminEmail"].forEach((id) => { document.getElementById(id).value = ""; });
     loadSuperOverview();
   });
