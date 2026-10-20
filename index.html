@@ -44,24 +44,46 @@
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    background: var(--page);
     color: var(--ink);
     font-family: "Inter", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
     font-size: 15px;
     line-height: 1.55;
     -webkit-font-smoothing: antialiased;
   }
+  #pageBg {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background-color: var(--page);
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: 50% 50%;
+  }
+  #pageBg .bg-overlay {
+    position: absolute;
+    inset: 0;
+    background: var(--page);
+    opacity: 1;
+  }
   .shell {
-    max-width: 760px;
+    max-width: 1080px;
     margin: 0 auto;
-    padding: 56px 24px 96px;
+    padding: 40px 24px 64px;
+  }
+  .topbar-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 24px 0;
+    margin-bottom: 20px;
   }
   header.top {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 28px;
-    padding-bottom: 20px;
+    margin-bottom: 18px;
+    padding-bottom: 16px;
     border-bottom: 1px solid var(--line);
   }
   .brand { display: flex; align-items: center; gap: 10px; }
@@ -90,7 +112,7 @@
   #signOutBtn:hover { color: var(--ink); border-color: var(--ink-faint); background: var(--surface); }
 
   /* Tabs */
-  .tabs { display: flex; gap: 4px; margin-bottom: 28px; border-bottom: 1px solid var(--line); }
+  .tabs { display: flex; gap: 4px; margin-bottom: 22px; border-bottom: 1px solid var(--line); }
   .tab-btn {
     background: none; border: none; border-bottom: 2px solid transparent;
     color: var(--ink-faint); font-size: 14px; font-weight: 600;
@@ -154,21 +176,32 @@
     font-size: 13px; font-weight: 600; padding: 0; margin-left: 2px;
   }
   .toggle-row button:hover { text-decoration: underline; }
+  .msg:not(:empty) { margin-top: 12px; }
   .msg { font-size: 13px; padding: 10px 13px; border-radius: 7px; margin-bottom: 17px; font-weight: 500; }
   .msg.error { background: var(--error-soft); color: var(--error); }
   .msg.ok { background: var(--ok-soft); color: var(--ok); }
 
   /* Sections */
+  #portalTab, #adminTab {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  @media (min-width: 860px) {
+    #portalTab, #adminTab { grid-template-columns: 1fr 1fr; }
+  }
+  .span-2 { grid-column: 1 / -1; }
+
   section.panel {
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-    padding: 26px 28px;
-    margin-bottom: 20px;
+    padding: 22px 24px;
   }
   section.panel h2 { font-size: 15.5px; margin: 0 0 4px; font-weight: 600; letter-spacing: -0.01em; }
-  section.panel p.desc { color: var(--ink-soft); font-size: 13px; margin: 0 0 18px; }
+  section.panel p.desc { color: var(--ink-soft); font-size: 13px; margin: 0 0 16px; }
   .upload-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   input[type="file"] {
     flex: 1; min-width: 160px; font-size: 13px; color: var(--ink-soft);
@@ -308,6 +341,32 @@
 
   .employee-row { cursor: pointer; }
   .employee-row:hover .name { text-decoration: underline; }
+
+  /* Portal background settings */
+  .bg-section { margin-top: 20px; padding-top: 18px; border-top: 1px dashed var(--line); }
+  .bg-preview-wrap { margin: 8px 0 16px; }
+  .bg-preview {
+    position: relative;
+    width: 100%;
+    height: 150px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-color: var(--page);
+    overflow: hidden;
+  }
+  .bg-preview .bg-preview-overlay {
+    position: absolute;
+    inset: 0;
+    background: var(--page);
+    opacity: 0.6;
+  }
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+    margin: 4px 0 2px;
+  }
 
   /* Deal memo / safety template builder */
   .deal-point-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
@@ -557,6 +616,8 @@
 </head>
 <body>
 
+<div id="pageBg"><div class="bg-overlay"></div></div>
+
 <div class="shell">
 
   <!-- ===== Auth view ===== -->
@@ -584,26 +645,28 @@
 
   <!-- ===== App view ===== -->
   <div id="appView" class="hidden">
-    <header class="top">
-      <div class="brand">
-        <div class="brand-mark" id="brandMark">HR</div>
-        <div>
-          <p class="eyebrow" id="brandEyebrow">Buzzflix</p>
-          <h1>HR Intake Portal</h1>
-          <p class="company-tagline" id="brandTagline"></p>
+    <div class="topbar-card">
+      <header class="top">
+        <div class="brand">
+          <div class="brand-mark" id="brandMark">HR</div>
+          <div>
+            <p class="eyebrow" id="brandEyebrow">Buzzflix</p>
+            <h1>HR Intake Portal</h1>
+            <p class="company-tagline" id="brandTagline"></p>
+          </div>
         </div>
-      </div>
-      <button id="signOutBtn">Sign out</button>
-    </header>
+        <button id="signOutBtn">Sign out</button>
+      </header>
 
-    <div class="tabs" id="tabs">
-      <button class="tab-btn active" id="tabPortalBtn">My Portal</button>
-      <button class="tab-btn hidden" id="tabAdminBtn">Admin Review</button>
+      <div class="tabs" id="tabs">
+        <button class="tab-btn active" id="tabPortalBtn">My Portal</button>
+        <button class="tab-btn hidden" id="tabAdminBtn">Admin Review</button>
+      </div>
     </div>
 
     <!-- Employee view -->
     <div id="portalTab">
-      <section class="panel">
+      <section class="panel span-2">
         <h2>My deals</h2>
         <p class="desc">Review and sign your deal memo and safety acknowledgment.</p>
         <div id="myDealsBody"><p class="empty">Nothing to sign right now.</p></div>
@@ -644,7 +707,7 @@
 
     <!-- Admin view -->
     <div id="adminTab" class="hidden">
-      <section class="panel">
+      <section class="panel span-2">
         <h2>Company Settings</h2>
         <p class="desc">Customize how the portal looks for your team.</p>
         <label for="companyNameInput">Company name</label>
@@ -670,9 +733,39 @@
           <button class="btn-secondary" id="uploadLogoBtn">Upload logo</button>
         </div>
         <div id="companyLogoMsg"></div>
+
+        <div class="bg-section">
+          <label class="block-label">Portal background</label>
+          <p class="desc" style="margin-bottom:10px;">Shows behind the whole portal for everyone at your company.</p>
+
+          <div class="bg-preview-wrap">
+            <div id="bgPreviewBox" class="bg-preview"><div class="bg-preview-overlay" id="bgPreviewOverlay"></div></div>
+          </div>
+
+          <label for="companyBgFile">Background image</label>
+          <input type="file" id="companyBgFile" accept="image/*" />
+
+          <label for="bgOpacityInput" style="margin-top:14px;">Opacity (<span id="bgOpacityValue">40</span>%)</label>
+          <input type="range" id="bgOpacityInput" min="0" max="100" value="40" />
+
+          <div class="row2">
+            <div class="field">
+              <label for="bgPosXInput">Horizontal crop</label>
+              <input type="range" id="bgPosXInput" min="0" max="100" value="50" />
+            </div>
+            <div class="field">
+              <label for="bgPosYInput">Vertical crop</label>
+              <input type="range" id="bgPosYInput" min="0" max="100" value="50" />
+            </div>
+          </div>
+
+          <button class="btn-secondary" id="saveBgBtn" style="margin-top:12px;">Save background</button>
+          <button class="remove-link" id="removeBgBtn" style="margin-left:10px;">Remove background</button>
+          <div id="bgMsg"></div>
+        </div>
       </section>
 
-      <section class="panel">
+      <section class="panel span-2">
         <h2>Invite crew</h2>
         <p class="desc">They'll only be able to sign up once invited. Add production details so the invite carries everything they need.</p>
 
@@ -797,7 +890,7 @@
         <p class="empty hidden" id="adminPaystubsEmpty">No paystubs issued yet.</p>
       </section>
 
-      <section class="panel">
+      <section class="panel span-2">
         <h2>Deal memos &amp; safety forms</h2>
         <p class="desc">Build reusable templates with your own deal points and terms. Create more than one deal memo (e.g. a separate one for stunts or talent) and assign the right one per invite above.</p>
 
@@ -1905,8 +1998,111 @@
       document.getElementById("companyTaglineInput").value = company.tagline || "";
       document.getElementById("companyPrimaryColorInput").value = company.primary_color || "#1a1a1a";
       document.getElementById("companyAccentColorInput").value = company.accent_color || "#b4550b";
+
+      const opacityPct = company.background_opacity != null ? Math.round(Number(company.background_opacity) * 100) : 40;
+      const posX = company.background_pos_x != null ? Number(company.background_pos_x) : 50;
+      const posY = company.background_pos_y != null ? Number(company.background_pos_y) : 50;
+      document.getElementById("bgOpacityInput").value = opacityPct;
+      document.getElementById("bgOpacityValue").textContent = opacityPct;
+      document.getElementById("bgPosXInput").value = posX;
+      document.getElementById("bgPosYInput").value = posY;
+
+      const previewBox = document.getElementById("bgPreviewBox");
+      const previewOverlay = document.getElementById("bgPreviewOverlay");
+      previewBox.style.backgroundPosition = `${posX}% ${posY}%`;
+      previewOverlay.style.opacity = String(1 - opacityPct / 100);
+      if (company.background_path) {
+        const { data: bgSigned } = await client.storage.from("branding").createSignedUrl(company.background_path, 60 * 60);
+        previewBox.style.backgroundImage = bgSigned ? `url("${bgSigned.signedUrl}")` : "none";
+      } else {
+        previewBox.style.backgroundImage = "none";
+      }
     }
+
+    await applyPageBackground(company);
   }
+
+  // ---- Portal background (applies to everyone at the company) ----
+  async function applyPageBackground(company) {
+    const bgEl = document.getElementById("pageBg");
+    const overlay = bgEl.querySelector(".bg-overlay");
+    const opacity = company && company.background_opacity != null ? Number(company.background_opacity) : 0.4;
+    const posX = company && company.background_pos_x != null ? Number(company.background_pos_x) : 50;
+    const posY = company && company.background_pos_y != null ? Number(company.background_pos_y) : 50;
+
+    bgEl.style.backgroundPosition = `${posX}% ${posY}%`;
+
+    if (company && company.background_path) {
+      const { data: signed } = await client.storage.from("branding").createSignedUrl(company.background_path, 60 * 60);
+      if (signed) {
+        bgEl.style.backgroundImage = `url("${signed.signedUrl}")`;
+        overlay.style.opacity = String(1 - opacity);
+        return;
+      }
+    }
+    bgEl.style.backgroundImage = "none";
+    overlay.style.opacity = "1";
+  }
+
+  // Live preview as the admin drags the sliders — no save needed to see the effect.
+  function syncBgPreview() {
+    const opacityPct = Number(document.getElementById("bgOpacityInput").value);
+    const posX = Number(document.getElementById("bgPosXInput").value);
+    const posY = Number(document.getElementById("bgPosYInput").value);
+    document.getElementById("bgOpacityValue").textContent = opacityPct;
+    document.getElementById("bgPreviewBox").style.backgroundPosition = `${posX}% ${posY}%`;
+    document.getElementById("bgPreviewOverlay").style.opacity = String(1 - opacityPct / 100);
+  }
+  ["bgOpacityInput", "bgPosXInput", "bgPosYInput"].forEach((id) => {
+    document.getElementById(id).addEventListener("input", syncBgPreview);
+  });
+
+  document.getElementById("companyBgFile").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    document.getElementById("bgPreviewBox").style.backgroundImage = `url("${URL.createObjectURL(file)}")`;
+  });
+
+  document.getElementById("saveBgBtn").addEventListener("click", async () => {
+    const msgEl = document.getElementById("bgMsg");
+    const file = document.getElementById("companyBgFile").files[0];
+    const background_opacity = Number(document.getElementById("bgOpacityInput").value) / 100;
+    const background_pos_x = Number(document.getElementById("bgPosXInput").value);
+    const background_pos_y = Number(document.getElementById("bgPosYInput").value);
+
+    const updates = { background_opacity, background_pos_x, background_pos_y };
+
+    if (file) {
+      const ext = file.name.split(".").pop();
+      const path = `${currentCompany.id}/background.${ext}`;
+      const { error: uploadError } = await client.storage.from("branding").upload(path, file, { upsert: true });
+      if (uploadError) {
+        msgEl.innerHTML = `<div class="msg error">Upload failed: ${uploadError.message}</div>`;
+        return;
+      }
+      updates.background_path = path;
+    }
+
+    const { error } = await client.from("companies").update(updates).eq("id", currentCompany.id);
+    if (error) {
+      msgEl.innerHTML = `<div class="msg error">${error.message}</div>`;
+      return;
+    }
+    msgEl.innerHTML = `<div class="msg ok">Background saved.</div>`;
+    document.getElementById("companyBgFile").value = "";
+    loadCompanyBranding();
+  });
+
+  document.getElementById("removeBgBtn").addEventListener("click", async () => {
+    const msgEl = document.getElementById("bgMsg");
+    const { error } = await client.from("companies").update({ background_path: null }).eq("id", currentCompany.id);
+    if (error) {
+      msgEl.innerHTML = `<div class="msg error">${error.message}</div>`;
+      return;
+    }
+    msgEl.innerHTML = `<div class="msg ok">Background removed.</div>`;
+    loadCompanyBranding();
+  });
 
   document.getElementById("saveCompanySettingsBtn").addEventListener("click", async () => {
     const msgEl = document.getElementById("companySettingsMsg");
