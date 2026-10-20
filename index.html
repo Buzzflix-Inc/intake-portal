@@ -609,7 +609,29 @@
   .company-tagline { font-size: 12px; color: var(--ink-faint); margin: 2px 0 0; }
 
   /* Weekly timesheet entry */
-  .ts-grid { display: flex; flex-direction: column; gap: 6px; margin: 14px 0 10px; }
+  /* Employee tab layout: timesheets get the wide column, documents + paystubs stack beside it */
+  .stack { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+  @media (min-width: 860px) {
+    #portalTab .ts-panel { grid-column: 2; grid-row: 2; }
+    #portalTab .stack { grid-column: 1; grid-row: 2; }
+  }
+  ul.file-list:empty { display: none; }
+  input[type="file"]::file-selector-button {
+    background: var(--accent-soft); color: var(--link); border: none; border-radius: 7px;
+    padding: 8px 14px; margin-right: 10px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  input[type="file"]::file-selector-button:hover { background: var(--accent-soft-hover); }
+  .btn-primary {
+    background: var(--link); color: #fff; border: none; border-radius: 8px;
+    padding: 11px 18px; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%;
+    transition: filter .15s ease;
+  }
+  .btn-primary:hover { filter: brightness(0.93); }
+  .btn-primary:disabled { opacity: .55; cursor: not-allowed; }
+  #documentsTypeSelect { width: 100%; }
+  #documentsPanelRow { display: flex; flex-direction: column; gap: 10px; }
+  #tsPeriodSelect { width: 100%; max-width: 100%; font-weight: 500; }
+  .ts-grid { display: flex; flex-direction: column; gap: 4px; margin: 16px 0 10px; }
   .ts-head, .ts-row {
     display: grid;
     grid-template-columns: 56px minmax(0, 1fr) minmax(0, 1fr) 72px 56px;
@@ -626,7 +648,15 @@
   .ts-day { font-size: 13px; font-weight: 500; color: var(--ink); line-height: 1.25; }
   .ts-day small { display: block; font-size: 11.5px; font-weight: 400; color: var(--ink-faint); }
   .ts-hrs { font-size: 13px; font-weight: 600; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-  .ts-row input[type="time"] { padding: 7px 8px; min-width: 0; }
+  .ts-row input[type="time"], .ts-row input[type="number"] {
+    padding: 8px 10px; min-width: 0; border-color: transparent; background: var(--bg);
+    font-variant-numeric: tabular-nums;
+  }
+  .ts-row input:hover { border-color: var(--line); }
+  .ts-row input:focus { outline: none; border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .ts-row input[type="time"]::-webkit-calendar-picker-indicator { opacity: .35; cursor: pointer; }
+  .ts-row { padding: 3px 0; }
+  .ts-hrs.has { color: var(--ink); }
   .ts-lab { display: none; font-size: 11.5px; color: var(--ink-faint); margin-bottom: 3px; }
   .ts-total-row {
     display: flex; justify-content: space-between; align-items: baseline;
@@ -670,6 +700,11 @@
       padding: 8px 0;
       border-bottom: 1px solid var(--line);
     }
+    .ts-grid:not(.has-kit) .ts-row {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 76px;
+      grid-template-areas: "day day hrs" "call wrap brk";
+    }
+    .ts-row input[type="time"]::-webkit-calendar-picker-indicator { display: none; }
     .ts-row .ts-day { grid-area: day; }
     .ts-row .ts-hrs { grid-area: hrs; }
     .ts-row .ts-call { grid-area: call; }
@@ -755,6 +790,21 @@
         <div id="myDealsBody"><p class="empty">Nothing to sign right now.</p></div>
       </section>
 
+      <section class="panel ts-panel">
+        <h2>Timesheets</h2>
+        <p class="desc">Pick a pay period (Sunday to Saturday) and enter your call and wrap time for each day you worked. Leave days off blank.</p>
+        <label for="tsPeriodSelect">Pay period</label>
+        <select id="tsPeriodSelect"></select>
+        <div class="ts-grid" id="tsGrid"></div>
+        <p class="ts-note">Break is unpaid minutes taken off the day. If wrap is earlier than call, it counts as the next morning.</p>
+        <div class="ts-total-row"><span>Total hours</span><strong id="tsTotal">0.00</strong></div>
+        <div class="ts-total-row hidden" id="tsKitRow" style="border-top:none;padding-top:0;"><span>Kit fee</span><strong id="tsKitTotal">0 days</strong></div>
+        <button class="btn-primary" id="tsSubmitBtn">Submit timesheet</button>
+        <div id="timesheetsMsg"></div>
+        <ul class="file-list" id="timesheetsList"></ul>
+      </section>
+
+      <div class="stack">
       <section class="panel">
         <h2>Documents</h2>
         <p class="desc">Upload confidential documents for HR review.</p>
@@ -770,25 +820,12 @@
       </section>
 
       <section class="panel">
-        <h2>Timesheets</h2>
-        <p class="desc">Pick a pay period (Sunday to Saturday) and enter your call and wrap time for each day you worked. Leave days off blank.</p>
-        <label for="tsPeriodSelect">Pay period</label>
-        <select id="tsPeriodSelect"></select>
-        <div class="ts-grid" id="tsGrid"></div>
-        <p class="ts-note">Break is unpaid minutes taken off the day. If wrap is earlier than call, it counts as the next morning.</p>
-        <div class="ts-total-row"><span>Total hours</span><strong id="tsTotal">0.00</strong></div>
-        <div class="ts-total-row hidden" id="tsKitRow" style="border-top:none;padding-top:0;"><span>Kit fee</span><strong id="tsKitTotal">0 days</strong></div>
-        <button class="btn-secondary" id="tsSubmitBtn">Submit timesheet</button>
-        <div id="timesheetsMsg"></div>
-        <ul class="file-list" id="timesheetsList"></ul>
-      </section>
-
-      <section class="panel">
         <h2>Paystubs</h2>
         <p class="desc">Issued by payroll. View and download only.</p>
         <ul class="file-list" id="paystubsList"></ul>
         <p class="empty hidden" id="paystubsEmpty">No paystubs on file yet.</p>
       </section>
+      </div>
     </div>
 
     <!-- Department head view -->
@@ -1721,6 +1758,7 @@
     for (let i = 0; i < 7; i++) {
       const m = dayMinutes(i);
       const out = document.getElementById(`tsHrs${i}`);
+      out.classList.toggle("has", m != null && !Number.isNaN(m));
       if (m == null) out.textContent = "–";
       else if (Number.isNaN(m)) out.textContent = "!";
       else {
