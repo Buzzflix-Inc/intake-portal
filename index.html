@@ -182,7 +182,7 @@
   .msg.ok { background: var(--ok-soft); color: var(--ok); }
 
   /* Sections */
-  #portalTab, #adminTab, #deptTab {
+  #portalTab, #adminTab, #deptTab, #superTab {
     display: grid;
     grid-template-columns: 1fr;
     gap: 20px;
@@ -633,6 +633,17 @@
   .ts-total-row strong { font-size: 16px; color: var(--ink); font-variant-numeric: tabular-nums; }
   .ts-note { font-size: 12px; color: var(--ink-faint); margin: 0 0 10px; }
 
+  /* Super admin */
+  .sa-form { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: end; }
+  .sa-company-extra { flex-basis: 100%; display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; padding: 6px 0 2px; }
+  .sa-form input[type="email"], .sa-company-extra input[type="email"], .sa-company-extra input[type="text"] {
+    padding: 8px 11px; border: 1px solid var(--line); border-radius: 7px; font-size: 13.5px;
+    font-family: inherit; background: var(--surface); color: var(--ink); width: 100%;
+  }
+  .sa-chip { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 20px; background: var(--accent-soft); color: var(--link); margin: 3px 6px 0 0; }
+  .sa-chip.pending { background: var(--warn-soft); color: var(--warn); }
+  .sa-chip button { background: none; border: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; padding: 0 0 0 6px; }
+
   /* Department heads + review */
   .dh-add { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }
   .dept-filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
@@ -665,7 +676,7 @@
     .ts-row .ts-kit { grid-area: kit; text-align: left; align-self: end; }
     .ts-kit label { display: flex; align-items: center; gap: 8px; margin: 0; padding-bottom: 8px; }
     .ts-lab { display: block; }
-    .dh-add { grid-template-columns: 1fr; }
+    .dh-add, .sa-form, .sa-company-extra { grid-template-columns: 1fr; }
   }
 
   @media (max-width: 520px) {
@@ -724,6 +735,7 @@
         <button class="tab-btn active" id="tabPortalBtn">My Portal</button>
         <button class="tab-btn hidden" id="tabDeptBtn">Department Review</button>
         <button class="tab-btn hidden" id="tabAdminBtn">Admin Review</button>
+        <button class="tab-btn hidden" id="tabSuperBtn">Super Admin</button>
       </div>
     </div>
 
@@ -792,6 +804,37 @@
         <div id="deptTimesheetsMsg"></div>
         <ul class="file-list" id="deptTimesheetsList"></ul>
         <p class="empty hidden" id="deptTimesheetsEmpty">No timesheets to review.</p>
+      </section>
+    </div>
+
+    <!-- Super admin view -->
+    <div id="superTab" class="hidden">
+      <section class="panel">
+        <h2>Create a company</h2>
+        <p class="desc">Sets up a new company and invites its first admin. They sign up with that email and manage their own crew, branding and settings.</p>
+        <div class="sa-form">
+          <div>
+            <label for="saCompanyName">Company name</label>
+            <input type="text" id="saCompanyName" placeholder="Second Company Inc." />
+          </div>
+          <div>
+            <label for="saAdminName">First admin's name</label>
+            <input type="text" id="saAdminName" placeholder="Jordan Lee" />
+          </div>
+          <div>
+            <label for="saAdminEmail">First admin's email</label>
+            <input type="email" id="saAdminEmail" placeholder="admin@company.com" />
+          </div>
+          <button class="btn-secondary" id="saCreateBtn">Create company</button>
+        </div>
+        <div id="saMsg"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Companies</h2>
+        <p class="desc">Every company and who administers it. Each admin email belongs to one company.</p>
+        <ul class="file-list" id="saCompaniesList"></ul>
+        <p class="empty hidden" id="saCompaniesEmpty">No companies yet.</p>
       </section>
     </div>
 
@@ -1221,9 +1264,11 @@
 
   const tabDeptBtn = document.getElementById("tabDeptBtn");
   const deptTab = document.getElementById("deptTab");
+  const tabSuperBtn = document.getElementById("tabSuperBtn");
+  const superTab = document.getElementById("superTab");
 
   function switchTab(which) {
-    [[tabPortalBtn, portalTab, "portal"], [tabDeptBtn, deptTab, "dept"], [tabAdminBtn, adminTab, "admin"]]
+    [[tabPortalBtn, portalTab, "portal"], [tabDeptBtn, deptTab, "dept"], [tabAdminBtn, adminTab, "admin"], [tabSuperBtn, superTab, "super"]]
       .forEach(([btn, panel, key]) => {
         btn.classList.toggle("active", key === which);
         panel.classList.toggle("hidden", key !== which);
@@ -1232,6 +1277,7 @@
   tabPortalBtn.addEventListener("click", () => switchTab("portal"));
   tabAdminBtn.addEventListener("click", () => switchTab("admin"));
   tabDeptBtn.addEventListener("click", () => { switchTab("dept"); loadDeptTimesheets(); });
+  tabSuperBtn.addEventListener("click", () => { switchTab("super"); loadSuperOverview(); });
 
   // ---- Blank-file guard (documents & timesheets) ----
   // Two checks: (1) reject files that are empty or implausibly tiny to
@@ -3344,6 +3390,101 @@
     loadPendingCountersignatures();
   }
 
+  // ---- Super admin: companies and their admins ----
+  // Everything here goes through database functions that re-check the
+  // caller is a super admin (see add-superadmin.sql).
+  let isSuperadmin = false;
+
+  async function loadSuperadminStatus() {
+    const { data } = await client.from("superadmins").select("user_id").eq("user_id", currentUserId).maybeSingle();
+    isSuperadmin = !!data;
+    tabSuperBtn.classList.toggle("hidden", !isSuperadmin);
+    if (isSuperadmin) loadSuperOverview();
+  }
+
+  function copyAdminInvite(companyName, email, btn) {
+    const message =
+      `You've been invited to administer ${companyName} on the HR Intake Portal.\n\n` +
+      `Create your account at ${PORTAL_URL} using this email address: ${email}\n\n` +
+      `Click "Create one" on the sign-in screen to get started.`;
+    const done = () => { const t = btn.textContent; btn.textContent = "Copied"; setTimeout(() => { btn.textContent = t; }, 1600); };
+    try { navigator.clipboard.writeText(message).then(done, () => window.prompt("Copy this invite:", message)); }
+    catch (e) { window.prompt("Copy this invite:", message); }
+  }
+
+  async function loadSuperOverview() {
+    const listEl = document.getElementById("saCompaniesList");
+    const emptyEl = document.getElementById("saCompaniesEmpty");
+    const msgEl = document.getElementById("saMsg");
+    const { data, error } = await client.rpc("superadmin_overview");
+    listEl.innerHTML = "";
+    if (error) { msgEl.innerHTML = `<div class="msg error">${escHtml(error.message)}</div>`; return; }
+    const companies = data || [];
+    emptyEl.classList.toggle("hidden", companies.length > 0);
+
+    companies.forEach((c) => {
+      const li = document.createElement("li");
+      const left = document.createElement("span");
+      left.className = "info";
+      const chips = [
+        ...c.admins.map((a) => `<span class="sa-chip">${escHtml(a.email)}</span>`),
+        ...c.pending.map((a) => `<span class="sa-chip pending">${escHtml(a.email)} · invited<button type="button" data-copy="${escHtml(a.email)}">Copy invite</button></span>`),
+      ].join("");
+      left.innerHTML = `<span class="name">${escHtml(c.name)}</span><span class="email">${c.member_count} ${c.member_count === 1 ? "person" : "people"} · ${c.admins.length} admin${c.admins.length === 1 ? "" : "s"}</span><span>${chips || '<span class="email">No admins yet</span>'}</span>`;
+      left.querySelectorAll("button[data-copy]").forEach((b) =>
+        b.addEventListener("click", () => copyAdminInvite(c.name, b.dataset.copy, b))
+      );
+
+      const right = document.createElement("span");
+      right.className = "actions";
+      const toggle = document.createElement("button");
+      toggle.className = "preview-link";
+      toggle.textContent = "Add admin";
+      right.appendChild(toggle);
+
+      const extra = document.createElement("div");
+      extra.className = "sa-company-extra hidden";
+      extra.innerHTML = `
+        <div><label>Name</label><input type="text" class="sa-n" placeholder="Jordan Lee" /></div>
+        <div><label>Email</label><input type="email" class="sa-e" placeholder="admin@company.com" /></div>
+        <button class="btn-secondary">Send invite</button>`;
+      toggle.addEventListener("click", () => extra.classList.toggle("hidden"));
+      extra.querySelector("button").addEventListener("click", async () => {
+        const name = extra.querySelector(".sa-n").value.trim();
+        const email = extra.querySelector(".sa-e").value.trim();
+        if (!name || !email) { msgEl.innerHTML = `<div class="msg error">Enter the admin's name and email.</div>`; return; }
+        const { error: e2 } = await client.rpc("superadmin_invite_admin", { p_company: c.id, p_email: email, p_name: name });
+        if (e2) { msgEl.innerHTML = `<div class="msg error">${escHtml(e2.message)}</div>`; return; }
+        msgEl.innerHTML = `<div class="msg ok">Invite created for ${escHtml(email)}. Use "Copy invite" to send it.</div>`;
+        loadSuperOverview();
+      });
+
+      li.appendChild(left);
+      li.appendChild(right);
+      li.appendChild(extra);
+      listEl.appendChild(li);
+    });
+  }
+
+  document.getElementById("saCreateBtn").addEventListener("click", async () => {
+    const msgEl = document.getElementById("saMsg");
+    const btn = document.getElementById("saCreateBtn");
+    const name = document.getElementById("saCompanyName").value.trim();
+    const adminName = document.getElementById("saAdminName").value.trim();
+    const adminEmail = document.getElementById("saAdminEmail").value.trim();
+    if (!name || !adminName || !adminEmail) {
+      msgEl.innerHTML = `<div class="msg error">Fill in the company name and the first admin's name and email.</div>`;
+      return;
+    }
+    btn.disabled = true;
+    const { error } = await client.rpc("superadmin_create_company", { p_name: name, p_admin_email: adminEmail, p_admin_name: adminName });
+    btn.disabled = false;
+    if (error) { msgEl.innerHTML = `<div class="msg error">${escHtml(error.message)}</div>`; return; }
+    msgEl.innerHTML = `<div class="msg ok">${escHtml(name)} created. Copy the invite below and send it to ${escHtml(adminEmail)}.</div>`;
+    ["saCompanyName", "saAdminName", "saAdminEmail"].forEach((id) => { document.getElementById(id).value = ""; });
+    loadSuperOverview();
+  });
+
   // ---- Session bootstrap ----
   async function showApp() {
     authView.classList.add("hidden");
@@ -3381,6 +3522,7 @@
     await loadMyRequestedDocuments();
     loadMyDeals();
 
+    loadSuperadminStatus();
     buildPeriodOptions();
     await loadMyHeadDepartments();
     if (myHeadDepartments.length) loadDeptTimesheets();
