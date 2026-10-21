@@ -204,6 +204,23 @@
     padding: 22px 24px;
   }
   section.panel h2 { font-size: 15.5px; margin: 0 0 4px; font-weight: 600; letter-spacing: -0.01em; }
+  /* Collapsible admin sections */
+  #adminTab section.panel.acc, #superTab section.panel.acc, #deptTab section.panel.acc { padding: 0; }
+  section.panel.acc > h2.acc-h {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    margin: 0; padding: 16px 24px; cursor: pointer; user-select: none; border-radius: var(--radius);
+  }
+  section.panel.acc > h2.acc-h:hover { background: var(--accent-soft); }
+  section.panel.acc > h2.acc-h::after {
+    content: ""; width: 8px; height: 8px; flex: none; margin-right: 4px;
+    border-right: 2px solid var(--ink-soft); border-bottom: 2px solid var(--ink-soft);
+    transform: rotate(45deg); transition: transform .15s;
+  }
+  section.panel.acc.open > h2.acc-h::after { transform: rotate(-135deg); }
+  section.panel.acc > .acc-body { display: none; padding: 4px 24px 22px; }
+  section.panel.acc.open > .acc-body { display: block; }
+  section.panel.acc { grid-column: 1 / -1; }
+  @media (max-width: 640px) { section.panel.acc > h2.acc-h { padding: 14px 20px; } section.panel.acc > .acc-body { padding: 4px 20px 20px; } }
   section.panel p.desc { color: var(--ink-soft); font-size: 13px; margin: 0 0 16px; }
   .upload-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   input[type="file"] {
@@ -3790,6 +3807,7 @@
       document.getElementById("saveTemplateBtn").textContent = "Save changes";
       document.getElementById("pfClearPdf").textContent = "Cancel editing";
       msgEl.innerHTML = `<div class="msg ok">Editing "${escHtml(t.name)}". People who already signed keep their copy; anyone still waiting will see the updated version.</div>`;
+      expandPanelOf(document.getElementById("pdfEditorWrap"));
       document.getElementById("pdfEditorWrap").scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) {
       clearTemplatePdf();
@@ -4823,6 +4841,7 @@
         det.open = true;
         const li = document.querySelector(`#tsTplFieldList [data-fid="${f.id}"]`);
         if (li) {
+          expandPanelOf(li);
           li.scrollIntoView({ block: "center", behavior: "smooth" });
           li.style.background = "var(--accent-soft)";
           setTimeout(() => { li.style.background = ""; }, 1600);
@@ -4962,6 +4981,7 @@
             await tsTplOpen(bytes, JSON.parse(JSON.stringify(t.fields || [])), { editingId: t.id });
             document.getElementById("tsTplSave").textContent = "Save changes";
             msgEl.innerHTML = "";
+            expandPanelOf(document.getElementById("tsTplEditorWrap"));
             document.getElementById("tsTplEditorWrap").scrollIntoView({ behavior: "smooth", block: "start" });
           } catch (err) { msgEl.innerHTML = `<div class="msg error">${escHtml(err.message || "Couldn't open it.")}</div>`; }
         });
@@ -5576,6 +5596,32 @@
   });
 
   // ---- Session bootstrap ----
+  // ---- Collapsible admin sections (keeps long admin pages short) ----
+  (function () {
+    const KEY = "intake_open_panels";
+    let open = {};
+    try { open = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (_) {}
+    const save = () => { try { localStorage.setItem(KEY, JSON.stringify(open)); } catch (_) {} };
+    document.querySelectorAll("#adminTab > section.panel, #superTab > section.panel, #deptTab > section.panel").forEach((sec) => {
+      const h = sec.querySelector(":scope > h2");
+      if (!h) return;
+      const key = h.textContent.trim();
+      const body = document.createElement("div");
+      body.className = "acc-body";
+      while (h.nextSibling) body.appendChild(h.nextSibling);
+      sec.appendChild(body);
+      sec.classList.add("acc");
+      h.classList.add("acc-h");
+      h.tabIndex = 0; h.setAttribute("role", "button");
+      const set = (v, persist) => { sec.classList.toggle("open", v); h.setAttribute("aria-expanded", String(v)); if (persist) { open[key] = v; save(); } };
+      set(!!open[key], false);
+      const toggle = () => set(!sec.classList.contains("open"), true);
+      h.addEventListener("click", toggle);
+      h.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+    });
+    window.expandPanelOf = (el) => { const sec = el && el.closest && el.closest("section.panel.acc"); if (sec) sec.classList.add("open"); };
+  })();
+
   async function showApp() {
     authView.classList.add("hidden");
     appView.classList.remove("hidden");
