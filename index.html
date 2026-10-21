@@ -405,6 +405,21 @@
   .pf-fieldlist input { flex: 1; min-width: 0; margin-bottom: 0; }
   .pdf-form-loading { font-size: 13px; color: var(--ink-faint); padding: 8px 0; }
 
+  .pdf-field.pf-edit.ts-bound { background: rgba(37, 99, 235, .13); border-color: #2563eb; }
+  .pdf-field.pf-edit.ts-bound .pf-label { color: #17387a; }
+  .pdf-field.pf-edit.ts-fixed { background: rgba(47, 125, 79, .15); border-color: #2f7d4f; }
+  .pdf-field.pf-edit.ts-fixed .pf-label { color: #1c4d30; }
+  .pf-fieldlist select { flex: 0 0 210px; min-width: 0; margin-bottom: 0; }
+  .ts-meals { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 0 6px 64px; align-items: flex-end; }
+  .ts-meals label { display: flex; flex-direction: column; font-size: 11.5px; color: var(--ink-faint); gap: 2px; margin: 0; }
+  .ts-meals input[type="time"] { width: 112px; }
+  .ts-extras { margin: 6px 0 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 10px; }
+  .ts-extras .field-line { display: flex; flex-direction: column; gap: 4px; }
+  .ts-extras .field-line label { margin: 0; font-size: 13px; }
+  .ts-extras input[type="text"] { margin-bottom: 0; }
+  .ts-extras .ts-extra-note { font-size: 12px; color: var(--ink-faint); margin: 0; }
+  .ts-extras .sig-prev { font-family: "Great Vibes", cursive; font-size: 28px; min-height: 36px; border-bottom: 1px solid var(--line); padding: 0 4px; }
+
   /* Approval chain */
   .chain-badge {
     font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px;
@@ -829,6 +844,7 @@
         <label for="tsPeriodSelect">Pay period</label>
         <select id="tsPeriodSelect"></select>
         <div class="ts-grid" id="tsGrid"></div>
+        <div class="ts-extras hidden" id="tsExtras"></div>
         <p class="ts-note">Break is unpaid minutes taken off the day. If wrap is earlier than call, it counts as the next morning.</p>
         <div class="ts-total-row"><span>Total hours</span><strong id="tsTotal">0.00</strong></div>
         <div class="ts-total-row hidden" id="tsKitRow" style="border-top:none;padding-top:0;"><span>Kit fee</span><strong id="tsKitTotal">0 days</strong></div>
@@ -1024,6 +1040,10 @@
             <label for="inviteSafetySelect">Safety acknowledgment</label>
             <select id="inviteSafetySelect"><option value="">None</option></select>
           </div>
+          <div>
+            <label for="inviteTimesheetSelect">Timesheet form</label>
+            <select id="inviteTimesheetSelect"><option value="">Standard portal timesheet</option></select>
+          </div>
         </div>
 
         <div class="kit-toggle-row">
@@ -1182,6 +1202,42 @@
 
         <ul class="file-list" id="templateList" style="margin-top:18px;"></ul>
         <p class="empty hidden" id="templateEmpty">No templates yet.</p>
+      </section>
+
+      <section class="panel span-2">
+        <h2>Timesheet forms</h2>
+        <p class="desc">Upload a union's blank timesheet. The portal finds the boxes and links each one to what the employee enters (call, wrap, meals, hours, name, signature…). You just check them. Pick the form on each person's invite and their submissions come out on the official form.</p>
+        <div class="row2">
+          <div class="field">
+            <label for="tsTplName">Form name</label>
+            <input type="text" id="tsTplName" placeholder="e.g. IATSE 873 weekly timesheet" />
+          </div>
+          <div class="field">
+            <label for="tsTplUnion">Union (optional)</label>
+            <input type="text" id="tsTplUnion" placeholder="e.g. IATSE 873, DGC Ontario" />
+          </div>
+        </div>
+        <div class="field" style="margin-top:12px;">
+          <label for="tsTplPdf">Blank timesheet (PDF)</label>
+          <input type="file" id="tsTplPdf" accept="application/pdf" />
+        </div>
+        <div id="tsTplEditorWrap" class="hidden">
+          <p id="tsTplSummary" style="font-size:13px;margin:10px 0 8px;"></p>
+          <div class="pf-toolbar">
+            <button type="button" class="pf-tool" id="tsTplRedetect">Detect again</button>
+            <button type="button" class="remove-link" id="tsTplCancel" style="margin-left:auto;">Cancel</button>
+          </div>
+          <p style="font-size:12px;color:var(--ink-faint);margin:0 0 8px;">Blue boxes are filled in automatically, amber ones are typed by the employee, green ones are fixed text. Drag a box to move it, drag its corner to resize, or click the form to add a box.</p>
+          <div class="pf-pages" id="tsTplPages"></div>
+          <details id="tsTplDetails" style="margin-top:12px;">
+            <summary style="cursor:pointer;font-size:13px;font-weight:600;">Box list: change what each box links to</summary>
+            <ul class="pf-fieldlist" id="tsTplFieldList"></ul>
+          </details>
+        </div>
+        <button class="btn-secondary" id="tsTplSave" style="margin-top:12px;">Save timesheet form</button>
+        <div id="tsTplMsg"></div>
+        <ul class="file-list" id="tsTplList" style="margin-top:18px;"></ul>
+        <p class="empty hidden" id="tsTplEmpty">No timesheet forms yet. Everyone uses the standard portal timesheet.</p>
       </section>
 
       <section class="panel">
@@ -1568,13 +1624,15 @@
   let myDepartment = null;
   let myKitEnabled = false;
   let myKitRate = 0;
+  let myCrewRole = "";
+  let myTsTemplate = null;   // the union form this person's timesheets are filled onto, if any
 
   async function loadMyRequestedDocuments() {
     const { data: { user } } = await client.auth.getUser();
     if (!user || !user.email) { myRequestedDocs = []; return; }
     const { data } = await client
       .from("company_invites")
-      .select("requested_documents, full_name, department, kit_fee_enabled, kit_fee_rate")
+      .select("*")
       .eq("email", user.email)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -1584,6 +1642,13 @@
     myDepartment = (data && data.department) || null;
     myKitEnabled = !!(data && data.kit_fee_enabled);
     myKitRate = myKitEnabled ? Number(data.kit_fee_rate || 0) : 0;
+    myCrewRole = (data && data.crew_role) || "";
+    myTsTemplate = null;
+    if (data && data.timesheet_template_id) {
+      const t = await getTsTemplateWithBytes(data.timesheet_template_id);
+      myTsTemplate = t ? t.template : null;
+    }
+    renderTsExtras();
     tsGridWeek = null;   // redraw the grid with or without the kit column
     buildPeriodOptions();
   }
@@ -1632,7 +1697,7 @@
     const cols = bucket === "documents"
       ? "id, status, file_path, created_at, doc_type"
       : bucket === "timesheets"
-        ? "id, user_id, status, file_path, created_at, week_start, total_hours, dept_status, kit_days, kit_total"
+        ? "*"
         : "id, status, file_path, created_at";
 
     let query = client.from(table).select(cols).order("created_at", { ascending: false });
@@ -1791,6 +1856,7 @@
     if (!tsGridWeek) { grid.innerHTML = ""; return; }
     const start = parseYmd(tsGridWeek);
     grid.classList.toggle("has-kit", myKitEnabled);
+    tsMeals = tsTemplateMeals();
     let html = `<div class="ts-head"><span>Day</span><span>Call</span><span>Wrap</span><span>Break</span>${myKitEnabled ? "<span>Kit</span>" : ""}<span>Hours</span></div>`;
     for (let i = 0; i < 7; i++) {
       html += `<div class="ts-row">
@@ -1801,8 +1867,12 @@
         ${myKitEnabled ? `<div class="ts-kit"><label><input type="checkbox" id="tsKit${i}" aria-label="Kit fee, ${DAY_NAMES[i]}" /><span class="ts-lab">Kit fee</span></label></div>` : ""}
         <div class="ts-hrs" id="tsHrs${i}">–</div>
       </div>`;
+      if (tsMeals.m1) {
+        html += `<div class="ts-meals"><label>Meal out<input type="time" id="tsM1o${i}" aria-label="Meal out, ${DAY_NAMES[i]}" /></label><label>Meal in<input type="time" id="tsM1i${i}" aria-label="Meal in, ${DAY_NAMES[i]}" /></label>${tsMeals.m2 ? `<label>2nd meal out<input type="time" id="tsM2o${i}" aria-label="Second meal out, ${DAY_NAMES[i]}" /></label><label>2nd meal in<input type="time" id="tsM2i${i}" aria-label="Second meal in, ${DAY_NAMES[i]}" /></label>` : ""}</div>`;
+      }
     }
     grid.innerHTML = html;
+    if (tsMeals.m1) grid.querySelectorAll(".ts-brk input").forEach((inp) => { inp.readOnly = true; inp.tabIndex = -1; inp.placeholder = "auto"; });
     grid.querySelectorAll("input").forEach((inp) => {
       inp.addEventListener("input", updateTimesheetTotals);
       inp.addEventListener("change", updateTimesheetTotals);
@@ -1810,12 +1880,36 @@
     updateTimesheetTotals();
   }
 
+  // Which meal columns the assigned union form needs (none = plain "break minutes").
+  let tsMeals = { m1: false, m2: false };
+  function tsTemplateMeals() {
+    const f = (myTsTemplate && myTsTemplate.fields) || [];
+    const has = (re) => f.some((x) => re.test(x.bind || ""));
+    return { m1: has(/^d\d\.meal1_(in|out)$/), m2: has(/^d\d\.meal2_(in|out)$/) };
+  }
+  function mealSpan(outId, inId) {
+    const o = document.getElementById(outId), n = document.getElementById(inId);
+    if (!o || !n || !o.value || !n.value) return 0;
+    const diff = toMinutes(n.value) - toMinutes(o.value);
+    return diff < 0 ? diff + 1440 : diff;
+  }
+  // Unpaid break for a day: the meal times when the form has them, else the typed minutes.
+  function dayBreak(i) {
+    if (tsMeals.m1) {
+      const total = mealSpan(`tsM1o${i}`, `tsM1i${i}`) + (tsMeals.m2 ? mealSpan(`tsM2o${i}`, `tsM2i${i}`) : 0);
+      const brk = document.getElementById(`tsBrk${i}`);
+      if (brk) brk.value = total ? String(total) : "";
+      return total;
+    }
+    return Math.max(0, parseInt(document.getElementById(`tsBrk${i}`).value, 10) || 0);
+  }
+
   // Worked minutes for one day: call to wrap, less any unpaid break.
   // null = day not filled in, NaN = invalid (same call/wrap, or break too long).
   function dayMinutes(i) {
     const gross = shiftMinutes(document.getElementById(`tsCall${i}`).value, document.getElementById(`tsWrap${i}`).value);
     if (gross == null || Number.isNaN(gross)) return gross;
-    const brk = Math.max(0, parseInt(document.getElementById(`tsBrk${i}`).value, 10) || 0);
+    const brk = dayBreak(i);
     return brk >= gross ? NaN : gross - brk;
   }
 
@@ -1847,7 +1941,8 @@
     for (let i = 0; i < 7; i++) {
       const call = document.getElementById(`tsCall${i}`).value;
       const wrap = document.getElementById(`tsWrap${i}`).value;
-      const brkRaw = document.getElementById(`tsBrk${i}`).value;
+      const brkVal = dayBreak(i);
+      const brkRaw = brkVal ? String(brkVal) : "";
       const kit = !!(document.getElementById(`tsKit${i}`) && document.getElementById(`tsKit${i}`).checked);
       if (!call && !wrap) {
         if (brkRaw || kit) return { error: `${DAY_NAMES[i]} has a break or kit fee but no call and wrap time.` };
@@ -1862,12 +1957,68 @@
       if (brk >= gross) return { error: `${day}'s break is longer than the shift.` };
       const mins = gross - brk;
       if (mins > 20 * 60) return { error: `${day} is over 20 hours. Check the call and wrap times.` };
-      entries.push({ date: ymd(addDays(start, i)), day, call, wrap, break_minutes: brk, kit, minutes: mins });
+      const entry = { date: ymd(addDays(start, i)), day, call, wrap, break_minutes: brk, kit, minutes: mins };
+      if (tsMeals.m1) {
+        ["M1o:meal1_out", "M1i:meal1_in", "M2o:meal2_out", "M2i:meal2_in"].forEach((pair) => {
+          const [idp, key] = pair.split(":");
+          const el = document.getElementById(`ts${idp}${i}`);
+          if (el && el.value) entry[key] = el.value;
+        });
+        if ((entry.meal1_out && !entry.meal1_in) || (!entry.meal1_out && entry.meal1_in) || (entry.meal2_out && !entry.meal2_in) || (!entry.meal2_out && entry.meal2_in)) {
+          return { error: `Enter both the meal out and meal in time for ${day}, or clear them.` };
+        }
+      }
+      entries.push(entry);
       total += mins;
       if (kit) kitDays++;
     }
     if (!entries.length) return { error: "Enter call and wrap times for at least one day." };
     return { entries, totalMinutes: total, kitDays };
+  }
+
+  // Extra boxes the assigned union form needs: things typed once per
+  // submission (member number…) and the typed signature.
+  function renderTsExtras() {
+    const box = document.getElementById("tsExtras");
+    if (!box) return;
+    const fields = (myTsTemplate && myTsTemplate.fields) || [];
+    const free = fields.filter((f) => f.bind === "free" || f.bind === "free_check");
+    const needsSig = fields.some((f) => f.bind === "signature");
+    if (!myTsTemplate || (!free.length && !needsSig)) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+    let html = `<p class="ts-extra-note">This goes onto the ${escHtml(myTsTemplate.name)} form.</p>`;
+    free.forEach((f) => {
+      html += f.bind === "free_check"
+        ? `<div class="field-line"><label><input type="checkbox" data-ts-free="${f.id}" /> ${escHtml(f.label || "Tick if it applies")}</label></div>`
+        : `<div class="field-line"><label for="tsFree_${f.id}">${escHtml(f.label || "Details")}</label><input type="text" id="tsFree_${f.id}" data-ts-free="${f.id}" /></div>`;
+    });
+    if (needsSig) {
+      html += `<div class="field-line"><label for="tsSignName">Type your full name to sign this timesheet</label><input type="text" id="tsSignName" autocomplete="name" /><div class="sig-prev" id="tsSignPrev"></div></div>`;
+    }
+    box.innerHTML = html;
+    box.classList.remove("hidden");
+    const sn = document.getElementById("tsSignName");
+    if (sn) sn.addEventListener("input", () => { document.getElementById("tsSignPrev").textContent = sn.value; });
+  }
+  // Reads and checks those extra boxes. Returns { formValues, signature } or { error }.
+  function readTsExtras() {
+    const out = { formValues: { _position: myCrewRole || "" }, signature: null };
+    if (!myTsTemplate) return out;
+    for (const f of myTsTemplate.fields || []) {
+      if (f.bind === "free") {
+        const v = (document.querySelector(`[data-ts-free="${f.id}"]`) || {}).value || "";
+        if (!v.trim()) return { error: `Fill in "${f.label || "Details"}" first.` };
+        out.formValues[f.id] = v.trim();
+      } else if (f.bind === "free_check") {
+        const el = document.querySelector(`[data-ts-free="${f.id}"]`);
+        out.formValues[f.id] = !!(el && el.checked);
+      }
+    }
+    if ((myTsTemplate.fields || []).some((f) => f.bind === "signature")) {
+      const s = (document.getElementById("tsSignName") || {}).value || "";
+      if (s.trim().length < 3) return { error: "Type your full name to sign the timesheet." };
+      out.signature = s.trim();
+    }
+    return out;
   }
 
   // jsPDF is loaded from a CDN the first time someone submits a timesheet.
@@ -1954,8 +2105,21 @@
 
   // Rebuilds a submitted timesheet's PDF from the data saved with it, so it
   // is always available to reviewers even if the stored file is missing.
-  function timesheetRowPdf(row) {
+  async function timesheetRowPdf(row) {
     const entries = Array.isArray(row.entries) ? row.entries : [];
+    if (row.template_id) {
+      const t = await getTsTemplateWithBytes(row.template_id);
+      if (t) {
+        return stampTimesheetForm(t.template, t.bytes, {
+          entries, totalMinutes: entries.reduce((sum, en) => sum + (Number(en.minutes) || 0), 0),
+          weekStart: row.week_start, email: row.employee_email || profileMap.get(row.user_id) || "",
+          name: row.employee_name, department: row.department,
+          company: (currentCompany && currentCompany.name) || "",
+          kitDays: Number(row.kit_days) || 0, kitRate: Number(row.kit_rate) || 0,
+          formValues: row.form_values || {}, signature: row.signature, submittedAt: row.created_at,
+        });
+      }
+    }
     return buildTimesheetPdf({
       entries,
       totalMinutes: entries.reduce((sum, en) => sum + (Number(en.minutes) || 0), 0),
@@ -2002,6 +2166,8 @@
     }
     const form = readTimesheetForm();
     if (form.error) { msgEl.innerHTML = `<div class="msg error">${form.error}</div>`; return; }
+    const extras = readTsExtras();
+    if (extras.error) { msgEl.innerHTML = `<div class="msg error">${escHtml(extras.error)}</div>`; return; }
 
     btn.disabled = true;
     msgEl.innerHTML = `<div class="msg">Creating your timesheet…</div>`;
@@ -2010,12 +2176,25 @@
       const { data: { user } } = await client.auth.getUser();
       if (!user) throw new Error("You're signed out. Sign in again and retry.");
 
-      const pdf = await buildTimesheetPdf({
-        entries: form.entries, totalMinutes: form.totalMinutes, weekStart: week,
-        email: user.email, name: myFullName, department: myDepartment,
-        companyName: (currentCompany && currentCompany.name) || "",
-        kitDays: myKitEnabled ? form.kitDays : 0, kitRate: myKitRate,
-      });
+      let pdf;
+      if (myTsTemplate) {
+        const t = await getTsTemplateWithBytes(myTsTemplate.id);
+        if (!t) throw new Error("Couldn't load your timesheet form. Try again in a moment.");
+        pdf = await stampTimesheetForm(t.template, t.bytes, {
+          entries: form.entries, totalMinutes: form.totalMinutes, weekStart: week,
+          email: user.email, name: myFullName, department: myDepartment,
+          company: (currentCompany && currentCompany.name) || "",
+          kitDays: myKitEnabled ? form.kitDays : 0, kitRate: myKitRate,
+          formValues: extras.formValues, signature: extras.signature, submittedAt: Date.now(),
+        });
+      } else {
+        pdf = await buildTimesheetPdf({
+          entries: form.entries, totalMinutes: form.totalMinutes, weekStart: week,
+          email: user.email, name: myFullName, department: myDepartment,
+          companyName: (currentCompany && currentCompany.name) || "",
+          kitDays: myKitEnabled ? form.kitDays : 0, kitRate: myKitRate,
+        });
+      }
 
       // A rejected submission for the same week is replaced by this one.
       for (const old of myTimesheetRows.filter((r) => r.week_start === week && r.status === "rejected")) {
@@ -2027,12 +2206,14 @@
       const { error: upErr } = await client.storage.from("timesheets").upload(uploadedPath, pdf, { contentType: "application/pdf" });
       if (upErr) throw upErr;
 
-      const { error: insErr } = await client.from("timesheets").insert({
+      const tsRow = {
         user_id: user.id, status: "pending", file_path: uploadedPath,
         week_start: week, entries: form.entries,
         total_hours: Math.round((form.totalMinutes / 60) * 100) / 100,
         kit_days: myKitEnabled ? form.kitDays : 0,   // rate and total are stamped server-side from the invite
-      });
+      };
+      if (myTsTemplate) { tsRow.template_id = myTsTemplate.id; tsRow.form_values = extras.formValues; tsRow.signature = extras.signature; }
+      const { error: insErr } = await client.from("timesheets").insert(tsRow);
       if (insErr) {
         await client.storage.from("timesheets").remove([uploadedPath]);
         throw insErr;
@@ -2157,7 +2338,7 @@
 
     let q = client
       .from("timesheets")
-      .select("id, user_id, status, dept_status, file_path, created_at, week_start, total_hours, entries, department, employee_email, employee_name, kit_days, kit_rate, kit_total")
+      .select("*")
       .in("department", depts)
       .neq("user_id", currentUserId)
       .order("week_start", { ascending: false })
@@ -2478,7 +2659,7 @@
     const cols = bucket === "documents"
       ? "id, user_id, status, file_path, created_at, approval_step"
       : bucket === "timesheets"
-        ? "id, user_id, status, file_path, created_at, week_start, total_hours, department, dept_status, kit_days, kit_rate, kit_total, entries, employee_email, employee_name"
+        ? "*"
         : "id, user_id, status, file_path, created_at";
 
     const { data: rows, error } = await client
@@ -3133,6 +3314,9 @@
       requested_documents, deal_memo_template_id, safety_template_id,
     };
 
+    const tsSel = document.getElementById("inviteTimesheetSelect");
+    if (tsSel && (tsSel.value || allTsTemplates.length)) invitePayload.timesheet_template_id = tsSel.value || null;
+
     const { data: inserted, error } = await client
       .from("company_invites")
       .upsert({ ...invitePayload, used: false }, { onConflict: "email" })
@@ -3316,6 +3500,7 @@
   });
 
   async function loadTemplates() {
+    loadTsTemplates();
     const { data } = await client.from("esign_templates").select("*").order("created_at", { ascending: true });
     allTemplates = data || [];
     renderTemplateList();
@@ -3873,6 +4058,576 @@
     const b = e.target.closest("[data-final-path]");
     if (b) openStoragePdf(b.dataset.finalPath);
   });
+
+  // ---- Timesheet forms: read a union's blank timesheet and propose the boxes ----
+  // A form's fields each carry a "bind": what the portal fills in there
+  // (e.g. d1.call = Monday's call time, name, total_hours), or "free" for
+  // things the employee types themselves (member number), or "fixed" for
+  // text the admin sets once (production title).
+  const TS_DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  const TS_DAY_RE = /^(sun|mon|tue|wed|thu|fri|sat)[a-z]*\.?$/i;
+  const TS_DAY_COLS = [
+    ["date", "date"], ["day", "day name"], ["call", "call"], ["wrap", "wrap"],
+    ["meal1_out", "meal 1 out"], ["meal1_in", "meal 1 in"], ["meal2_out", "meal 2 out"], ["meal2_in", "meal 2 in"],
+    ["break", "unpaid break (min)"], ["hours", "hours"], ["kit", "kit fee tick"],
+  ];
+  const TS_BIND_GROUPS = [
+    { label: "Employee", items: [["name", "Employee name"], ["email", "Email"], ["position", "Position / classification"], ["department", "Department"], ["company", "Company"]] },
+    { label: "Pay period", items: [["week_start", "Week start date"], ["week_end", "Week ending date"]] },
+    { label: "Totals", items: [["total_hours", "Total hours"], ["kit_days", "Kit days"], ["kit_total", "Kit total ($)"]] },
+    { label: "Sign-off", items: [["signature", "Employee signature"], ["signed_date", "Date signed"]] },
+    { label: "Other", items: [["free", "Employee types this (e.g. member #)"], ["free_check", "Employee ticks this"], ["fixed", "Fixed text (same for everyone)"]] },
+  ];
+  const TS_BIND_LABEL = {};
+  TS_BIND_GROUPS.forEach((g) => g.items.forEach(([k, v]) => { TS_BIND_LABEL[k] = v; }));
+
+  function tsBindCaption(f) {
+    const m = /^d(\d)\.(\w+)$/.exec(f.bind || "");
+    if (m) {
+      const col = TS_DAY_COLS.find((c) => c[0] === m[2]);
+      return `${DAY_NAMES[Number(m[1])].slice(0, 3)} ${col ? col[1] : m[2]}`;
+    }
+    if (f.bind === "free") return f.label || "Employee types";
+    if (f.bind === "fixed") return f.value || f.label || "Fixed text";
+    return TS_BIND_LABEL[f.bind] || f.bind || "?";
+  }
+  function tsFieldType(bind) {
+    if (bind === "signature") return "signature";
+    if (bind === "free_check" || /^d\d\.kit$/.test(bind || "")) return "checkbox";
+    return "text";
+  }
+  function tsBindOptionsHtml(selected) {
+    const opt = (k, label) => `<option value="${k}"${k === selected ? " selected" : ""}>${escHtml(label)}</option>`;
+    let html = TS_BIND_GROUPS.map((g) => `<optgroup label="${g.label}">${g.items.map(([k, v]) => opt(k, v)).join("")}</optgroup>`).join("");
+    for (let i = 0; i < 7; i++) {
+      html += `<optgroup label="${DAY_NAMES[i]}">${TS_DAY_COLS.map(([k, v]) => opt(`d${i}.${k}`, `${DAY_NAMES[i].slice(0, 3)} ${v}`)).join("")}</optgroup>`;
+    }
+    return html;
+  }
+
+  function tsClassifyColumn(text) {
+    const s = String(text).toLowerCase().replace(/[^a-z0-9 \/]/g, " ").replace(/\s+/g, " ").trim();
+    if (!s) return null;
+    if (/(meal|lunch|dinner)/.test(s)) {
+      const key = /(2nd|second|meal 2|meal2|lunch 2)/.test(s) ? "meal2" : "meal1";
+      if (/\b(out|start|off|begin|from)\b/.test(s)) return key + "_out";
+      if (/\b(in|end|on|back|finish)\b/.test(s)) return key + "_in";
+      return null;
+    }
+    if (s === "date") return "date";
+    if (/(kit|box rental)/.test(s)) return "kit";
+    if (/(total|hours|hrs)/.test(s)) return "hours";
+    if (/^(break|breaks|unpaid|unpaid break)/.test(s)) return "break";
+    if (/^(call|crew call|report|start|time in|in time|in|time on)$/.test(s)) return "call";
+    if (/^(wrap|wrap time|out|end|finish|release|time out|out time|time off)$/.test(s)) return "wrap";
+    return null;
+  }
+
+  // [pattern, bind, ignore-if-matches]
+  const TS_LABEL_RULES = [
+    [/signature|signed by|sign here/i, "signature", /supervisor|manager|producer|upm|approv|head|coordinator|department|dept|authoriz|accountant/i],
+    [/^(production|show|series|film|project)\b/i, "fixed"],
+    [/(week|period)\s*(ending|end)|w\/e|^ending/i, "week_end"],
+    [/(week|period)\s*(of|start|beginning|commenc)/i, "week_start"],
+    [/(position|classification|job\s*title|occupation|crew\s*position)/i, "position"],
+    [/department|dept/i, "department"],
+    [/(member|permit|local|union|licen[sc]e)\s*(#|no\.?|number|num)?/i, "free"],
+    [/^(employee\s*)?name\b|full\s*name|^name\b/i, "name"],
+    [/^e-?mail/i, "email"],
+  ];
+  function tsGuessLabelBind(text) {
+    for (const [re, bind, ignore] of TS_LABEL_RULES) {
+      if (re.test(text)) { if (ignore && ignore.test(text)) return { skip: true }; return { bind }; }
+    }
+    return null;
+  }
+
+  // Text on a page as phrases (nearby words on one line merged), positions as page fractions.
+  async function tsPagePhrases(page) {
+    const vp = page.getViewport({ scale: 1 });
+    const tc = await page.getTextContent();
+    const raw = [];
+    tc.items.forEach((it) => {
+      const s = String(it.str || "").replace(/\s+/g, " ");
+      if (!s.trim()) return;
+      const [vx, vy] = vp.convertToViewportPoint(it.transform[4], it.transform[5]);
+      const hPx = Math.abs(it.height) || Math.hypot(it.transform[2], it.transform[3]) || 9;
+      raw.push({ s: s.trim(), x0: vx / vp.width, x1: (vx + it.width) / vp.width, y: vy / vp.height, h: hPx / vp.height, hx: hPx / vp.width });
+    });
+    raw.sort((a, b) => a.y - b.y || a.x0 - b.x0);
+    const lines = [];
+    raw.forEach((it) => {
+      const line = lines.find((l) => Math.abs(l.y - it.y) <= 0.4 * it.h);
+      if (line) line.items.push(it); else lines.push({ y: it.y, items: [it] });
+    });
+    const phrases = [];
+    lines.forEach((l) => {
+      l.items.sort((a, b) => a.x0 - b.x0);
+      let cur = null;
+      l.items.forEach((it) => {
+        if (cur && it.x0 - cur.x1 <= 0.9 * it.hx) { cur.s += " " + it.s; cur.x1 = it.x1; cur.h = Math.max(cur.h, it.h); }
+        else { if (cur) phrases.push(cur); cur = { ...it }; }
+      });
+      if (cur) phrases.push(cur);
+    });
+    phrases.forEach((p) => { p.cy = p.y - p.h * 0.3; p.cx = (p.x0 + p.x1) / 2; });
+    return phrases;
+  }
+
+  // Finds the seven day rows and the call/wrap/meal/hours columns on one page.
+  function tsDetectGrid(phr) {
+    const hits = phr.filter((p) => p.s.length <= 12 && TS_DAY_RE.test(p.s))
+      .map((p) => ({ ...p, di: TS_DAY_KEYS.indexOf(p.s.slice(0, 3).toLowerCase()) })).filter((p) => p.di >= 0)
+      .sort((a, b) => a.x0 - b.x0);
+    const clusters = [];
+    hits.forEach((p) => {
+      const c = clusters.find((cl) => Math.abs(cl.x - p.x0) < 0.03);
+      if (c) c.list.push(p); else clusters.push({ x: p.x0, list: [p] });
+    });
+    let best = null;
+    clusters.forEach((c) => { const n = new Set(c.list.map((p) => p.di)).size; if (n >= 5 && (!best || n > best.n)) best = { n, list: c.list }; });
+    if (!best) return null;
+    const seen = new Set(), rows = [];
+    best.list.sort((a, b) => a.y - b.y).forEach((p) => { if (!seen.has(p.di)) { seen.add(p.di); rows.push(p); } });
+    const diffs = rows.slice(1).map((r, i) => r.cy - rows[i].cy).sort((a, b) => a - b);
+    const rh = diffs.length ? diffs[Math.floor(diffs.length / 2)] : 0.03;
+    const first = rows[0], last = rows[rows.length - 1];
+
+    const top = first.cy - 0.14, bottom = first.cy - rh * 0.5;
+    const band = phr.filter((p) => p.y >= top && p.y <= bottom && !(TS_DAY_RE.test(p.s)));
+    const groups = [];
+    band.forEach((p) => {
+      const g = groups.find((x) => Math.abs(x.cx - p.cx) < 0.03);
+      if (g) g.list.push(p); else groups.push({ cx: p.cx, list: [p] });
+    });
+    const cols = [];
+    groups.forEach((g) => {
+      g.list.sort((a, b) => a.y - b.y);
+      const text = g.list.map((p) => p.s).join(" ");
+      const key = tsClassifyColumn(text);
+      if (!key) return;
+      cols.push({ key, cx: g.cx, x0: Math.min(...g.list.map((p) => p.x0)), x1: Math.max(...g.list.map((p) => p.x1)), y0: Math.min(...g.list.map((p) => p.y - p.h)) });
+    });
+    cols.sort((a, b) => a.cx - b.cx);
+    cols.forEach((c, k) => {
+      const half = Math.max((c.x1 - c.x0) / 2, 0.025);
+      const l = k > 0 ? (cols[k - 1].cx + c.cx) / 2 : c.cx - half * 1.3;
+      const r = k < cols.length - 1 ? (c.cx + cols[k + 1].cx) / 2 : c.cx + half * 1.3;
+      c.l = l + 0.003; c.r = r - 0.003;
+    });
+    const fields = [];
+    const bh = Math.min(rh * 0.84, 0.04);
+    rows.forEach((r) => {
+      cols.forEach((c) => {
+        fields.push({ bind: `d${r.di}.${c.key}`, x: c.l, y: r.cy - bh / 2, w: c.r - c.l, h: bh });
+      });
+    });
+    // "Total" line under the grid: put the total in the hours column.
+    const hoursCol = cols.find((c) => c.key === "hours");
+    if (hoursCol) {
+      const tot = phr.find((p) => /^total/i.test(p.s) && p.y > last.cy + rh * 0.3 && p.y < last.cy + rh * 3.5);
+      if (tot) fields.push({ bind: "total_hours", x: hoursCol.l, y: tot.cy - bh / 2, w: hoursCol.r - hoursCol.l, h: bh });
+    }
+    // Only the table itself is off limits for label detection, not the whole band above it.
+    const headTop = cols.length ? Math.min(...cols.map((c) => c.y0)) - 0.008 : first.cy - rh;
+    return { fields, region: { top: headTop, bottom: last.cy + rh * 0.7 } };
+  }
+
+  function tsDetectLabels(phr, region, taken) {
+    const out = [];
+    const usedBinds = new Set(taken.map((f) => f.bind));
+    phr.forEach((p) => {
+      if (region && p.y >= region.top && p.y <= region.bottom) return;
+      if (p.s.length > 40) return;
+      const colon = /:\s*$/.test(p.s);
+      const text = p.s.replace(/[:_\s]+$/, "");
+      if (!text || /^(note|notes|instructions?|total|page)\b/i.test(text)) return;
+      const guess = tsGuessLabelBind(text);
+      if (guess && guess.skip) return;
+      if (!guess && !colon) return;
+      if (!guess && text.length < 3) return;
+      const bind = guess ? guess.bind : "free";
+      if (bind !== "free" && bind !== "fixed" && usedBinds.has(bind)) return;
+      if (/^date$/i.test(text)) return;
+      const nextX = Math.min(...phr.filter((q) => q !== p && Math.abs(q.y - p.y) < p.h * 0.6 && q.x0 > p.x1).map((q) => q.x0), 0.96);
+      const x = p.x1 + 0.006;
+      let w = Math.min(Math.max(nextX - x - 0.008, 0.07), 0.36);
+      if (x + w > 0.98) w = 0.98 - x;
+      if (w < 0.05) return;
+      const isSig = bind === "signature";
+      const h = isSig ? 0.04 : Math.max(0.017, p.h * 1.35);
+      const f = { bind, x, y: isSig ? p.cy - 0.026 : p.cy - h / 2, w, h };
+      if (bind === "free" || bind === "fixed") f.label = text;
+      if (bind !== "free" && bind !== "fixed") usedBinds.add(bind);
+      out.push(f);
+      if (isSig) {
+        const dateLbl = phr.find((q) => /^date\s*:?$/i.test(q.s) && Math.abs(q.y - p.y) < p.h && q.x0 > x + w * 0.4);
+        if (dateLbl) out.push({ bind: "signed_date", x: dateLbl.x1 + 0.006, y: dateLbl.cy - 0.011, w: Math.min(0.16, 0.98 - dateLbl.x1 - 0.008), h: 0.022 });
+      }
+    });
+    return out;
+  }
+
+  // Forms that already contain fillable boxes: use those exact positions.
+  async function tsDetectAcro(bytes) {
+    const L = await ensurePdfLib();
+    let doc, form;
+    try { doc = await L.PDFDocument.load(bytes, { ignoreEncryption: true }); form = doc.getForm(); } catch (_) { return []; }
+    const pages = doc.getPages();
+    const out = [];
+    for (const field of form.getFields()) {
+      const isCheck = field instanceof L.PDFCheckBox, isText = field instanceof L.PDFTextField;
+      if (!isCheck && !isText) continue;
+      const name = field.getName();
+      const lower = name.toLowerCase();
+      const dm = /(sun|mon|tue|wed|thu|fri|sat)/.exec(lower);
+      const col = tsClassifyColumn(name.replace(/(sun|mon|tue|wed|thu|fri|sat)[a-z]*/ig, " ").replace(/[_\-.\d]+/g, " "));
+      let bind, label;
+      if (dm && col) bind = `d${TS_DAY_KEYS.indexOf(dm[1])}.${col}`;
+      else {
+        const g = tsGuessLabelBind(name.replace(/[_\-.]+/g, " "));
+        bind = g && g.bind ? g.bind : (isCheck ? "free_check" : "free");
+      }
+      if (bind === "free" || bind === "free_check") label = name.replace(/[_\-.]+/g, " ").trim();
+      for (const w of field.acroField.getWidgets()) {
+        const r = w.getRectangle();
+        let pi = pages.findIndex((pg) => w.P() && pg.ref.toString() === w.P().toString());
+        if (pi < 0) pi = 0;
+        const { width: W, height: H } = pages[pi].getSize();
+        const f = { bind, page: pi, x: r.x / W, y: 1 - (r.y + r.height) / H, w: r.width / W, h: r.height / H };
+        if (label) f.label = label;
+        out.push(f);
+      }
+    }
+    return out;
+  }
+
+  async function tsDetectFields(pdf, bytes) {
+    const acro = await tsDetectAcro(bytes);
+    let fields = [];
+    if (acro.length >= 3) fields = acro;
+    else {
+      for (let n = 1; n <= pdf.numPages; n++) {
+        const page = await pdf.getPage(n);
+        const phr = await tsPagePhrases(page);
+        const grid = tsDetectGrid(phr);
+        const taken = grid ? grid.fields : [];
+        const labels = tsDetectLabels(phr, grid && grid.region, taken);
+        [...taken, ...labels].forEach((f) => fields.push({ ...f, page: n - 1 }));
+      }
+    }
+    return fields.map((f) => {
+      const x = clamp(f.x, 0, 0.99), y = clamp(f.y, 0, 0.99);
+      const out = { ...f, id: "t" + Math.random().toString(36).slice(2, 8), x, y, w: clamp(f.w, 0.012, 1 - x), h: clamp(f.h, 0.008, 1 - y) };
+      out.type = tsFieldType(out.bind);
+      return out;
+    });
+  }
+
+  // ----- Admin: timesheet form editor -----
+  let allTsTemplates = [];
+  let tsTpl = { bytes: null, pages: [], fields: [], editingId: null };
+
+  function tsTplReset() {
+    tsTpl = { bytes: null, pages: [], fields: [], editingId: null };
+    document.getElementById("tsTplPdf").value = "";
+    document.getElementById("tsTplPages").innerHTML = "";
+    document.getElementById("tsTplFieldList").innerHTML = "";
+    document.getElementById("tsTplEditorWrap").classList.add("hidden");
+    document.getElementById("tsTplSave").textContent = "Save timesheet form";
+    document.getElementById("tsTplName").value = "";
+    document.getElementById("tsTplUnion").value = "";
+  }
+
+  async function tsTplOpen(bytes, fields, extra) {
+    const pdfjs = await ensurePdfJs();
+    const pdf = await pdfjs.getDocument({ data: bytes.slice(0) }).promise;
+    if (pdf.numPages > 6) throw new Error("A timesheet form shouldn't be more than 6 pages.");
+    document.getElementById("tsTplEditorWrap").classList.remove("hidden");
+    const pages = await renderPdfPages(document.getElementById("tsTplPages"), pdf);
+    const x = extra || {};
+    tsTpl = { bytes, pages, fields: fields || [], editingId: x.editingId || null, pdf };
+    if (!fields) tsTpl.fields = await tsDetectFields(pdf, bytes);
+    document.getElementById("tsTplDetails").open = tsTpl.fields.length <= 14;
+    pages.forEach((page, idx) => {
+      page.el.addEventListener("click", (e) => {
+        if (e.target.closest(".pdf-field")) return;
+        const rect = page.el.getBoundingClientRect();
+        const w = 0.16, h = 0.022;
+        tsTpl.fields.push({
+          id: "t" + Math.random().toString(36).slice(2, 8), bind: "free", type: "text", label: "Field", page: idx,
+          x: clamp((e.clientX - rect.left) / rect.width, 0, 1 - w), y: clamp((e.clientY - rect.top) / rect.height - h / 2, 0, 1 - h), w, h,
+        });
+        tsTplDraw();
+      });
+    });
+    tsTplDraw();
+  }
+
+  function tsTplDraw() {
+    tsTpl.pages.forEach((p) => p.el.querySelectorAll(".pdf-field").forEach((n) => n.remove()));
+    tsTpl.fields.forEach((f) => {
+      const page = tsTpl.pages[f.page];
+      if (!page) return;
+      f.type = tsFieldType(f.bind);
+      const el = baseFieldEl(f, page);
+      el.classList.add("pf-edit", "ts-" + (f.bind === "free" || f.bind === "free_check" ? "free" : f.bind === "fixed" ? "fixed" : "bound"));
+      el.innerHTML = `<span class="pf-label"></span><span class="pf-handle"></span>`;
+      el.querySelector(".pf-label").textContent = f.type === "checkbox" ? "" : tsBindCaption(f);
+      el.title = tsBindCaption(f);
+      attachFieldDrag(el, f, page);
+      el.addEventListener("pointerdown", (e) => { el._sx = e.clientX; el._sy = e.clientY; });
+      el.addEventListener("click", (e) => {
+        if (Math.hypot(e.clientX - (el._sx || 0), e.clientY - (el._sy || 0)) > 4) return;   // that was a drag
+        const det = document.getElementById("tsTplDetails");
+        det.open = true;
+        const li = document.querySelector(`#tsTplFieldList [data-fid="${f.id}"]`);
+        if (li) {
+          li.scrollIntoView({ block: "center", behavior: "smooth" });
+          li.style.background = "var(--accent-soft)";
+          setTimeout(() => { li.style.background = ""; }, 1600);
+        }
+      });
+      page.el.appendChild(el);
+    });
+    tsTplFieldList();
+    const n = tsTpl.fields.length;
+    const free = tsTpl.fields.filter((f) => f.bind === "free" || f.bind === "free_check").length;
+    document.getElementById("tsTplSummary").textContent =
+      n ? `${n} box${n === 1 ? "" : "es"} found: ${n - free} linked to the timesheet${free ? `, ${free} for the employee to fill in` : ""}. Check the links below and fix any that are wrong.`
+        : "No boxes were found automatically. Click on the form to add one, then choose what it links to.";
+  }
+
+  function tsTplFieldList() {
+    const ul = document.getElementById("tsTplFieldList");
+    ul.innerHTML = "";
+    const order = [...tsTpl.fields].sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x);
+    order.forEach((f) => {
+      const li = document.createElement("li");
+      li.dataset.fid = f.id;
+      const sel = document.createElement("select");
+      sel.innerHTML = tsBindOptionsHtml(f.bind);
+      sel.addEventListener("change", () => {
+        f.bind = sel.value;
+        if ((f.bind === "free" || f.bind === "fixed") && !f.label) f.label = "Field";
+        tsTplDraw();
+      });
+      li.appendChild(sel);
+      if (f.bind === "free" || f.bind === "fixed" || f.bind === "free_check") {
+        const lab = document.createElement("input");
+        lab.type = "text"; lab.value = f.label || ""; lab.placeholder = "Label shown to the employee";
+        lab.addEventListener("input", () => { f.label = lab.value; const e = document.querySelector(`#tsTplPages .pdf-field[data-field-id="${f.id}"] .pf-label`); if (e && f.bind !== "fixed") e.textContent = tsBindCaption(f); });
+        li.appendChild(lab);
+      }
+      if (f.bind === "fixed") {
+        const val = document.createElement("input");
+        val.type = "text"; val.value = f.value || ""; val.placeholder = "Text to print (e.g. production title)";
+        val.addEventListener("input", () => { f.value = val.value; const e = document.querySelector(`#tsTplPages .pdf-field[data-field-id="${f.id}"] .pf-label`); if (e) e.textContent = tsBindCaption(f); });
+        li.appendChild(val);
+      }
+      const pg = document.createElement("span");
+      pg.style.cssText = "font-size:11.5px;color:var(--ink-faint);white-space:nowrap;";
+      pg.textContent = "p. " + (f.page + 1);
+      const rm = document.createElement("button");
+      rm.type = "button"; rm.className = "remove-link"; rm.textContent = "Remove";
+      rm.addEventListener("click", () => { tsTpl.fields = tsTpl.fields.filter((x) => x !== f); tsTplDraw(); });
+      li.append(pg, rm);
+      ul.appendChild(li);
+    });
+  }
+
+  document.getElementById("tsTplPdf").addEventListener("change", async (ev) => {
+    const file = ev.target.files[0];
+    const msgEl = document.getElementById("tsTplMsg");
+    if (!file) { tsTplReset(); return; }
+    if (file.type !== "application/pdf" && !/\.pdf$/i.test(file.name)) { msgEl.innerHTML = `<div class="msg error">That isn't a PDF.</div>`; ev.target.value = ""; return; }
+    if (file.size > 10 * 1024 * 1024) { msgEl.innerHTML = `<div class="msg error">That PDF is over 10 MB.</div>`; ev.target.value = ""; return; }
+    msgEl.innerHTML = `<div class="msg ok">Reading the form…</div>`;
+    try {
+      const nameEl = document.getElementById("tsTplName");
+      if (!nameEl.value.trim()) nameEl.value = file.name.replace(/\.pdf$/i, "").replace(/[_-]+/g, " ");
+      await tsTplOpen(new Uint8Array(await file.arrayBuffer()), null, {});
+      msgEl.innerHTML = "";
+    } catch (err) {
+      tsTplReset();
+      msgEl.innerHTML = `<div class="msg error">${escHtml(err.message || "Couldn't read that PDF.")}</div>`;
+    }
+  });
+  document.getElementById("tsTplRedetect").addEventListener("click", async () => {
+    if (!tsTpl.bytes) return;
+    const msgEl = document.getElementById("tsTplMsg");
+    if (!window.confirm("Replace the current boxes with a fresh automatic detection?")) return;
+    try { const keep = tsTpl.editingId; await tsTplOpen(tsTpl.bytes, null, { editingId: keep }); msgEl.innerHTML = ""; }
+    catch (err) { msgEl.innerHTML = `<div class="msg error">${escHtml(err.message || "Detection failed.")}</div>`; }
+  });
+  document.getElementById("tsTplCancel").addEventListener("click", () => { tsTplReset(); document.getElementById("tsTplMsg").innerHTML = ""; });
+
+  document.getElementById("tsTplSave").addEventListener("click", async () => {
+    const msgEl = document.getElementById("tsTplMsg");
+    const name = document.getElementById("tsTplName").value.trim();
+    const union_name = document.getElementById("tsTplUnion").value.trim() || null;
+    if (!tsTpl.bytes) { msgEl.innerHTML = `<div class="msg error">Upload a blank timesheet first.</div>`; return; }
+    if (!name) { msgEl.innerHTML = `<div class="msg error">Give this form a name.</div>`; return; }
+    if (!tsTpl.fields.length) { msgEl.innerHTML = `<div class="msg error">Add at least one box.</div>`; return; }
+    if (tsTpl.fields.some((f) => f.bind === "fixed" && !(f.value || "").trim())) { msgEl.innerHTML = `<div class="msg error">A "Fixed text" box has no text yet. Fill it in or remove the box.</div>`; return; }
+    const fields = tsTpl.fields.map((f) => ({ ...f, type: tsFieldType(f.bind) }));
+    const btn = document.getElementById("tsTplSave");
+    btn.disabled = true;
+    msgEl.innerHTML = `<div class="msg ok">Saving…</div>`;
+    if (tsTpl.editingId) {
+      const { error } = await client.from("timesheet_templates").update({ name, union_name, fields }).eq("id", tsTpl.editingId);
+      btn.disabled = false;
+      if (error) { msgEl.innerHTML = `<div class="msg error">${escHtml(error.message)}</div>`; return; }
+    } else {
+      const path = `${currentCompany.id}/templates/${crypto.randomUUID()}.pdf`;
+      const up = await client.storage.from(DEAL_BUCKET).upload(path, new Blob([tsTpl.bytes], { type: "application/pdf" }), { contentType: "application/pdf" });
+      if (up.error) { btn.disabled = false; msgEl.innerHTML = `<div class="msg error">${escHtml(up.error.message)}</div>`; return; }
+      const { error } = await client.from("timesheet_templates").insert({ company_id: currentCompany.id, name, union_name, source_pdf_path: path, fields });
+      btn.disabled = false;
+      if (error) {
+        try { await client.storage.from(DEAL_BUCKET).remove([path]); } catch (_) {}
+        msgEl.innerHTML = `<div class="msg error">${escHtml(error.message)}</div>`; return;
+      }
+    }
+    msgEl.innerHTML = `<div class="msg ok">Timesheet form saved. Pick it on an invite to use it.</div>`;
+    tsTplReset();
+    loadTsTemplates();
+  });
+
+  async function loadTsTemplates() {
+    const { data, error } = await client.from("timesheet_templates").select("*").order("created_at", { ascending: true });
+    allTsTemplates = error ? [] : (data || []);
+    const listEl = document.getElementById("tsTplList");
+    const emptyEl = document.getElementById("tsTplEmpty");
+    if (listEl) {
+      listEl.innerHTML = "";
+      emptyEl.classList.toggle("hidden", allTsTemplates.length > 0);
+      allTsTemplates.forEach((t) => {
+        const li = document.createElement("li");
+        const left = document.createElement("span");
+        left.className = "info";
+        const linked = (t.fields || []).filter((f) => f.bind !== "free" && f.bind !== "free_check").length;
+        left.innerHTML = `<span class="name">${escHtml(t.name)}</span><span class="email">${t.union_name ? escHtml(t.union_name) + " · " : ""}${(t.fields || []).length} boxes (${linked} linked)</span>`;
+        const right = document.createElement("span");
+        right.className = "actions";
+        const edit = document.createElement("button");
+        edit.className = "remove-link"; edit.style.marginRight = "10px"; edit.textContent = "Edit";
+        edit.addEventListener("click", async () => {
+          const msgEl = document.getElementById("tsTplMsg");
+          msgEl.innerHTML = `<div class="msg ok">Loading…</div>`;
+          try {
+            const bytes = new Uint8Array(await loadTemplatePdfBytes(t.source_pdf_path));
+            document.getElementById("tsTplName").value = t.name;
+            document.getElementById("tsTplUnion").value = t.union_name || "";
+            await tsTplOpen(bytes, JSON.parse(JSON.stringify(t.fields || [])), { editingId: t.id });
+            document.getElementById("tsTplSave").textContent = "Save changes";
+            msgEl.innerHTML = "";
+            document.getElementById("tsTplEditorWrap").scrollIntoView({ behavior: "smooth", block: "start" });
+          } catch (err) { msgEl.innerHTML = `<div class="msg error">${escHtml(err.message || "Couldn't open it.")}</div>`; }
+        });
+        const del = document.createElement("button");
+        del.className = "remove-link"; del.textContent = "Delete";
+        del.addEventListener("click", async () => {
+          if (!window.confirm("Delete this timesheet form? People assigned to it go back to the standard timesheet. Past submissions are kept.")) return;
+          await client.from("timesheet_templates").delete().eq("id", t.id);
+          try { await client.storage.from(DEAL_BUCKET).remove([t.source_pdf_path]); } catch (_) {}
+          loadTsTemplates();
+        });
+        right.append(edit, del);
+        li.append(left, right);
+        listEl.appendChild(li);
+      });
+    }
+    const sel = document.getElementById("inviteTimesheetSelect");
+    if (sel) {
+      const cur = sel.value;
+      sel.innerHTML = `<option value="">Standard portal timesheet</option>` + allTsTemplates.map((t) => `<option value="${t.id}">${escHtml(t.name)}</option>`).join("");
+      sel.value = cur || "";
+    }
+  }
+
+  // ----- Filling a form from a submitted timesheet -----
+  function tsLong(d) { return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
+  function tsFieldValue(f, d) {
+    const b = f.bind || "";
+    const dm = /^d(\d)\.(\w+)$/.exec(b);
+    if (dm) {
+      const i = Number(dm[1]), col = dm[2];
+      const date = addDays(parseYmd(d.weekStart), i);
+      const e = (d.entries || []).find((en) => en.date === ymd(date));
+      if (col === "date") return { text: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }) };
+      if (col === "day") return { text: DAY_NAMES[i] };
+      if (!e) return {};
+      if (col === "call" || col === "wrap" || /^meal[12]_(in|out)$/.test(col)) return e[col] ? { text: fmtTime(e[col]) } : {};
+      if (col === "break") return e.break_minutes ? { text: String(e.break_minutes) } : {};
+      if (col === "hours") return { text: fmtHours(e.minutes) };
+      if (col === "kit") return e.kit ? { check: true } : {};
+      return {};
+    }
+    const fv = d.formValues || {};
+    switch (b) {
+      case "name": return { text: d.name || d.email || "" };
+      case "email": return { text: d.email || "" };
+      case "position": return { text: fv._position || "" };
+      case "department": return { text: d.department || "" };
+      case "company": return { text: d.company || "" };
+      case "week_start": return { text: tsLong(parseYmd(d.weekStart)) };
+      case "week_end": return { text: tsLong(addDays(parseYmd(d.weekStart), 6)) };
+      case "total_hours": return { text: fmtHours(d.totalMinutes || 0) };
+      case "kit_days": return { text: String(d.kitDays || 0) };
+      case "kit_total": return { text: "$" + ((d.kitDays || 0) * (d.kitRate || 0)).toFixed(2) };
+      case "signature": return d.signature ? { sig: d.signature } : {};
+      case "signed_date": return { text: tsLong(new Date(d.submittedAt || Date.now())) };
+      case "fixed": return { text: f.value || "" };
+      case "free": return fv[f.id] ? { text: String(fv[f.id]) } : {};
+      case "free_check": return fv[f.id] ? { check: true } : {};
+      default: return {};
+    }
+  }
+
+  async function stampTimesheetForm(template, bytes, d) {
+    const L = await ensurePdfLib();
+    const doc = await L.PDFDocument.load(bytes, { ignoreEncryption: true });
+    try { doc.getForm().flatten(); } catch (_) { /* no fillable boxes to flatten */ }
+    const font = await doc.embedFont(L.StandardFonts.Helvetica);
+    const pages = doc.getPages();
+    const ink = L.rgb(0.114, 0.141, 0.2);
+    let sigImg = null, sigDims = null;
+    for (const f of template.fields || []) {
+      const pg = pages[f.page];
+      if (!pg) continue;
+      const v = tsFieldValue(f, d);
+      if (!v.text && !v.check && !v.sig) continue;
+      const { width: W, height: H } = pg.getSize();
+      const bx = f.x * W, bw = f.w * W, bh = f.h * H, by = H - f.y * H - bh;
+      if (v.text) {
+        const text = String(v.text).replace(/[–—]/g, "-").replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[^\x20-\x7E\xA0-\xFF]/g, "?");
+        let size = clamp(bh * 0.62, 6, 11);
+        while (size > 5 && font.widthOfTextAtSize(text, size) > bw - 3) size -= 0.5;
+        pg.drawText(text, { x: bx + 2, y: by + (bh - size) / 2 + size * 0.2, size, font, color: ink });
+      } else if (v.check) {
+        const m = Math.min(bw, bh) * 0.2, opt = { thickness: 1.4, color: ink };
+        pg.drawLine({ start: { x: bx + m, y: by + m }, end: { x: bx + bw - m, y: by + bh - m }, ...opt });
+        pg.drawLine({ start: { x: bx + m, y: by + bh - m }, end: { x: bx + bw - m, y: by + m }, ...opt });
+      } else if (v.sig) {
+        if (!sigImg) { const png = await signaturePng(v.sig); sigImg = await doc.embedPng(png.bytes); sigDims = png; }
+        const k = Math.min(bw / sigDims.w, bh / sigDims.h);
+        pg.drawImage(sigImg, { x: bx + 2, y: by + (bh - sigDims.h * k) / 2, width: sigDims.w * k, height: sigDims.h * k });
+      }
+    }
+    return new Blob([await doc.save()], { type: "application/pdf" });
+  }
+
+  const tsTplCache = new Map();
+  async function getTsTemplateWithBytes(id) {
+    if (!tsTplCache.has(id)) {
+      const { data, error } = await client.from("timesheet_templates").select("*").eq("id", id).maybeSingle();
+      if (error || !data) return null;
+      try { tsTplCache.set(id, { template: data, bytes: new Uint8Array(await loadTemplatePdfBytes(data.source_pdf_path)) }); }
+      catch (_) { return null; }
+    }
+    return tsTplCache.get(id);
+  }
 
   // ---- Admin: approval chain ----
   async function loadApprovalChain() {
