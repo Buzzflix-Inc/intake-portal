@@ -4191,6 +4191,8 @@
     const emptyEl = document.getElementById("saCompaniesEmpty");
     const msgEl = document.getElementById("saMsg");
     const { data, error } = await client.rpc("superadmin_overview");
+    let myEmail = "";
+    try { const { data: u } = await client.auth.getUser(); myEmail = ((u && u.user && u.user.email) || "").toLowerCase(); } catch (_) {}
     listEl.innerHTML = "";
     if (error) { msgEl.innerHTML = `<div class="msg error">${escHtml(error.message)}</div>`; return; }
     const companies = data || [];
@@ -4201,12 +4203,31 @@
       const left = document.createElement("span");
       left.className = "info";
       const chips = [
-        ...c.admins.map((a) => `<span class="sa-chip">${escHtml(a.email)}</span>`),
-        ...c.pending.map((a) => `<span class="sa-chip pending">${escHtml(a.email)} · invited<button type="button" data-resend="${escHtml(a.email)}">Resend email</button><button type="button" data-copy="${escHtml(a.email)}">Copy invite</button></span>`),
+        ...c.admins.map((a) => `<span class="sa-chip">${escHtml(a.email)}${a.email.toLowerCase() === myEmail ? "" : `<button type="button" data-remove="${escHtml(a.email)}">Remove</button>`}</span>`),
+        ...c.pending.map((a) => `<span class="sa-chip pending">${escHtml(a.email)} · invited<button type="button" data-resend="${escHtml(a.email)}">Resend email</button><button type="button" data-copy="${escHtml(a.email)}">Copy invite</button><button type="button" data-remove="${escHtml(a.email)}">Remove</button></span>`),
       ].join("");
       left.innerHTML = `<span class="name">${escHtml(c.name)}</span><span class="email">${c.member_count} ${c.member_count === 1 ? "person" : "people"} · ${c.admins.length} admin${c.admins.length === 1 ? "" : "s"}</span><span>${chips || '<span class="email">No admins yet</span>'}</span>`;
       left.querySelectorAll("button[data-copy]").forEach((b) =>
         b.addEventListener("click", () => copyAdminInvite(c.name, b.dataset.copy, b))
+      );
+      left.querySelectorAll("button[data-remove]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const email = b.dataset.remove;
+          const pending = c.pending.some((a) => a.email === email);
+          const ask = pending
+            ? `Cancel the pending admin invite for ${email} at ${c.name}?`
+            : `Remove ${email} as an admin of ${c.name}?\n\nIf ${c.name} is the only company on their account, the whole account is deleted so that address can sign up again from scratch. Uploads and timesheets already on file are kept.`;
+          if (!window.confirm(ask)) return;
+          b.disabled = true;
+          const { data: result, error: rmErr } = await client.rpc("superadmin_remove_admin", { p_company: c.id, p_email: email });
+          const msgBox = document.getElementById("saMsg");
+          if (rmErr) { b.disabled = false; msgBox.innerHTML = `<div class="msg error">${escHtml(rmErr.message)}</div>`; return; }
+          const text = result === "deleted" ? `${email} was removed and their account deleted.`
+            : result === "removed" ? `${email} was removed from ${c.name} and keeps their other company.`
+            : `The pending invite for ${email} was cancelled.`;
+          msgBox.innerHTML = `<div class="msg ok">${escHtml(text)}</div>`;
+          loadSuperOverview();
+        })
       );
       left.querySelectorAll("button[data-resend]").forEach((b) =>
         b.addEventListener("click", async () => {
