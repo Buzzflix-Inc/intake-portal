@@ -3881,6 +3881,7 @@
   }
 
   // Positions of the page's drawn lines and boxes, in points from the page's top-left.
+  const dmStats = { h: 0, v: 0, rect: 0, ops: 0, text: 0 };
   async function dmPageShapes(page, pdfjs) {
     const OPS = pdfjs.OPS;
     const vp = page.getViewport({ scale: 1 });
@@ -3891,48 +3892,75 @@
     const shapes = { h: [], v: [], rect: [] };
     const pt = (x, y) => { const X = ctm[0] * x + ctm[2] * y + ctm[4], Y = ctm[1] * x + ctm[3] * y + ctm[5]; return vp.convertToViewportPoint(X, Y); };
     const paint = new Set([OPS.stroke, OPS.closeStroke, OPS.fill, OPS.eoFill, OPS.fillStroke, OPS.eoFillStroke, OPS.closeFillStroke, OPS.closeEOFillStroke]);
-    let pending = [];
+    let pending = []; // subpaths: arrays of [x, y] in page points
+    let sub = null;
+    const flush = () => { if (sub && sub.length > 1) pending.push(sub); sub = null; };
+    const addRectOrLines = (pts) => {
+      let q = pts.slice();
+      if (q.length > 1 && Math.abs(q[0][0] - q[q.length - 1][0]) < 0.5 && Math.abs(q[0][1] - q[q.length - 1][1]) < 0.5) q.pop();
+      if (q.length === 4) {
+        const xs = q.map((a) => a[0]), ys = q.map((a) => a[1]);
+        const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+        const axis = q.every((a) => (Math.abs(a[0] - x0) < 0.6 || Math.abs(a[0] - x1) < 0.6) && (Math.abs(a[1] - y0) < 0.6 || Math.abs(a[1] - y1) < 0.6));
+        if (axis) { addRect(x0, x1, y0, y1); return; }
+      }
+      for (let k = 1; k < pts.length; k++) addSeg(pts[k - 1], pts[k]);
+    };
+    const addRect = (x0, x1, y0, y1) => {
+      const rw = x1 - x0, rh = y1 - y0;
+      if (rh <= 2.5 && rw >= 8) shapes.h.push({ x0, x1, y: (y0 + y1) / 2 });
+      else if (rw <= 2.5 && rh >= 8) shapes.v.push({ y0, y1, x: (x0 + x1) / 2 });
+      else if (rw > 2.5 && rh > 2.5) shapes.rect.push({ x0, x1, y0, y1 });
+    };
     const addSeg = (a, b) => {
       const dx = Math.abs(a[0] - b[0]), dy = Math.abs(a[1] - b[1]);
-      if (dy <= 0.8 && dx >= 8) pending.push({ k: "h", x0: Math.min(a[0], b[0]), x1: Math.max(a[0], b[0]), y: (a[1] + b[1]) / 2 });
-      else if (dx <= 0.8 && dy >= 8) pending.push({ k: "v", y0: Math.min(a[1], b[1]), y1: Math.max(a[1], b[1]), x: (a[0] + b[0]) / 2 });
+      if (dy <= 0.8 && dx >= 8) shapes.h.push({ x0: Math.min(a[0], b[0]), x1: Math.max(a[0], b[0]), y: (a[1] + b[1]) / 2 });
+      else if (dx <= 0.8 && dy >= 8) shapes.v.push({ y0: Math.min(a[1], b[1]), y1: Math.max(a[1], b[1]), x: (a[0] + b[0]) / 2 });
     };
     for (let i = 0; i < ol.fnArray.length; i++) {
       const fn = ol.fnArray[i], args = ol.argsArray[i];
       if (fn === OPS.save) stack.push(ctm.slice());
       else if (fn === OPS.restore) { if (stack.length) ctm = stack.pop(); }
       else if (fn === OPS.transform) ctm = mulRow(args, ctm);
+      else if (fn === OPS.paintFormXObjectBegin) { stack.push(ctm.slice()); if (args && args[0]) ctm = mulRow(args[0], ctm); }
+      else if (fn === OPS.paintFormXObjectEnd) { if (stack.length) ctm = stack.pop(); }
       else if (fn === OPS.constructPath) {
         const cops = args[0], c = args[1];
-        let ci = 0, cur = null, start = null;
+        let ci = 0;
         for (const op of cops) {
-          if (op === OPS.moveTo) { cur = pt(c[ci], c[ci + 1]); start = cur; ci += 2; }
-          else if (op === OPS.lineTo) { const p = pt(c[ci], c[ci + 1]); if (cur) addSeg(cur, p); cur = p; ci += 2; }
-          else if (op === OPS.curveTo) { cur = pt(c[ci + 4], c[ci + 5]); ci += 6; }
-          else if (op === OPS.curveTo2 || op === OPS.curveTo3) { cur = pt(c[ci + 2], c[ci + 3]); ci += 4; }
-          else if (op === OPS.closePath) { if (cur && start) addSeg(cur, start); cur = start; }
+          if (op === OPS.moveTo) { flush(); sub = [pt(c[ci], c[ci + 1])]; ci += 2; }
+          else if (op === OPS.lineTo) { if (!sub) sub = []; sub.push(pt(c[ci], c[ci + 1])); ci += 2; }
+          else if (op === OPS.curveTo) { if (!sub) sub = []; sub.push(pt(c[ci + 4], c[ci + 5]), [1e9, 1e9]); ci += 6; }
+          else if (op === OPS.curveTo2 || op === OPS.curveTo3) { if (!sub) sub = []; sub.push(pt(c[ci + 2], c[ci + 3]), [1e9, 1e9]); ci += 4; }
+          else if (op === OPS.closePath) { if (sub && sub.length) sub.push(sub[0].slice()); flush(); }
           else if (op === OPS.rectangle) {
+            flush();
             const x = c[ci], y = c[ci + 1], w = c[ci + 2], h = c[ci + 3]; ci += 4;
-            const p1 = pt(x, y), p2 = pt(x + w, y + h);
-            const r = { x0: Math.min(p1[0], p2[0]), x1: Math.max(p1[0], p2[0]), y0: Math.min(p1[1], p2[1]), y1: Math.max(p1[1], p2[1]) };
-            const rw = r.x1 - r.x0, rh = r.y1 - r.y0;
-            if (rh <= 2.5 && rw >= 8) pending.push({ k: "h", x0: r.x0, x1: r.x1, y: (r.y0 + r.y1) / 2 });
-            else if (rw <= 2.5 && rh >= 8) pending.push({ k: "v", y0: r.y0, y1: r.y1, x: (r.x0 + r.x1) / 2 });
-            else if (rw > 2.5 && rh > 2.5) pending.push({ k: "rect", ...r });
-            cur = p2; start = p1;
+            const a = pt(x, y), b = pt(x + w, y + h);
+            pending.push([a, [b[0], a[1]], b, [a[0], b[1]], a.slice()]);
           }
         }
+        flush();
       } else if (paint.has(fn)) {
-        pending.forEach((s) => { if (s.k === "h") shapes.h.push(s); else if (s.k === "v") shapes.v.push(s); else shapes.rect.push(s); });
+        pending.forEach((sp) => { if (!sp.some((a) => a[0] > 1e8)) addRectOrLines(sp); });
         pending = [];
-      } else if (fn === OPS.endPath) pending = [];
+      } else if (fn === OPS.endPath) { pending = []; sub = null; }
     }
+    // Squares drawn as four separate strokes are still checkboxes
+    shapes.h.forEach((a) => {
+      const len = a.x1 - a.x0;
+      if (len < 6 || len > 26) return;
+      const bottom = shapes.h.find((b) => b !== a && Math.abs(b.x0 - a.x0) < 1.5 && Math.abs(b.x1 - a.x1) < 1.5 && Math.abs(b.y - a.y - len) < len * 0.25 && b.y > a.y);
+      if (bottom && shapes.v.some((v) => Math.abs(v.x - a.x0) < 1.5 && v.y0 <= a.y + 1.5 && v.y1 >= bottom.y - 1.5)) shapes.rect.push({ x0: a.x0, x1: a.x1, y0: a.y, y1: bottom.y });
+    });
+    dmStats.h += shapes.h.length; dmStats.v += shapes.v.length; dmStats.rect += shapes.rect.length; dmStats.ops += ol.fnArray.length;
     return { shapes, W: vp.width, H: vp.height };
   }
 
   async function dmDetectPage(page, pdfjs) {
     const blanks = [];
     const phr = await tsPagePhrases(page, { blanks });
+    dmStats.text += phr.length;
     const { shapes, W, H } = await dmPageShapes(page, pdfjs);
     const sc = W / 612;
     const fh = 17 * sc / H, sigH = 38 * sc / H;
@@ -3951,8 +3979,8 @@
       const x0 = nx(l.x0), x1 = nx(l.x1), y = ny(l.y);
       if (y > DM_FOOTER_Y) return;
       // a table's border or an underlined word, not a blank to write on
-      const touching = shapes.v.filter((v) => (Math.abs(v.x - l.x0) < 2 || Math.abs(v.x - l.x1) < 2) && v.y0 - 2 <= l.y && v.y1 + 2 >= l.y).length;
-      if (touching >= 1) return;
+      const hit = (x) => shapes.v.some((v) => Math.abs(v.x - x) < 2 && v.y0 - 2 <= l.y && v.y1 + 2 >= l.y);
+      if (hit(l.x0) && hit(l.x1)) return;
       const under = phr.some((p) => {
         const ov = Math.min(p.x1, x1) - Math.max(p.x0, x0);
         return ov / (x1 - x0) > 0.6 && y - p.y >= -0.1 * p.h && y - p.y <= 0.45 * p.h;
@@ -3996,7 +4024,7 @@
         const mid = (c.y0 + c.y1) / 2;
         const right = phr.filter((p) => p.x0 >= c.x1 - 0.004 && p.x0 - c.x1 < 0.05 && Math.abs(p.cy - mid) < 0.014).sort((a, b) => a.x0 - b.x0)[0];
         if (right) return text(right);
-        const left = phr.filter((p) => p.x1 <= c.x0 + 0.004 && c.x0 - p.x1 < 0.05 && Math.abs(p.cy - mid) < 0.014).sort((a, b) => b.x1 - a.x1)[0];
+        const left = phr.filter((p) => p.x1 <= c.x0 + 0.004 && c.x0 - p.x1 < 0.4 && Math.abs(p.cy - mid) < 0.014).sort((a, b) => b.x1 - a.x1)[0];
         return left ? text(left) : "";
       }
       const row = c.shape === "box" ? (c.y0 + c.y1) / 2 : c.y - 0.006;
@@ -4086,7 +4114,9 @@
     return out;
   }
 
+  let dmLastErr = "";
   async function dmDetectFields(pdf, bytes) {
+    dmLastErr = ""; Object.assign(dmStats, { h: 0, v: 0, rect: 0, ops: 0, text: 0 });
     let found = await dmDetectAcro(bytes);
     if (found.length < 2) {
       const pdfjs = await ensurePdfJs();
@@ -4094,7 +4124,7 @@
       for (let n = 1; n <= pdf.numPages; n++) {
         const page = await pdf.getPage(n);
         let list = [];
-        try { list = await dmDetectPage(page, pdfjs); } catch (_) {}
+        try { list = await dmDetectPage(page, pdfjs); } catch (e) { dmLastErr = e && e.message || String(e); }
         list.forEach((f) => found.push({ ...f, page: n - 1 }));
       }
     }
@@ -4119,7 +4149,7 @@
       const hasSig = tplPdf.fields.some((f) => f.type === "signature");
       msgEl.innerHTML = n
         ? `<div class="msg ok">Placed ${n} field${n === 1 ? "" : "s"} automatically. Drag to nudge, resize from the corner, or Remove any that are wrong.${hasSig ? "" : " No employee signature spot was found. Add one with the Employee signature button."}</div>`
-        : `<div class="msg ok">Couldn't spot any blanks on this PDF. Click the page to add fields yourself.</div>`;
+        : `<div class="msg ok">Couldn't spot any blanks on this PDF${dmLastErr ? ` (${escHtml(dmLastErr)})` : ` (read ${dmStats.text} text pieces, ${dmStats.h} lines, ${dmStats.rect} boxes)`}. Click the page to add fields yourself.</div>`;
     } catch (err) {
       msgEl.innerHTML = `<div class="msg error">Auto-detect failed (${escHtml(err.message || "unknown error")}). You can still add fields by clicking the page.</div>`;
     }
