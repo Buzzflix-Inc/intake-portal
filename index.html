@@ -212,7 +212,7 @@
   #mfaGate .mfa-qr { display: flex; justify-content: center; margin: 10px 0; }
   #mfaGate .mfa-qr img { width: 188px; height: 188px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
   #mfaGate code { display: block; word-break: break-all; font-size: 12px; background: var(--page); border: 1px solid var(--line); border-radius: 6px; padding: 8px; margin-bottom: 14px; user-select: all; }
-  #mfaGate input { width: 100%; font-size: 20px; letter-spacing: 0.3em; text-align: center; margin-bottom: 12px; }
+  #mfaGate input { width: 100%; box-sizing: border-box; font-size: 20px; letter-spacing: 0.3em; text-align: center; margin-bottom: 12px; }
   #mfaGate .mfa-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
   /* Collapsible admin sections */
   #adminTab section.panel.acc, #superTab section.panel.acc, #deptTab section.panel.acc { padding: 0; }
@@ -5832,12 +5832,18 @@
         if (e0) { card(`<h2>Set up two-step sign-in</h2><div class="msg error">${escHtml(e0.message)}</div><button type="button" class="remove-link" data-so>Sign out</button>`); return; }
         card(`<h2>Set up two-step sign-in</h2>
           <p>Admin accounts need a second step. Scan this with an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, Authy), then enter the 6-digit code it shows.</p>
-          <div class="mfa-qr"><img alt="QR code" src="${en.totp.qr_code}" /></div>
+          <div class="mfa-qr"><img alt="QR code" id="mfaQr" /></div>
           <p style="margin-bottom:6px;">Can't scan? Type this key into the app:</p>
           <code>${escHtml(en.totp.secret)}</code>
           <input id="mfaCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" />
           <div id="mfaMsg"></div>
           <div class="mfa-row"><button class="btn-secondary" id="mfaGo">Turn on</button><button type="button" class="remove-link" data-so>Sign out</button></div>`);
+        // Set via the DOM (not markup): the SVG contains quotes that break an HTML attribute.
+        (() => {
+          let q = String(en.totp.qr_code || "");
+          if (/^data:image\/svg\+xml/i.test(q) && !/;base64,/i.test(q)) q = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(q.replace(/^data:image\/svg\+xml[^,<]*,/i, ""));
+          gate.querySelector("#mfaQr").src = q;
+        })();
         const input = gate.querySelector("#mfaCode"), go = gate.querySelector("#mfaGo"), msg = gate.querySelector("#mfaMsg");
         const submit = async () => {
           const code = input.value.trim();
