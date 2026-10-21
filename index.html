@@ -4268,6 +4268,11 @@
     return out;
   }
 
+  // Known field names on real union cards (Cast & Crew Toronto card). There, "IN" = meal starts, "OUT" = back to work.
+  const TS_ACRO_DAYCOL = { CALLTIME: "call", WRAPTIME: "wrap", LUNCHIN: "meal1_out", LUNCHOUT: "meal1_in", DINNERIN: "meal2_out", DINNEROUT: "meal2_in", DATE: "date", TOTALHOURS: "hours" };
+  const TS_ACRO_HEAD = { SHOWTITLE: "fixed", CORPNAME: "company", NAME: "name", WEEKENDING: "week_end", DEPT: "department", CTGRY: "position", UNION: "free" };
+  // Office / accounting / approval boxes and calculated columns: not for the employee.
+  const TS_ACRO_SKIP = /^(PRODUCER|PRODMGR|ACCOUNTANT|DEPTHEAD|ACCOUNTCODE|HOURS|DESC|RATE|TOTALS|CODE|TOTAL|SIN|GST|HDW|YES|NO|TRAVEL|TURNAROUND|EPS|PAYHOURS|1X|15X|2X|3X|NBD|AM|PM|BLANK|EQHOURS)\d*$/;
   // Forms that already contain fillable boxes: use those exact positions.
   async function tsDetectAcro(bytes) {
     const L = await ensurePdfLib();
@@ -4280,13 +4285,27 @@
       if (!isCheck && !isText) continue;
       const name = field.getName();
       const lower = name.toLowerCase();
-      const dm = /(sun|mon|tue|wed|thu|fri|sat)/.exec(lower);
-      const col = tsClassifyColumn(name.replace(/(sun|mon|tue|wed|thu|fri|sat)[a-z]*/ig, " ").replace(/[_\-.\d]+/g, " "));
+      // Column-per-day naming: CALLTIME.0 .. CALLTIME.6 (0 = Sunday)
+      const key = name.toUpperCase().replace(/[^A-Z0-9.]/g, "");
+      const im = /^(.*?)\.?(\d)$/.exec(name.toUpperCase().replace(/[ _\-]/g, ""));
+      const base = im ? im[1].replace(/\.$/, "") : "";
+      const idx = im ? Number(im[2]) : -1;
+      const plain = key.replace(/\./g, "");
       let bind, label;
-      if (dm && col) bind = `d${TS_DAY_KEYS.indexOf(dm[1])}.${col}`;
-      else {
-        const g = tsGuessLabelBind(name.replace(/[_\-.]+/g, " "));
-        bind = g && g.bind ? g.bind : (isCheck ? "free_check" : "free");
+      if (TS_ACRO_SKIP.test(plain) || (im && TS_ACRO_SKIP.test(base.replace(/\./g, "")))) continue;
+      if (im && TS_ACRO_DAYCOL[base.replace(/\./g, "")] !== undefined) {
+        if (idx > 6) continue;
+        bind = `d${idx}.${TS_ACRO_DAYCOL[base.replace(/\./g, "")]}`;
+        if (!bind || bind.endsWith(".null")) continue;
+      } else if (TS_ACRO_HEAD[plain]) {
+        bind = TS_ACRO_HEAD[plain];
+      } else if (im && /^[A-Z.]*[A-Z]$/.test(base) && base.length > 1 && !/^(sun|mon|tue|wed|thu|fri|sat)/i.test(base) && !TS_ACRO_HEAD[base]) {
+        continue; // unknown numbered grid column: not for the employee
+      } else {
+        const dm = /(sun|mon|tue|wed|thu|fri|sat)/.exec(lower);
+        const col = tsClassifyColumn(name.replace(/(sun|mon|tue|wed|thu|fri|sat)[a-z]*/ig, " ").replace(/[_\-.\d]+/g, " "));
+        if (dm && col) bind = `d${TS_DAY_KEYS.indexOf(dm[1])}.${col}`;
+        else { const g = tsGuessLabelBind(name.replace(/[_\-.]+/g, " ")); bind = g && g.bind ? g.bind : (isCheck ? "free_check" : "free"); }
       }
       if (bind === "free" || bind === "free_check") label = name.replace(/[_\-.]+/g, " ").trim();
       for (const w of field.acroField.getWidgets()) {
@@ -4305,7 +4324,19 @@
   async function tsDetectFields(pdf, bytes) {
     const acro = await tsDetectAcro(bytes);
     let fields = [];
-    if (acro.length >= 3) fields = acro;
+    if (acro.length >= 3) {
+      fields = acro;
+      // Cards often have no signature box: find the "EMPLOYEE SIGNATURE" line and add one.
+      if (!fields.some((f) => f.bind === "signature")) {
+        try {
+          for (let n = 1; n <= pdf.numPages; n++) {
+            const phr = await tsPagePhrases(await pdf.getPage(n));
+            const sig = tsDetectLabels(phr, null, []).filter((f) => f.bind === "signature" || f.bind === "signed_date");
+            if (sig.length) { sig.forEach((f) => fields.push({ ...f, page: n - 1 })); break; }
+          }
+        } catch (_) {}
+      }
+    }
     else {
       for (let n = 1; n <= pdf.numPages; n++) {
         const page = await pdf.getPage(n);
