@@ -3957,10 +3957,103 @@
     return { shapes, W: vp.width, H: vp.height };
   }
 
+  // Scanned or flattened PDFs (no real text or drawing commands): find blanks from the picture itself.
+  async function dmDetectRaster(page) {
+    const vp0 = page.getViewport({ scale: 1 });
+    const scale = Math.min(2, 1100 / vp0.width);
+    const vp = page.getViewport({ scale });
+    const cv = document.createElement("canvas");
+    cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+    const ctx = cv.getContext("2d", { willReadFrequently: true });
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height);
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    const w = cv.width, h = cv.height;
+    const d = ctx.getImageData(0, 0, w, h).data;
+    const dark = new Uint8Array(w * h), faint = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) faint[i] = d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11 < 215 ? 1 : 0;
+    for (let i = 0; i < w * h; i++) dark[i] = d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11 < 150 ? 1 : 0;
+        const pxPerPt = scale, pageScale = vp0.width / 612;
+    // vertical strokes (table borders)
+    const vruns = [];
+    for (let x = 0; x < w; x++) {
+      let y = 0;
+      while (y < h) {
+        if (!faint[y * w + x]) { y++; continue; }
+        const s0 = y; while (y < h && faint[y * w + x]) y++;
+        if (y - s0 >= 14) vruns.push({ x, y0: s0, y1: y });
+      }
+    }
+    // horizontal strokes
+    const minLen = Math.max(40 * pxPerPt * pageScale, 0.06 * w);
+    let runs = [];
+    for (let y = 0; y < h; y++) {
+      let x = 0;
+      while (x < w) {
+        if (!dark[y * w + x]) { x++; continue; }
+        const s0 = x; while (x < w && dark[y * w + x]) x++;
+        if (x - s0 >= minLen) runs.push({ x0: s0, x1: x, y0: y, y1: y });
+      }
+    }
+    const lines = [];
+    runs.forEach((r) => {
+      const m = lines.find((l) => r.y0 - l.y1 <= 1 && Math.abs(l.x0 - r.x0) <= 3 && Math.abs(l.x1 - r.x1) <= 3);
+      if (m) m.y1 = r.y0; else lines.push({ ...r });
+    });
+    const hit = (x, y) => vruns.some((v) => Math.abs(v.x - x) <= 3 && v.y0 - 3 <= y && v.y1 + 3 >= y);
+    const out = [];
+    const fh = 17 * pageScale / vp0.height * 1, sigH = 38 * pageScale / vp0.height;
+    let n = 0;
+    lines.filter((l) => l.y1 - l.y0 <= 4 && l.x1 - l.x0 <= 0.6 * w).forEach((l) => {
+      const y = (l.y0 + l.y1) / 2;
+      if (hit(l.x0, y) && hit(l.x1, y)) return;
+      if (y / h > DM_FOOTER_Y) return;
+      n++;
+      const fhn = 17 * pageScale / vp0.height;
+      out.push({ type: "text", label: "Blank " + n, x: l.x0 / w, y: y / h - fhn + 0.003, w: (l.x1 - l.x0) / w, h: fhn });
+    });
+    // checkboxes: small square outlines
+    const lab = new Int32Array(w * h);
+    const stack = new Int32Array(w * h);
+    let comp = 0, cn = 0;
+    const lo = 8 * pxPerPt * pageScale, hi = 28 * pxPerPt * pageScale;
+    for (let i = 0; i < w * h; i++) {
+      if (!dark[i] || lab[i]) continue;
+      comp++;
+      let sp = 0, count = 0, minx = w, maxx = 0, miny = h, maxy = 0, big = false;
+      stack[sp++] = i; lab[i] = comp;
+      while (sp) {
+        const j = stack[--sp], x = j % w, y = (j - x) / w;
+        count++;
+        if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y;
+        if (maxx - minx > hi * 2 || maxy - miny > hi * 2) big = true;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          if (!dx && !dy) continue;
+          const nx2 = x + dx, ny2 = y + dy;
+          if (nx2 < 0 || ny2 < 0 || nx2 >= w || ny2 >= h) continue;
+          const k = ny2 * w + nx2;
+          if (dark[k] && !lab[k]) { lab[k] = comp; stack[sp++] = k; }
+        }
+      }
+      if (big) continue;
+      const bw = maxx - minx + 1, bh = maxy - miny + 1;
+      if (bw < lo || bw > hi || bh < lo || bh > hi || Math.abs(bw - bh) > 0.2 * Math.max(bw, bh)) continue;
+      if (count > 0.5 * bw * bh) continue;
+      let edge = 0, tot = 0;
+      for (let x = minx; x <= maxx; x++) { tot += 2; edge += dark[miny * w + x] + dark[maxy * w + x]; }
+      for (let y = miny; y <= maxy; y++) { tot += 2; edge += dark[y * w + minx] + dark[y * w + maxx]; }
+      if (edge / tot < 0.85) continue;
+      if (maxy / h > DM_FOOTER_Y) continue;
+      cn++;
+      out.push({ type: "checkbox", label: "Checkbox " + cn, x: minx / w, y: miny / h, w: bw / w, h: bh / h });
+    }
+    return out.slice(0, 80);
+  }
+
   async function dmDetectPage(page, pdfjs) {
     const blanks = [];
     const phr = await tsPagePhrases(page, { blanks });
     dmStats.text += phr.length;
+    if (phr.length < 15) { const r = await dmDetectRaster(page); dmStats.raster = (dmStats.raster || 0) + 1; return r; }
     const { shapes, W, H } = await dmPageShapes(page, pdfjs);
     const sc = W / 612;
     const fh = 17 * sc / H, sigH = 38 * sc / H;
@@ -4149,7 +4242,7 @@
       const hasSig = tplPdf.fields.some((f) => f.type === "signature");
       msgEl.innerHTML = n
         ? `<div class="msg ok">Placed ${n} field${n === 1 ? "" : "s"} automatically. Drag to nudge, resize from the corner, or Remove any that are wrong.${hasSig ? "" : " No employee signature spot was found. Add one with the Employee signature button."}</div>`
-        : `<div class="msg ok">Couldn't spot any blanks on this PDF${dmLastErr ? ` (${escHtml(dmLastErr)})` : ` (read ${dmStats.text} text pieces, ${dmStats.h} lines, ${dmStats.rect} boxes)`}. Click the page to add fields yourself.</div>`;
+        : `<div class="msg ok">Couldn't spot any blanks on this PDF${dmLastErr ? ` (${escHtml(dmLastErr)})` : ` (${dmStats.raster ? "this looks like a scanned page. " : ""}read ${dmStats.text} text pieces, ${dmStats.h} lines, ${dmStats.rect} boxes)`}. Click the page to add fields yourself.</div>`;
     } catch (err) {
       msgEl.innerHTML = `<div class="msg error">Auto-detect failed (${escHtml(err.message || "unknown error")}). You can still add fields by clicking the page.</div>`;
     }
