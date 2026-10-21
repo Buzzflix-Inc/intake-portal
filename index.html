@@ -64,6 +64,7 @@
     inset: 0;
     background: var(--page);
     opacity: 1;
+    transition: opacity .6s ease;
   }
   .shell {
     max-width: 1080px;
@@ -2756,8 +2757,8 @@
       previewBox.style.backgroundPosition = `${posX}% ${posY}%`;
       previewOverlay.style.opacity = String(1 - opacityPct / 100);
       if (company.background_path) {
-        const { data: bgSigned } = await client.storage.from("branding").createSignedUrl(company.background_path, 60 * 60);
-        previewBox.style.backgroundImage = bgSigned ? `url("${bgSigned.signedUrl}")` : "none";
+        const bgUrl = await brandingUrl(company.background_path);
+        previewBox.style.backgroundImage = bgUrl ? `url("${bgUrl}")` : "none";
       } else {
         previewBox.style.backgroundImage = "none";
       }
@@ -2767,6 +2768,44 @@
   }
 
   // ---- Portal background (applies to everyone at the company) ----
+  // Background images are signed for a week and the link is remembered in
+  // this browser, so the same URL is used every visit and the browser's
+  // own image cache can serve it instantly. (Each upload gets a new file
+  // name, so a changed background is never served stale.)
+  async function brandingUrl(path) {
+    const key = "brandUrl:" + path;
+    try {
+      const c = JSON.parse(localStorage.getItem(key) || "null");
+      if (c && c.exp > Date.now() + 86400000) return c.url;
+    } catch (e) { /* storage unavailable */ }
+    const { data } = await client.storage.from("branding").createSignedUrl(path, 60 * 60 * 24 * 7);
+    if (!data) return null;
+    try { localStorage.setItem(key, JSON.stringify({ url: data.signedUrl, exp: Date.now() + 7 * 86400000 })); } catch (e) { /* ignore */ }
+    return data.signedUrl;
+  }
+
+  // Shrinks a photo to at most 1920px on its longest side as a JPEG before
+  // upload. A phone or camera original is several MB; this is a few hundred KB.
+  function compressImageToBlob(file, maxSide = 1920, quality = 0.82) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+        const w = Math.round(img.naturalWidth * scale), hgt = Math.round(img.naturalHeight * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = hgt;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, hgt);
+        ctx.drawImage(img, 0, 0, w, hgt);
+        URL.revokeObjectURL(url);
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't process that image"))), "image/jpeg", quality);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("That file isn't a readable image")); };
+      img.src = url;
+    });
+  }
+
   async function applyPageBackground(company) {
     const bgEl = document.getElementById("pageBg");
     const overlay = bgEl.querySelector(".bg-overlay");
@@ -2777,10 +2816,16 @@
     bgEl.style.backgroundPosition = `${posX}% ${posY}%`;
 
     if (company && company.background_path) {
-      const { data: signed } = await client.storage.from("branding").createSignedUrl(company.background_path, 60 * 60);
-      if (signed) {
-        bgEl.style.backgroundImage = `url("${signed.signedUrl}")`;
-        overlay.style.opacity = String(1 - opacity);
+      const bgUrl = await brandingUrl(company.background_path);
+      if (bgUrl) {
+        // Fade the photo in once it has actually downloaded instead of
+        // letting it paint in strips.
+        const pre = new Image();
+        pre.onload = () => {
+          bgEl.style.backgroundImage = `url("${bgUrl}")`;
+          overlay.style.opacity = String(1 - opacity);
+        };
+        pre.src = bgUrl;
         return;
       }
     }
@@ -2816,10 +2861,16 @@
 
     const updates = { background_opacity, background_pos_x, background_pos_y };
 
+    const oldPath = currentCompany.background_path || null;
     if (file) {
-      const ext = file.name.split(".").pop();
-      const path = `${currentCompany.id}/background.${ext}`;
-      const { error: uploadError } = await client.storage.from("branding").upload(path, file, { upsert: true });
+      msgEl.innerHTML = `<div class="msg">Optimizing and uploading…</div>`;
+      let blob;
+      try { blob = await compressImageToBlob(file); }
+      catch (err) { msgEl.innerHTML = `<div class="msg error">${escHtml(err.message)}</div>`; return; }
+      const path = `${currentCompany.id}/background-${Date.now()}.jpg`;
+      const { error: uploadError } = await client.storage.from("branding").upload(path, blob, {
+        contentType: "image/jpeg", cacheControl: "31536000",
+      });
       if (uploadError) {
         msgEl.innerHTML = `<div class="msg error">Upload failed: ${uploadError.message}</div>`;
         return;
@@ -2831,6 +2882,10 @@
     if (error) {
       msgEl.innerHTML = `<div class="msg error">${error.message}</div>`;
       return;
+    }
+    // Clear out the previous image so old uploads don't pile up.
+    if (updates.background_path && oldPath && oldPath !== updates.background_path) {
+      client.storage.from("branding").remove([oldPath]).catch(() => {});
     }
     msgEl.innerHTML = `<div class="msg ok">Background saved.</div>`;
     document.getElementById("companyBgFile").value = "";
@@ -3636,6 +3691,10 @@
 
     isAdmin = roleRow && roleRow.role === "admin";
 
+    // Branding and the background photo first, so the page looks right
+    // while everything else is still loading.
+    await loadCompanyBranding();
+
     if (isAdmin) {
       tabAdminBtn.classList.remove("hidden");
       await loadProfileMap();
@@ -3652,7 +3711,6 @@
       loadPendingCountersignatures();
     }
 
-    await loadCompanyBranding();
     await loadMyRequestedDocuments();
     loadMyDeals();
 
