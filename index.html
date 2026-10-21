@@ -1161,7 +1161,7 @@
         <div class="field" style="margin-top:14px;">
           <label for="templatePdfInput">Start from your own blank PDF (optional)</label>
           <input type="file" id="templatePdfInput" accept="application/pdf" />
-          <p style="font-size:12px;color:var(--ink-faint);margin:4px 0 0;">Upload your blank deal memo, then click on the page to drop fillable fields where the employee should type or sign.</p>
+          <p style="font-size:12px;color:var(--ink-faint);margin:4px 0 0;">Upload your blank deal memo and the fillable fields are placed for you (blanks, checkboxes and signature spots). Then just nudge or remove any that are off, or click the page to add more.</p>
         </div>
 
         <div id="pdfEditorWrap" class="hidden">
@@ -1179,6 +1179,7 @@
             <button type="button" class="pf-tool" data-tool="checkbox">+ Checkbox</button>
             <button type="button" class="pf-tool" data-tool="signature">+ Employee signature</button>
             <button type="button" class="pf-tool" data-tool="countersignature">+ Company signature</button>
+            <button type="button" class="btn-secondary" id="pfAutoFind">Find fields automatically</button>
             <button type="button" class="remove-link" id="pfClearPdf" style="margin-left:auto;">Remove PDF</button>
           </div>
           <p style="font-size:12px;color:var(--ink-faint);margin:0 0 8px;">Pick a field type, then click the page. Drag a box to move it; drag its corner to resize.</p>
@@ -3647,6 +3648,12 @@
   }
 
   document.getElementById("pfClearPdf").addEventListener("click", clearTemplatePdf);
+  document.getElementById("pfAutoFind").addEventListener("click", async () => {
+    const btn = document.getElementById("pfAutoFind");
+    btn.disabled = true;
+    await runAutoPlace(document.getElementById("templateMsg"));
+    btn.disabled = false;
+  });
   document.querySelectorAll("#pfToolbar .pf-tool").forEach((btn) => {
     btn.addEventListener("click", () => {
       pdfTool = btn.dataset.tool;
@@ -3742,7 +3749,7 @@
     try {
       document.getElementById("pfPagesInput").value = "";
       await showEditorPdf(new Uint8Array(await file.arrayBuffer()), [], {});
-      msgEl.innerHTML = "";
+      await runAutoPlace(msgEl);
     } catch (err) {
       clearTemplatePdf();
       msgEl.innerHTML = `<div class="msg error">${escHtml(err.message || "Could not read that PDF.")}</div>`;
@@ -3855,6 +3862,269 @@
       ul.appendChild(li);
     });
   }
+
+  // ---- Auto-place fields on a deal memo (the admin then just nudges them) ----
+  const DM_SIG_RE = /(signature|signed|sign (here|below)|agreed( to)?|accepted|acknowledg|execut)/i;
+  const DM_COUNTER_RE = /(producer|company|authori[sz]ed|employer|upm|production manager)/i;
+  const DM_FOOTER_Y = 0.935;
+
+  function dmCleanLabel(s) {
+    return String(s || "").replace(/_+/g, " ").replace(/\s+/g, " ").replace(/^[\s:.\-–—]+|[\s:.\-–—]+$/g, "").slice(0, 60);
+  }
+  function dmTypeFor(label, shape) {
+    const l = label || "";
+    if (shape === "checkbox") return "checkbox";
+    if (/^(date|dated|date signed|signing date)$/i.test(l) || /\bdate\b/i.test(l) && !/signature/i.test(l)) return "date";
+    if (/(print|type|full)\s*name|witness/i.test(l) && /sign/i.test(l)) return "text";
+    if (DM_SIG_RE.test(l)) return DM_COUNTER_RE.test(l) && !/employee|contractor|crew/i.test(l) ? "countersignature" : "signature";
+    return "text";
+  }
+
+  // Positions of the page's drawn lines and boxes, in points from the page's top-left.
+  async function dmPageShapes(page, pdfjs) {
+    const OPS = pdfjs.OPS;
+    const vp = page.getViewport({ scale: 1 });
+    const ol = await page.getOperatorList();
+    const mulRow = (A, B) => [A[0] * B[0] + A[1] * B[2], A[0] * B[1] + A[1] * B[3], A[2] * B[0] + A[3] * B[2], A[2] * B[1] + A[3] * B[3], A[4] * B[0] + A[5] * B[2] + B[4], A[4] * B[1] + A[5] * B[3] + B[5]];
+    let ctm = [1, 0, 0, 1, 0, 0];
+    const stack = [];
+    const shapes = { h: [], v: [], rect: [] };
+    const pt = (x, y) => { const X = ctm[0] * x + ctm[2] * y + ctm[4], Y = ctm[1] * x + ctm[3] * y + ctm[5]; return vp.convertToViewportPoint(X, Y); };
+    const paint = new Set([OPS.stroke, OPS.closeStroke, OPS.fill, OPS.eoFill, OPS.fillStroke, OPS.eoFillStroke, OPS.closeFillStroke, OPS.closeEOFillStroke]);
+    let pending = [];
+    const addSeg = (a, b) => {
+      const dx = Math.abs(a[0] - b[0]), dy = Math.abs(a[1] - b[1]);
+      if (dy <= 0.8 && dx >= 8) pending.push({ k: "h", x0: Math.min(a[0], b[0]), x1: Math.max(a[0], b[0]), y: (a[1] + b[1]) / 2 });
+      else if (dx <= 0.8 && dy >= 8) pending.push({ k: "v", y0: Math.min(a[1], b[1]), y1: Math.max(a[1], b[1]), x: (a[0] + b[0]) / 2 });
+    };
+    for (let i = 0; i < ol.fnArray.length; i++) {
+      const fn = ol.fnArray[i], args = ol.argsArray[i];
+      if (fn === OPS.save) stack.push(ctm.slice());
+      else if (fn === OPS.restore) { if (stack.length) ctm = stack.pop(); }
+      else if (fn === OPS.transform) ctm = mulRow(args, ctm);
+      else if (fn === OPS.constructPath) {
+        const cops = args[0], c = args[1];
+        let ci = 0, cur = null, start = null;
+        for (const op of cops) {
+          if (op === OPS.moveTo) { cur = pt(c[ci], c[ci + 1]); start = cur; ci += 2; }
+          else if (op === OPS.lineTo) { const p = pt(c[ci], c[ci + 1]); if (cur) addSeg(cur, p); cur = p; ci += 2; }
+          else if (op === OPS.curveTo) { cur = pt(c[ci + 4], c[ci + 5]); ci += 6; }
+          else if (op === OPS.curveTo2 || op === OPS.curveTo3) { cur = pt(c[ci + 2], c[ci + 3]); ci += 4; }
+          else if (op === OPS.closePath) { if (cur && start) addSeg(cur, start); cur = start; }
+          else if (op === OPS.rectangle) {
+            const x = c[ci], y = c[ci + 1], w = c[ci + 2], h = c[ci + 3]; ci += 4;
+            const p1 = pt(x, y), p2 = pt(x + w, y + h);
+            const r = { x0: Math.min(p1[0], p2[0]), x1: Math.max(p1[0], p2[0]), y0: Math.min(p1[1], p2[1]), y1: Math.max(p1[1], p2[1]) };
+            const rw = r.x1 - r.x0, rh = r.y1 - r.y0;
+            if (rh <= 2.5 && rw >= 8) pending.push({ k: "h", x0: r.x0, x1: r.x1, y: (r.y0 + r.y1) / 2 });
+            else if (rw <= 2.5 && rh >= 8) pending.push({ k: "v", y0: r.y0, y1: r.y1, x: (r.x0 + r.x1) / 2 });
+            else if (rw > 2.5 && rh > 2.5) pending.push({ k: "rect", ...r });
+            cur = p2; start = p1;
+          }
+        }
+      } else if (paint.has(fn)) {
+        pending.forEach((s) => { if (s.k === "h") shapes.h.push(s); else if (s.k === "v") shapes.v.push(s); else shapes.rect.push(s); });
+        pending = [];
+      } else if (fn === OPS.endPath) pending = [];
+    }
+    return { shapes, W: vp.width, H: vp.height };
+  }
+
+  async function dmDetectPage(page, pdfjs) {
+    const blanks = [];
+    const phr = await tsPagePhrases(page, { blanks });
+    const { shapes, W, H } = await dmPageShapes(page, pdfjs);
+    const sc = W / 612;
+    const fh = 17 * sc / H, sigH = 38 * sc / H;
+    const nx = (v) => v / W, ny = (v) => v / H;
+    const cands = []; // { shape, x0, x1, y (bottom/baseline), box?: {y0,y1} }
+
+    // Lines of underscores typed into the text, and checkbox glyphs
+    blanks.forEach((b) => {
+      if (b.kind === "line") cands.push({ shape: "line", x0: b.x0, x1: b.x1, y: b.y + 0.002 });
+      else cands.push({ shape: "checkbox", x0: b.x0, x1: b.x1, y0: b.y - b.h * 0.85, y1: b.y + b.h * 0.1 });
+    });
+    // Drawn lines
+    shapes.h.forEach((l) => {
+      const len = (l.x1 - l.x0);
+      if (len < 40 * sc || len > 0.8 * W) return;
+      const x0 = nx(l.x0), x1 = nx(l.x1), y = ny(l.y);
+      if (y > DM_FOOTER_Y) return;
+      // a table's border or an underlined word, not a blank to write on
+      const touching = shapes.v.filter((v) => (Math.abs(v.x - l.x0) < 2 || Math.abs(v.x - l.x1) < 2) && v.y0 - 2 <= l.y && v.y1 + 2 >= l.y).length;
+      if (touching >= 1) return;
+      const under = phr.some((p) => {
+        const ov = Math.min(p.x1, x1) - Math.max(p.x0, x0);
+        return ov / (x1 - x0) > 0.6 && y - p.y >= -0.1 * p.h && y - p.y <= 0.45 * p.h;
+      });
+      if (under) return;
+      cands.push({ shape: "line", x0, x1, y });
+    });
+    // Drawn boxes: checkboxes (small squares) and empty boxes to type in
+    shapes.rect.forEach((r) => {
+      const w = r.x1 - r.x0, h = r.y1 - r.y0;
+      if (w > 0.7 * W || h > 0.7 * H) return;
+      const x0 = nx(r.x0), x1 = nx(r.x1), y0 = ny(r.y0), y1 = ny(r.y1);
+      if (y1 > DM_FOOTER_Y) return;
+      if (w >= 6 * sc && w <= 26 * sc && h >= 6 * sc && h <= 26 * sc && Math.abs(w - h) <= 0.25 * Math.max(w, h)) {
+        cands.push({ shape: "checkbox", x0, x1, y0, y1 }); return;
+      }
+      if (h >= 10 * sc && h <= 50 * sc && w >= 45 * sc) {
+        const hasText = phr.some((p) => p.cx > x0 && p.cx < x1 && p.cy > y0 && p.cy < y1);
+        if (hasText) return;
+        // box made of lines drawn separately would already be skipped; this is a filled/stroked empty rectangle
+        cands.push({ shape: "box", x0, x1, y0, y1, y: y1 });
+      }
+    });
+
+    // Drop duplicates (e.g. underscores over a drawn line)
+    const keep = [];
+    cands.forEach((c) => {
+      const cy = c.shape === "line" ? c.y : (c.y0 + c.y1) / 2;
+      const dup = keep.find((k) => {
+        const ky = k.shape === "line" ? k.y : (k.y0 + k.y1) / 2;
+        const ov = Math.min(k.x1, c.x1) - Math.max(k.x0, c.x0);
+        return k.shape === c.shape && ov > 0.5 * Math.min(k.x1 - k.x0, c.x1 - c.x0) && Math.abs(ky - cy) < 0.012;
+      });
+      if (!dup) keep.push(c);
+    });
+
+    const near = (p, row, tol) => Math.abs(p.y - row) <= tol;
+    const labelFor = (c) => {
+      const text = (p) => dmCleanLabel(p.s);
+      if (c.shape === "checkbox") {
+        const mid = (c.y0 + c.y1) / 2;
+        const right = phr.filter((p) => p.x0 >= c.x1 - 0.004 && p.x0 - c.x1 < 0.05 && Math.abs(p.cy - mid) < 0.014).sort((a, b) => a.x0 - b.x0)[0];
+        if (right) return text(right);
+        const left = phr.filter((p) => p.x1 <= c.x0 + 0.004 && c.x0 - p.x1 < 0.05 && Math.abs(p.cy - mid) < 0.014).sort((a, b) => b.x1 - a.x1)[0];
+        return left ? text(left) : "";
+      }
+      const row = c.shape === "box" ? (c.y0 + c.y1) / 2 : c.y - 0.006;
+      const left = phr.filter((p) => p.x1 <= c.x0 + 0.01 && c.x0 - p.x1 < 0.3 && Math.abs(p.cy - row) < 0.013).sort((a, b) => b.x1 - a.x1)[0];
+      if (left) return text(left);
+      const top = c.shape === "box" ? c.y0 : c.y;
+      const below = phr.filter((p) => p.y - c.y > 0 && p.y - c.y <= 0.06 && Math.min(p.x1, c.x1) - Math.max(p.x0, c.x0) > 0 && p.s.length <= 40).sort((a, b) => a.y - b.y)[0];
+      if (below && c.shape === "line") return text(below);
+      const above = phr.filter((p) => top - p.y > 0 && top - p.y <= 0.04 && Math.min(p.x1, c.x1) - Math.max(p.x0, c.x0) > 0 && p.s.length <= 45).sort((a, b) => b.y - a.y)[0];
+      return above ? text(above) : "";
+    };
+
+    const fields = [];
+    keep.forEach((c) => {
+      const label = labelFor(c);
+      const type = dmTypeFor(label, c.shape);
+      if (c.shape === "checkbox") {
+        const side = Math.min(Math.max(c.x1 - c.x0, 8 * sc / W), 22 * sc / W), cyc = (c.y0 + c.y1) / 2;
+        fields.push({ type, label: label || "Checkbox", x: (c.x0 + c.x1) / 2 - side / 2, y: cyc - side * (W / H) / 2, w: side, h: side * (W / H), _u: !label });
+      } else if (c.shape === "box") {
+        const isSig = type === "signature" || type === "countersignature";
+        fields.push({ type, label: label || FIELD_KINDS[type].label, x: c.x0 + 0.002, y: c.y0 + 0.002, w: Math.max(0.03, c.x1 - c.x0 - 0.004), h: Math.max(0.012, c.y1 - c.y0 - 0.004), _u: !label });
+      } else {
+        const isSig = type === "signature" || type === "countersignature";
+        const h = isSig ? sigH : fh;
+        const w = Math.min(c.x1 - c.x0, isSig ? 0.4 : 0.6);
+        fields.push({ type, label: label || FIELD_KINDS[type].label, x: c.x0, y: c.y - h + 0.003, w, h, _u: !label });
+      }
+    });
+
+    // Cues with no drawn blank: "AGREED TO AND ACCEPTED:" with empty space beneath,
+    // or "Name:" with nothing after it
+    const overlapsField = (x, y, w, h) => fields.some((f) => Math.min(f.x + f.w, x + w) - Math.max(f.x, x) > 0 && Math.min(f.y + f.h, y + h) - Math.max(f.y, y) > 0);
+    const body = phr.filter((p) => p.y < DM_FOOTER_Y);
+    body.forEach((p) => {
+      const s = p.s.trim();
+      const endsColon = /:\s*$/.test(s);
+      const rowRight = body.some((q) => q !== p && Math.abs(q.cy - p.cy) < 0.6 * p.h && q.x0 >= p.x1 - 0.002 && q.x0 - p.x1 < 0.4);
+      if (DM_SIG_RE.test(s) && (endsColon || s.length < 36) && !rowRight) {
+        const nextBelow = body.filter((q) => q.y - p.y > p.h * 0.5 && Math.min(q.x1, p.x0 + 0.4) > p.x0 && q.x0 < p.x0 + 0.4).sort((a, b) => a.y - b.y)[0];
+        const room = (nextBelow ? nextBelow.y - p.h : DM_FOOTER_Y) - p.y;
+        if (room < sigH + 0.01) return;
+        const x = p.x0, y = p.y + 0.012, w = 0.34;
+        if (overlapsField(x, y, w, sigH) || overlapsField(p.x0, p.y - 0.07, 0.3, 0.07)) return;
+        const type = DM_COUNTER_RE.test(s) && !/employee|contractor|crew|acknowledg/i.test(s) ? "countersignature" : "signature";
+        fields.push({ type, label: type === "signature" ? "Employee signature" : "Company signature", x, y, w, h: sigH });
+        if (!overlapsField(x + w + 0.04, y, 0.16, fh) && !phr.some((q) => /\bdate\b/i.test(q.s) && Math.abs(q.y - (y + sigH)) < 0.05)) {
+          fields.push({ type: "date", label: "Date", x: x + w + 0.04, y: y + sigH - fh, w: 0.16, h: fh });
+        }
+      } else if (endsColon && s.length <= 32 && s.split(/\s+/).length <= 4 && /^[A-Z#]/.test(s) && !/^(\d+|[A-Za-z])[.)]\s/.test(s) && !rowRight && p.x1 < 0.8 && !/^(note|notes|terms|schedule)\b/i.test(s) && !DM_SIG_RE.test(s)) {
+        const x = p.x1 + 0.01, w = Math.min(0.32, 0.93 - x), y = p.y - fh + 0.004;
+        if (w < 0.1 || overlapsField(x, y, w, fh)) return;
+        const label = dmCleanLabel(s);
+        const type = dmTypeFor(label, "text");
+        // "Label:" followed by a normal paragraph line is not a blank; require clear space below too
+        fields.push({ type, label, x, y, w, h: fh });
+      }
+    });
+
+    // Page full of unlabelled blanks is almost certainly a table or decoration
+    const unlabelled = fields.filter((f) => f._u).length;
+    return fields.filter((f) => !(unlabelled > 12 && f._u)).slice(0, 60).map((f) => { delete f._u; return f; });
+  }
+
+  // Forms that already have fillable boxes use those exact positions.
+  async function dmDetectAcro(bytes) {
+    const L = await ensurePdfLib();
+    let doc, form;
+    try { doc = await L.PDFDocument.load(bytes, { ignoreEncryption: true }); form = doc.getForm(); } catch (_) { return []; }
+    const pages = doc.getPages();
+    const out = [];
+    for (const field of form.getFields()) {
+      const isCheck = field instanceof L.PDFCheckBox, isText = field instanceof L.PDFTextField;
+      const isSigField = field.constructor && field.constructor.name === "PDFSignature";
+      if (!isCheck && !isText && !isSigField) continue;
+      const name = field.getName();
+      const label = dmCleanLabel(name.replace(/[_\-.]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2"));
+      const type = isCheck ? "checkbox" : dmTypeFor(label, "text") === "signature" || isSigField ? "signature" : dmTypeFor(label, "text");
+      for (const w of field.acroField.getWidgets()) {
+        const r = w.getRectangle();
+        let pi = pages.findIndex((pg) => w.P() && pg.ref.toString() === w.P().toString());
+        if (pi < 0) pi = 0;
+        const { width: W, height: H } = pages[pi].getSize();
+        out.push({ type, label: label || FIELD_KINDS[type].label, page: pi, x: r.x / W, y: 1 - (r.y + r.height) / H, w: r.width / W, h: r.height / H });
+      }
+    }
+    return out;
+  }
+
+  async function dmDetectFields(pdf, bytes) {
+    let found = await dmDetectAcro(bytes);
+    if (found.length < 2) {
+      const pdfjs = await ensurePdfJs();
+      found = [];
+      for (let n = 1; n <= pdf.numPages; n++) {
+        const page = await pdf.getPage(n);
+        let list = [];
+        try { list = await dmDetectPage(page, pdfjs); } catch (_) {}
+        list.forEach((f) => found.push({ ...f, page: n - 1 }));
+      }
+    }
+    return found.map((f) => {
+      const x = clamp(f.x, 0, 0.99), y = clamp(f.y, 0, 0.99);
+      return { ...f, id: "f" + Math.random().toString(36).slice(2, 8), auto: true, x, y, w: clamp(f.w, 0.015, 1 - x), h: clamp(f.h, 0.008, 1 - y) };
+    });
+  }
+
+  async function autoPlaceFields() {
+    const pdfjs = await ensurePdfJs();
+    const pdf = await pdfjs.getDocument({ data: tplPdf.bytes.slice(0) }).promise;
+    const found = await dmDetectFields(pdf, tplPdf.bytes);
+    tplPdf.fields = tplPdf.fields.filter((f) => !f.auto).concat(found);
+    drawEditorFields();
+    return found.length;
+  }
+  async function runAutoPlace(msgEl) {
+    msgEl.innerHTML = `<div class="msg ok">Looking for the blanks on your PDF…</div>`;
+    try {
+      const n = await autoPlaceFields();
+      const hasSig = tplPdf.fields.some((f) => f.type === "signature");
+      msgEl.innerHTML = n
+        ? `<div class="msg ok">Placed ${n} field${n === 1 ? "" : "s"} automatically. Drag to nudge, resize from the corner, or Remove any that are wrong.${hasSig ? "" : " No employee signature spot was found. Add one with the Employee signature button."}</div>`
+        : `<div class="msg ok">Couldn't spot any blanks on this PDF. Click the page to add fields yourself.</div>`;
+    } catch (err) {
+      msgEl.innerHTML = `<div class="msg error">Auto-detect failed (${escHtml(err.message || "unknown error")}). You can still add fields by clicking the page.</div>`;
+    }
+  }
+  // ---- end auto-place ----
 
   async function savePdfTemplate(type, name, msgEl) {
     if (!tplPdf.fields.length) {
@@ -4143,7 +4413,7 @@
   }
 
   // Text on a page as phrases (nearby words on one line merged), positions as page fractions.
-  async function tsPagePhrases(page) {
+  async function tsPagePhrases(page, opts) {
     const vp = page.getViewport({ scale: 1 });
     const tc = await page.getTextContent();
     const raw = [];
@@ -4152,7 +4422,23 @@
       if (!s.trim()) return;
       const [vx, vy] = vp.convertToViewportPoint(it.transform[4], it.transform[5]);
       const hPx = Math.abs(it.height) || Math.hypot(it.transform[2], it.transform[3]) || 9;
-      raw.push({ s: s.trim(), x0: vx / vp.width, x1: (vx + it.width) / vp.width, y: vy / vp.height, h: hPx / vp.height, hx: hPx / vp.width });
+      const base = { y: vy / vp.height, h: hPx / vp.height, hx: hPx / vp.width };
+      if (opts && opts.blanks) {
+        // Pull underscore runs and checkbox glyphs out of the text; they are blanks, not words.
+        const len = s.length, at = (i) => (vx + it.width * (i / len)) / vp.width;
+        const re = /_{3,}|[\u2610\u25A1\u274F\u2751\u2752\u25A2]|\[\s{0,3}\]/g;
+        let last = 0, m;
+        const piece = (a, b) => { const t = s.slice(a, b).trim(); if (t) raw.push({ s: t, x0: at(a), x1: at(b), ...base }); };
+        while ((m = re.exec(s))) {
+          piece(last, m.index);
+          const kind = m[0][0] === "_" ? "line" : "box";
+          opts.blanks.push({ kind, x0: at(m.index), x1: at(m.index + m[0].length), y: base.y, h: base.h });
+          last = m.index + m[0].length;
+        }
+        piece(last, len);
+        return;
+      }
+      raw.push({ s: s.trim(), x0: vx / vp.width, x1: (vx + it.width) / vp.width, ...base });
     });
     raw.sort((a, b) => a.y - b.y || a.x0 - b.x0);
     const lines = [];
