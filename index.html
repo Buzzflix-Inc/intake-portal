@@ -3273,6 +3273,12 @@
       left.innerHTML = `<span class="name">${escHtml(t.name)}</span><span class="email">${t.type === "deal_memo" ? "Deal memo" : "Safety acknowledgment"} · ${detail}</span>`;
       const right = document.createElement("span");
       right.className = "actions";
+      if (t.source_pdf_path) {
+        const edit = document.createElement("button");
+        edit.className = "remove-link"; edit.style.marginRight = "10px"; edit.textContent = "Edit fields";
+        edit.addEventListener("click", () => editPdfTemplate(t));
+        right.appendChild(edit);
+      }
       const del = document.createElement("button");
       del.className = "remove-link"; del.textContent = "Delete";
       del.addEventListener("click", () => deleteTemplate(t.id));
@@ -3341,7 +3347,8 @@
     const pages = [];
     for (let n = 1; n <= pdf.numPages; n++) {
       const page = await pdf.getPage(n);
-      const vp = page.getViewport({ scale: 1.6 });
+      const base = page.getViewport({ scale: 1 });
+      const vp = page.getViewport({ scale: Math.min(1.6, 1100 / base.width) });
       const wrap = document.createElement("div");
       wrap.className = "pdf-page";
       wrap.style.aspectRatio = `${vp.width} / ${vp.height}`;
@@ -3379,6 +3386,8 @@
 
   function clearTemplatePdf() {
     tplPdf = { bytes: null, pages: [], fields: [] };
+    document.getElementById("saveTemplateBtn").textContent = "Save template";
+    document.getElementById("pfClearPdf").textContent = "Remove PDF";
     document.getElementById("templatePdfInput").value = "";
     document.getElementById("pdfEditorPages").innerHTML = "";
     document.getElementById("pdfFieldList").innerHTML = "";
@@ -3409,28 +3418,12 @@
       const bytes = new Uint8Array(await file.arrayBuffer());
       const pdfjs = await ensurePdfJs();
       const pdf = await pdfjs.getDocument({ data: bytes.slice(0) }).promise;
-      if (pdf.numPages > 15) throw new Error("That PDF has more than 15 pages.");
+      if (pdf.numPages > 30) throw new Error("That PDF has more than 30 pages. Split it into separate memos.");
       document.getElementById("pdfEditorWrap").classList.remove("hidden");
       document.getElementById("manualTemplateFields").classList.add("hidden");
       const pages = await renderPdfPages(document.getElementById("pdfEditorPages"), pdf);
       tplPdf = { bytes, pages, fields: [] };
-      pages.forEach((page, idx) => {
-        page.el.addEventListener("click", (e) => {
-          if (e.target.closest(".pdf-field")) return;
-          const rect = page.el.getBoundingClientRect();
-          const k = FIELD_KINDS[pdfTool];
-          const w = k.w;
-          const hgt = k.h != null ? k.h : w * (page.w / page.h);
-          tplPdf.fields.push({
-            id: "f" + Math.random().toString(36).slice(2, 8),
-            type: pdfTool, label: k.label, page: idx,
-            x: clamp((e.clientX - rect.left) / rect.width, 0, 1 - w),
-            y: clamp((e.clientY - rect.top) / rect.height - hgt / 2, 0, 1 - hgt),
-            w, h: hgt,
-          });
-          drawEditorFields();
-        });
-      });
+      bindEditorPages(pages);
       msgEl.innerHTML = "";
       drawEditorFields();
     } catch (err) {
@@ -3438,6 +3431,53 @@
       msgEl.innerHTML = `<div class="msg error">${escHtml(err.message || "Could not read that PDF.")}</div>`;
     }
   });
+
+  function bindEditorPages(pages) {
+    pages.forEach((page, idx) => {
+      page.el.addEventListener("click", (e) => {
+        if (e.target.closest(".pdf-field")) return;
+        const rect = page.el.getBoundingClientRect();
+        const k = FIELD_KINDS[pdfTool];
+        const w = k.w;
+        const hgt = k.h != null ? k.h : w * (page.w / page.h);
+        tplPdf.fields.push({
+          id: "f" + Math.random().toString(36).slice(2, 8),
+          type: pdfTool, label: k.label, page: idx,
+          x: clamp((e.clientX - rect.left) / rect.width, 0, 1 - w),
+          y: clamp((e.clientY - rect.top) / rect.height - hgt / 2, 0, 1 - hgt),
+          w, h: hgt,
+        });
+        drawEditorFields();
+      });
+    });
+  }
+
+  // Re-open a saved PDF template to move, add or remove its fields.
+  async function editPdfTemplate(t) {
+    const msgEl = document.getElementById("templateMsg");
+    msgEl.innerHTML = `<div class="msg ok">Loading ${escHtml(t.name)}…</div>`;
+    try {
+      const bytes = new Uint8Array(await loadTemplatePdfBytes(t.source_pdf_path));
+      const pdfjs = await ensurePdfJs();
+      const pdf = await pdfjs.getDocument({ data: bytes.slice(0) }).promise;
+      document.getElementById("templatePdfInput").value = "";
+      document.getElementById("pdfEditorWrap").classList.remove("hidden");
+      document.getElementById("manualTemplateFields").classList.add("hidden");
+      const pages = await renderPdfPages(document.getElementById("pdfEditorPages"), pdf);
+      tplPdf = { bytes, pages, fields: JSON.parse(JSON.stringify(t.fields || [])), editingId: t.id };
+      bindEditorPages(pages);
+      document.getElementById("templateTypeSelect").value = t.type;
+      document.getElementById("templateNameInput").value = t.name;
+      document.getElementById("saveTemplateBtn").textContent = "Save changes";
+      document.getElementById("pfClearPdf").textContent = "Cancel editing";
+      msgEl.innerHTML = `<div class="msg ok">Editing "${escHtml(t.name)}". People who already signed keep their copy; anyone still waiting will see the updated boxes.</div>`;
+      drawEditorFields();
+      document.getElementById("pdfEditorWrap").scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (err) {
+      clearTemplatePdf();
+      msgEl.innerHTML = `<div class="msg error">${escHtml(err.message || "Couldn't open that template.")}</div>`;
+    }
+  }
 
   function drawEditorFields() {
     tplPdf.pages.forEach((p) => p.el.querySelectorAll(".pdf-field").forEach((n) => n.remove()));
@@ -3515,6 +3555,17 @@
     const btn = document.getElementById("saveTemplateBtn");
     btn.disabled = true;
     msgEl.innerHTML = `<div class="msg ok">Saving…</div>`;
+    if (tplPdf.editingId) {
+      const fieldsOut = tplPdf.fields.map((f) => ({ ...f, label: (f.label || "").trim() || FIELD_KINDS[f.type].label }));
+      const { error: upErr } = await client.from("esign_templates").update({ name, type, fields: fieldsOut }).eq("id", tplPdf.editingId);
+      btn.disabled = false;
+      if (upErr) { msgEl.innerHTML = `<div class="msg error">${escHtml(upErr.message)}</div>`; return; }
+      msgEl.innerHTML = `<div class="msg ok">Changes saved.</div>`;
+      document.getElementById("templateNameInput").value = "";
+      clearTemplatePdf();
+      loadTemplates();
+      return;
+    }
     const path = `${currentCompany.id}/templates/${crypto.randomUUID()}.pdf`;
     const fields = tplPdf.fields.map((f) => ({ ...f, label: (f.label || "").trim() || FIELD_KINDS[f.type].label }));
     const up = await client.storage.from(DEAL_BUCKET).upload(path, new Blob([tplPdf.bytes], { type: "application/pdf" }), { contentType: "application/pdf" });
