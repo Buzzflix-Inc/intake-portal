@@ -3646,10 +3646,17 @@
   }
 
   async function deleteTemplate(id) {
-    if (!window.confirm("Delete this template? Invites already assigned to it will lose that assignment.")) return;
+    if (!window.confirm("Delete this template? Invites using it lose that assignment, and anyone sent it who hasn't signed yet loses that pending item. If someone has already signed it, it can't be deleted.")) return;
     const t = allTemplates.find((x) => x.id === id);
-    await client.from("esign_templates").delete().eq("id", id);
+    const msgEl = document.getElementById("templateMsg");
+    const { error } = await client.rpc("admin_delete_template", { p_template: id });
+    if (error) {
+      if (msgEl) msgEl.innerHTML = `<div class="msg error">${escHtml(error.message)}</div>`;
+      else window.alert(error.message);
+      return;
+    }
     if (t && t.source_pdf_path) { try { await client.storage.from(DEAL_BUCKET).remove([t.source_pdf_path]); } catch (_) {} }
+    if (msgEl) msgEl.innerHTML = `<div class="msg ok">Template deleted.</div>`;
     loadTemplates();
   }
 
