@@ -4202,11 +4202,23 @@
       left.className = "info";
       const chips = [
         ...c.admins.map((a) => `<span class="sa-chip">${escHtml(a.email)}</span>`),
-        ...c.pending.map((a) => `<span class="sa-chip pending">${escHtml(a.email)} · invited<button type="button" data-copy="${escHtml(a.email)}">Copy invite</button></span>`),
+        ...c.pending.map((a) => `<span class="sa-chip pending">${escHtml(a.email)} · invited<button type="button" data-resend="${escHtml(a.email)}">Resend email</button><button type="button" data-copy="${escHtml(a.email)}">Copy invite</button></span>`),
       ].join("");
       left.innerHTML = `<span class="name">${escHtml(c.name)}</span><span class="email">${c.member_count} ${c.member_count === 1 ? "person" : "people"} · ${c.admins.length} admin${c.admins.length === 1 ? "" : "s"}</span><span>${chips || '<span class="email">No admins yet</span>'}</span>`;
       left.querySelectorAll("button[data-copy]").forEach((b) =>
         b.addEventListener("click", () => copyAdminInvite(c.name, b.dataset.copy, b))
+      );
+      left.querySelectorAll("button[data-resend]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const email = b.dataset.resend;
+          const label = b.textContent;
+          b.disabled = true; b.textContent = "Sending…";
+          const r = await dispatchInviteEmail({ email });
+          b.disabled = false; b.textContent = label;
+          document.getElementById("saMsg").innerHTML = r.sent
+            ? `<div class="msg ok">Invite emailed to ${escHtml(email)}.</div>`
+            : `<div class="msg error">Couldn't send the email to ${escHtml(email)}: ${escHtml(r.error || "unknown error")}. Use Copy invite instead.</div>`;
+        })
       );
 
       const right = document.createElement("span");
