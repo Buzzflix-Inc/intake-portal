@@ -421,6 +421,9 @@
   .pf-handle { position: absolute; right: -5px; bottom: -5px; width: 10px; height: 10px; background: var(--link); border-radius: 2px; cursor: nwse-resize; }
   .pdf-field.pf-signature.pf-edit, .pdf-field.pf-countersignature.pf-edit { background: rgba(37, 99, 235, .12); border-color: #2563eb; }
   .pdf-field input.pf-input { width: 100%; height: 100%; box-sizing: border-box; margin: 0; padding: 0 3px; border: 0; border-bottom: 1.5px solid var(--link); border-radius: 0; background: rgba(255, 244, 214, .85); font: inherit; font-size: inherit; color: #1d2433; outline: none; }
+  .deal-bang { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #dc2626; color: #fff; font-size: 12px; font-weight: 700; line-height: 1; vertical-align: middle; }
+  .deal-flag { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; color: #b91c1c; font-weight: 600; text-transform: none; letter-spacing: 0; }
+  .deal-card.deal-new { border-left: 3px solid #dc2626; }
   .pdf-field.pf-edit.pf-opt { background: rgba(120, 120, 120, .08); border-color: var(--ink-faint); }
   .pdf-field.pf-edit.pf-opt .pf-label { color: var(--ink-soft); font-style: italic; }
   .pdf-field input.pf-input.pf-missing { background: rgba(220, 38, 38, .15); border-bottom-color: #dc2626; }
@@ -2601,7 +2604,9 @@
   }
 
   // ---- Admin: employee overview modal ----
+  let employeeModalCtx = null;
   async function openEmployeeModal(profile, accessRole, invite) {
+    employeeModalCtx = { profile, accessRole, invite };
     const overlay = document.getElementById("employeeModalOverlay");
     const body = document.getElementById("employeeModalBody");
     body.innerHTML = `<p class="empty">Loading…</p>`;
@@ -2663,6 +2668,12 @@
 
       <h3>Deals</h3>
       ${dealsHtml}
+      <div class="dept-filters" style="margin:10px 0 18px;align-items:flex-end;">
+        <div style="flex:1;min-width:180px;"><label for="sendDealSelect">Send a deal memo or form</label>
+          <select id="sendDealSelect">${allTemplates.map((t) => `<option value="${t.id}">${escHtml(t.name)}</option>`).join("") || `<option value="">No templates yet</option>`}</select></div>
+        <button type="button" class="btn-secondary" id="sendDealBtn"${allTemplates.length ? "" : " disabled"}>Send</button>
+      </div>
+      <div id="sendDealMsg"></div>
 
       <h3>Timesheets</h3>
       ${sheetsHtml}
@@ -2671,6 +2682,20 @@
       ${stubsHtml}
     `;
   }
+
+  document.getElementById("employeeModalBody").addEventListener("click", async (e) => {
+    const btn = e.target.closest("#sendDealBtn");
+    if (!btn) return;
+    const sel = document.getElementById("sendDealSelect"), msg = document.getElementById("sendDealMsg");
+    const ctx = employeeModalCtx;
+    if (!sel.value || !ctx) return;
+    btn.disabled = true;
+    const { data: res, error } = await client.rpc("admin_send_deal", { p_user: ctx.profile.user_id, p_template: sel.value });
+    if (error) { btn.disabled = false; msg.innerHTML = `<div class="msg error">${escHtml(error.message)}</div>`; return; }
+    await openEmployeeModal(ctx.profile, ctx.accessRole, ctx.invite);
+    const m2 = document.getElementById("sendDealMsg");
+    if (m2) m2.innerHTML = `<div class="msg ok">${res === "already_signed" ? "They've already signed that one." : res === "resent" ? "They already had it unsigned. It's flagged again on their front page." : "Sent. It appears on their front page with a red !."}</div>`;
+  });
 
   function closeEmployeeModal() {
     document.getElementById("employeeModalOverlay").classList.add("hidden");
@@ -4373,7 +4398,8 @@
         msgEl.innerHTML = `<div class="msg error">${escHtml(upErr.message)}</div>`; return;
       }
       if (newPath && tplPdf.oldPath) { try { await client.storage.from(DEAL_BUCKET).remove([tplPdf.oldPath]); } catch (_) {} }
-      msgEl.innerHTML = `<div class="msg ok">Changes saved.</div>`;
+      try { await client.rpc("admin_notify_template", { p_template: tplPdf.editingId }); } catch (_) {}
+      msgEl.innerHTML = `<div class="msg ok">Changes saved. Anyone who hasn't signed it yet sees it flagged as updated.</div>`;
       document.getElementById("templateNameInput").value = "";
       clearTemplatePdf();
       loadTemplates();
@@ -5303,6 +5329,15 @@
 
   // ---- Employee: my deals (sign deal memo / safety acknowledgment) ----
   const dealCtx = {};
+  // Red "!" on the front page (tab and heading) while a deal memo is waiting for a signature.
+  function setDealsBadge(n) {
+    const bang = (txt) => (n ? ` <span class="deal-bang" title="${n} waiting for your signature">${txt}</span>` : "");
+    const h = document.querySelector("#portalTab > section.panel:first-child > h2");
+    if (h) h.innerHTML = "My deals" + bang("!");
+    const tb = document.getElementById("tabPortalBtn");
+    if (tb) tb.innerHTML = "My Portal" + bang("!");
+  }
+
   async function loadMyDeals() {
     const body = document.getElementById("myDealsBody");
     const { data: { user } } = await client.auth.getUser();
@@ -5316,13 +5351,17 @@
       .limit(1)
       .maybeSingle();
 
-    const templateIds = [
+    // Forms from the invite, plus anything an admin has sent since signing up.
+    const { data: sentRecs } = await client.from("esign_records").select("template_id").eq("user_id", user.id);
+    const templateIds = [...new Set([
       invite && invite.deal_memo_template_id,
       invite && invite.safety_template_id,
-    ].filter(Boolean);
+      ...((sentRecs || []).map((r) => r.template_id)),
+    ].filter(Boolean))];
 
     if (!templateIds.length) {
       body.innerHTML = `<p class="empty">Nothing to sign right now.</p>`;
+      setDealsBadge(0);
       return;
     }
 
@@ -5332,6 +5371,7 @@
       .in("id", templateIds);
 
     let cardsHtml = "";
+    let waiting = 0;
     const pdfJobs = [];
     for (const template of templates || []) {
       let { data: record } = await client
@@ -5378,9 +5418,12 @@
           </div>`;
       }
 
+      const needsSig = record.status === "awaiting_signature";
+      if (needsSig) waiting++;
+      const updated = needsSig && record.notified_at && record.created_at && (new Date(record.notified_at) - new Date(record.created_at)) > 60000;
       cardsHtml += `
-        <div class="deal-card">
-          <div class="deal-kind">${template.type === "deal_memo" ? "Deal memo" : "Safety acknowledgment"}</div>
+        <div class="deal-card${needsSig ? " deal-new" : ""}">
+          <div class="deal-kind">${template.type === "deal_memo" ? "Deal memo" : "Safety acknowledgment"}${needsSig ? `<span class="deal-flag"><span class="deal-bang">!</span>${updated ? "Updated, needs your signature" : "Needs your signature"}</span>` : ""}</div>
           <h4>${escHtml(template.name)}</h4>
           ${isPdf ? `<div class="pdf-form" data-record-id="${record.id}"><p class="pdf-form-loading">Loading form…</p></div>` : ""}
           ${pointsHtml}
@@ -5390,6 +5433,7 @@
     }
 
     body.innerHTML = cardsHtml || `<p class="empty">Nothing to sign right now.</p>`;
+    setDealsBadge(waiting);
     pdfJobs.forEach(({ template, record }) => {
       const holder = body.querySelector(`.pdf-form[data-record-id="${record.id}"]`);
       if (!holder) return;
