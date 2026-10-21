@@ -3927,6 +3927,17 @@
       el.querySelector(".pf-label").textContent = f.type === "checkbox" ? "" : f.label + (f.optional ? " (optional)" : "");
       el.title = f.label;
       attachFieldDrag(el, f, page);
+      el.addEventListener("pointerdown", (e) => { el._sx = e.clientX; el._sy = e.clientY; });
+      el.addEventListener("click", (e) => {
+        if (Math.hypot(e.clientX - (el._sx || 0), e.clientY - (el._sy || 0)) > 4) return;   // that was a drag
+        const li = document.querySelector(`#pdfFieldList [data-fid="${f.id}"]`);
+        if (!li) return;
+        li.scrollIntoView({ block: "center", behavior: "smooth" });
+        li.style.background = "var(--accent-soft)";
+        setTimeout(() => { li.style.background = ""; }, 1600);
+        const inp = li.querySelector('input[type="text"]');
+        if (inp) { try { inp.focus({ preventScroll: true }); inp.select(); } catch (_) {} }
+      });
       page.el.appendChild(el);
     });
     renderFieldList();
@@ -3962,6 +3973,7 @@
     ul.innerHTML = "";
     tplPdf.fields.forEach((f) => {
       const li = document.createElement("li");
+      li.dataset.fid = f.id;
       const kind = document.createElement("span");
       kind.className = "pf-kind"; kind.textContent = FIELD_KINDS[f.type].label;
       const input = document.createElement("input");
