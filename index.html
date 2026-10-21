@@ -424,6 +424,18 @@
   .deal-bang { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #dc2626; color: #fff; font-size: 12px; font-weight: 700; line-height: 1; vertical-align: middle; }
   .deal-flag { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; color: #b91c1c; font-weight: 600; text-transform: none; letter-spacing: 0; }
   .deal-card.deal-new { border-left: 3px solid #dc2626; }
+  .pf-pop { position: absolute; z-index: 20; width: 270px; max-width: 92%; box-sizing: border-box; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 22px rgba(0,0,0,.22); padding: 10px 12px; font-size: 13px; line-height: 1.35; cursor: default; }
+  .pf-pop-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .pf-pop-head .pf-pop-pos { color: var(--ink-faint); font-size: 12px; margin-left: auto; }
+  .pf-pop select { font-size: 12.5px; padding: 3px 6px; width: auto; }
+  .pf-pop input[type="text"] { width: 100%; box-sizing: border-box; font-size: 14px; padding: 7px 9px; margin: 0 0 8px; }
+  .pf-pop-opt { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-soft); margin-bottom: 8px; cursor: pointer; }
+  .pf-pop-opt input { width: auto; margin: 0; }
+  .pf-pop-actions { display: flex; gap: 8px; align-items: center; }
+  .pf-pop-actions button { font: inherit; font-size: 12.5px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--page); color: var(--ink); cursor: pointer; }
+  .pf-pop-actions button.pf-pop-rm { margin-left: auto; color: var(--error); border-color: transparent; background: transparent; text-decoration: underline; }
+  .pf-pop-x { border: none; background: none; font-size: 18px; line-height: 1; cursor: pointer; color: var(--ink-faint); padding: 0 2px; }
+  .pdf-field.pf-active { box-shadow: 0 0 0 2px #2563eb; z-index: 5; }
   .pdf-field.pf-edit.pf-opt { background: rgba(120, 120, 120, .08); border-color: var(--ink-faint); }
   .pdf-field.pf-edit.pf-opt .pf-label { color: var(--ink-soft); font-style: italic; }
   .pdf-field input.pf-input.pf-missing { background: rgba(220, 38, 38, .15); border-bottom-color: #dc2626; }
@@ -1253,7 +1265,7 @@
             <button type="button" class="btn-secondary" id="pfAutoFind">Find fields automatically</button>
             <button type="button" class="remove-link" id="pfClearPdf" style="margin-left:auto;">Remove PDF</button>
           </div>
-          <p style="font-size:12px;color:var(--ink-faint);margin:0 0 8px;">Pick a field type, then click the page. Drag a box to move it; drag its corner to resize.</p>
+          <p style="font-size:12px;color:var(--ink-faint);margin:0 0 8px;">Pick a field type, then click the page to add a box. Click any box to name it, mark it optional or remove it right there, and press Enter to jump to the next one. Drag a box to move it; drag its corner to resize.</p>
           <div class="pf-pages" id="pdfEditorPages"></div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0;font-size:12.5px;color:var(--ink-soft);">
             <span>Employee must fill in:</span>
@@ -1261,7 +1273,9 @@
             <button type="button" class="remove-link" id="pfAllOptional">nothing (all optional)</button>
             <span style="color:var(--ink-faint);">or tick Optional beside individual boxes, for example the second choice in an either/or.</span>
           </div>
-          <ul class="pf-fieldlist" id="pdfFieldList"></ul>
+          <details style="margin-top:6px;"><summary style="cursor:pointer;font-size:12.5px;color:var(--ink-soft);">All fields as a list (rename, optional, remove)</summary>
+            <ul class="pf-fieldlist" id="pdfFieldList"></ul>
+          </details>
         </div>
 
         <div id="manualTemplateFields">
@@ -3876,7 +3890,8 @@
   function bindEditorPages(pages) {
     pages.forEach((page, idx) => {
       page.el.addEventListener("click", (e) => {
-        if (e.target.closest(".pdf-field")) return;
+        if (e.target.closest(".pdf-field") || e.target.closest(".pf-pop")) return;
+        if (pfActive) { pfActive = null; closeFieldPop(); }
         const rect = page.el.getBoundingClientRect();
         const k = FIELD_KINDS[pdfTool];
         const w = k.w;
@@ -3888,7 +3903,9 @@
           y: clamp((e.clientY - rect.top) / rect.height - hgt / 2, 0, 1 - hgt),
           w, h: hgt,
         });
+        pfActive = tplPdf.fields[tplPdf.fields.length - 1].id;
         drawEditorFields();
+        openFieldPop(pfActive, true);
       });
     });
   }
@@ -3915,6 +3932,93 @@
     }
   }
 
+  // ---- Edit a box right where it sits: name, optional, type, remove, next/previous ----
+  let pfActive = null;
+  function closeFieldPop() {
+    document.querySelectorAll("#pdfEditorPages .pf-pop").forEach((n) => n.remove());
+    document.querySelectorAll("#pdfEditorPages .pdf-field.pf-active").forEach((n) => n.classList.remove("pf-active"));
+  }
+  function pfOrdered() {
+    return tplPdf.fields.slice().sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x);
+  }
+  function positionFieldPop() {
+    const pop = document.querySelector("#pdfEditorPages .pf-pop");
+    const f = tplPdf.fields.find((x) => x.id === pfActive);
+    if (!pop || !f) return;
+    pop.style.left = `min(${(f.x * 100).toFixed(3)}%, calc(100% - 278px))`;
+    if (f.y > 0.72) { pop.style.top = ""; pop.style.bottom = `calc(${((1 - f.y) * 100).toFixed(3)}% + 6px)`; }
+    else { pop.style.bottom = ""; pop.style.top = `calc(${((f.y + f.h) * 100).toFixed(3)}% + 6px)`; }
+  }
+  function openFieldPop(id, focusName, keepScroll) {
+    const f = tplPdf.fields.find((x) => x.id === id);
+    const page = f && tplPdf.pages[f.page];
+    if (!f || !page) return;
+    pfActive = id;
+    closeFieldPop();
+    const fe = page.el.querySelector(`.pdf-field[data-field-id="${id}"]`);
+    if (fe) fe.classList.add("pf-active");
+    const order = pfOrdered(), pos = order.findIndex((x) => x.id === id);
+    const pop = document.createElement("div");
+    pop.className = "pf-pop";
+    const isCheck = f.type === "checkbox";
+    pop.innerHTML = `
+      <div class="pf-pop-head">
+        ${isCheck ? `<strong>Checkbox</strong>` : `<select class="pf-pop-type">${["text", "date", "signature", "countersignature"].map((k) => `<option value="${k}"${k === f.type ? " selected" : ""}>${FIELD_KINDS[k].label}</option>`).join("")}</select>`}
+        <span class="pf-pop-pos">${pos + 1} of ${order.length}</span>
+        <button type="button" class="pf-pop-x" aria-label="Close">×</button>
+      </div>
+      <input type="text" class="pf-pop-name" placeholder="What is this field? (shown to the employee)" />
+      ${f.type === "text" || f.type === "date" ? `<label class="pf-pop-opt"><input type="checkbox" class="pf-pop-optbox"${f.optional ? " checked" : ""} /> Optional (employee can leave it blank)</label>` : ""}
+      <div class="pf-pop-actions">
+        <button type="button" class="pf-pop-prev" title="Previous box">&#9664;</button>
+        <button type="button" class="pf-pop-next" title="Next box (Enter)">Next &#9654;</button>
+        <button type="button" class="pf-pop-rm">Remove</button>
+      </div>`;
+    page.el.appendChild(pop);
+    ["pointerdown", "click"].forEach((ev) => pop.addEventListener(ev, (e) => e.stopPropagation()));
+    const name = pop.querySelector(".pf-pop-name");
+    name.value = f.label || "";
+    name.addEventListener("input", () => {
+      f.label = name.value;
+      if (fe) { fe.title = f.label; const lb = fe.querySelector(".pf-label"); if (lb && f.type !== "checkbox") lb.textContent = f.label + (f.optional ? " (optional)" : ""); }
+      const li = document.querySelector(`#pdfFieldList [data-fid="${f.id}"] input[type="text"]`);
+      if (li) li.value = f.label;
+    });
+    const go = (delta) => {
+      const o = pfOrdered(); const i = o.findIndex((x) => x.id === id);
+      const n = o[(i + delta + o.length) % o.length];
+      if (!n) return;
+      openFieldPop(n.id, true);
+    };
+    name.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); go(e.shiftKey ? -1 : 1); }
+      else if (e.key === "Escape") { pfActive = null; closeFieldPop(); }
+    });
+    pop.querySelector(".pf-pop-next").addEventListener("click", () => go(1));
+    pop.querySelector(".pf-pop-prev").addEventListener("click", () => go(-1));
+    pop.querySelector(".pf-pop-x").addEventListener("click", () => { pfActive = null; closeFieldPop(); });
+    pop.querySelector(".pf-pop-rm").addEventListener("click", () => {
+      const o = pfOrdered(); const i = o.findIndex((x) => x.id === id);
+      const nxt = o[i + 1] || o[i - 1] || null;
+      tplPdf.fields = tplPdf.fields.filter((x) => x.id !== id);
+      pfActive = nxt ? nxt.id : null;
+      drawEditorFields();
+      if (pfActive) openFieldPop(pfActive, true);
+    });
+    const ob = pop.querySelector(".pf-pop-optbox");
+    if (ob) ob.addEventListener("change", () => { f.optional = ob.checked; drawEditorFields(); });
+    const ty = pop.querySelector(".pf-pop-type");
+    if (ty) ty.addEventListener("change", () => {
+      const old = f.type; f.type = ty.value;
+      if (f.type === "signature" || f.type === "countersignature") { f.optional = false; if (!f.label || f.label === FIELD_KINDS[old].label) f.label = FIELD_KINDS[f.type].label; }
+      else if (!f.label || f.label === FIELD_KINDS[old].label) f.label = FIELD_KINDS[f.type].label;
+      drawEditorFields();
+    });
+    positionFieldPop();
+    if (focusName) { name.focus(); name.select(); }
+    if (!keepScroll && fe) fe.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+
   function drawEditorFields() {
     tplPdf.pages.forEach((p) => p.el.querySelectorAll(".pdf-field").forEach((n) => n.remove()));
     tplPdf.fields.forEach((f) => {
@@ -3930,17 +4034,13 @@
       el.addEventListener("pointerdown", (e) => { el._sx = e.clientX; el._sy = e.clientY; });
       el.addEventListener("click", (e) => {
         if (Math.hypot(e.clientX - (el._sx || 0), e.clientY - (el._sy || 0)) > 4) return;   // that was a drag
-        const li = document.querySelector(`#pdfFieldList [data-fid="${f.id}"]`);
-        if (!li) return;
-        li.scrollIntoView({ block: "center", behavior: "smooth" });
-        li.style.background = "var(--accent-soft)";
-        setTimeout(() => { li.style.background = ""; }, 1600);
-        const inp = li.querySelector('input[type="text"]');
-        if (inp) { try { inp.focus({ preventScroll: true }); inp.select(); } catch (_) {} }
+        openFieldPop(f.id, false);
       });
+      el.addEventListener("pointerup", () => { if (pfActive === f.id) setTimeout(() => positionFieldPop(), 0); });
       page.el.appendChild(el);
     });
     renderFieldList();
+    if (pfActive && tplPdf.fields.some((x) => x.id === pfActive)) openFieldPop(pfActive, false, true); else { pfActive = null; closeFieldPop(); }
   }
 
   function attachFieldDrag(el, f, page) {
