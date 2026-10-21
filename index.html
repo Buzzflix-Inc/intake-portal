@@ -421,6 +421,8 @@
   .pf-handle { position: absolute; right: -5px; bottom: -5px; width: 10px; height: 10px; background: var(--link); border-radius: 2px; cursor: nwse-resize; }
   .pdf-field.pf-signature.pf-edit, .pdf-field.pf-countersignature.pf-edit { background: rgba(37, 99, 235, .12); border-color: #2563eb; }
   .pdf-field input.pf-input { width: 100%; height: 100%; box-sizing: border-box; margin: 0; padding: 0 3px; border: 0; border-bottom: 1.5px solid var(--link); border-radius: 0; background: rgba(255, 244, 214, .85); font: inherit; font-size: inherit; color: #1d2433; outline: none; }
+  .pdf-field.pf-edit.pf-opt { background: rgba(120, 120, 120, .08); border-color: var(--ink-faint); }
+  .pdf-field.pf-edit.pf-opt .pf-label { color: var(--ink-soft); font-style: italic; }
   .pdf-field input.pf-input.pf-missing { background: rgba(220, 38, 38, .15); border-bottom-color: #dc2626; }
   .pdf-field input.pf-input[type="checkbox"] { width: 100%; height: 100%; padding: 0; accent-color: var(--link); background: transparent; }
   .pdf-field .pf-val { padding: 0 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1250,6 +1252,12 @@
           </div>
           <p style="font-size:12px;color:var(--ink-faint);margin:0 0 8px;">Pick a field type, then click the page. Drag a box to move it; drag its corner to resize.</p>
           <div class="pf-pages" id="pdfEditorPages"></div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0;font-size:12.5px;color:var(--ink-soft);">
+            <span>Employee must fill in:</span>
+            <button type="button" class="remove-link" id="pfAllRequired">every text and date box</button>
+            <button type="button" class="remove-link" id="pfAllOptional">nothing (all optional)</button>
+            <span style="color:var(--ink-faint);">or tick Optional beside individual boxes, for example the second choice in an either/or.</span>
+          </div>
           <ul class="pf-fieldlist" id="pdfFieldList"></ul>
         </div>
 
@@ -3714,6 +3722,10 @@
   }
 
   document.getElementById("pfClearPdf").addEventListener("click", clearTemplatePdf);
+  [["pfAllRequired", false], ["pfAllOptional", true]].forEach(([id, v]) => document.getElementById(id).addEventListener("click", () => {
+    tplPdf.fields.forEach((f) => { if (f.type === "text" || f.type === "date") f.optional = v; });
+    drawEditorFields();
+  }));
   document.getElementById("pfAutoFind").addEventListener("click", async () => {
     const btn = document.getElementById("pfAutoFind");
     btn.disabled = true;
@@ -3871,8 +3883,9 @@
       if (!page) return;
       const el = baseFieldEl(f, page);
       el.classList.add("pf-edit");
+      if (f.optional) el.classList.add("pf-opt");
       el.innerHTML = `<span class="pf-label"></span><span class="pf-handle"></span>`;
-      el.querySelector(".pf-label").textContent = f.type === "checkbox" ? "" : f.label;
+      el.querySelector(".pf-label").textContent = f.type === "checkbox" ? "" : f.label + (f.optional ? " (optional)" : "");
       el.title = f.label;
       attachFieldDrag(el, f, page);
       page.el.appendChild(el);
@@ -3925,7 +3938,17 @@
       const rm = document.createElement("button");
       rm.type = "button"; rm.className = "remove-link"; rm.textContent = "Remove";
       rm.addEventListener("click", () => { tplPdf.fields = tplPdf.fields.filter((x) => x !== f); drawEditorFields(); });
-      li.append(kind, input, pg, rm);
+      const canOpt = f.type === "text" || f.type === "date";
+      const opt = document.createElement("label");
+      opt.style.cssText = "display:" + (canOpt ? "inline-flex" : "none") + ";align-items:center;gap:5px;font-size:12px;color:var(--ink-soft);white-space:nowrap;cursor:pointer;";
+      const optBox = document.createElement("input");
+      optBox.type = "checkbox"; optBox.checked = !!f.optional; optBox.style.cssText = "width:auto;margin:0;";
+      optBox.addEventListener("change", () => {
+        f.optional = optBox.checked;
+        drawEditorFields();
+      });
+      opt.append(optBox, document.createTextNode("Optional"));
+      li.append(kind, input, opt, pg, rm);
       ul.appendChild(li);
     });
   }
@@ -4406,7 +4429,7 @@
         const inp = document.createElement("input");
         inp.className = "pf-input"; inp.dataset.fieldId = f.id; inp.setAttribute("aria-label", f.label);
         if (f.type === "checkbox") inp.type = "checkbox";
-        else { inp.type = f.type === "date" ? "date" : "text"; inp.placeholder = f.label; }
+        else { inp.type = f.type === "date" ? "date" : "text"; inp.placeholder = f.label + (f.optional ? " (optional)" : ""); }
         el.appendChild(inp);
       } else {
         const s = document.createElement("span");
@@ -4426,8 +4449,8 @@
       if (f.type === "checkbox") { values[f.id] = inp.checked; return; }
       const v = inp.value.trim();
       values[f.id] = v;
-      inp.classList.toggle("pf-missing", !v);
-      if (!v) missing.push(f.label);
+      inp.classList.toggle("pf-missing", !v && !f.optional);
+      if (!v && !f.optional) missing.push(f.label);
     });
     return { values, missing };
   }
