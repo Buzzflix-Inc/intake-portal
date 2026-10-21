@@ -204,6 +204,16 @@
     padding: 22px 24px;
   }
   section.panel h2 { font-size: 15.5px; margin: 0 0 4px; font-weight: 600; letter-spacing: -0.01em; }
+  /* Two-step sign-in for admins */
+  #mfaGate { position: fixed; inset: 0; z-index: 1000; background: var(--page); display: flex; align-items: center; justify-content: center; padding: 20px; overflow-y: auto; }
+  #mfaGate .mfa-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 28px; width: 100%; max-width: 420px; }
+  #mfaGate h2 { margin: 0 0 6px; font-size: 18px; }
+  #mfaGate p { color: var(--ink-soft); font-size: 13.5px; margin: 0 0 14px; }
+  #mfaGate .mfa-qr { display: flex; justify-content: center; margin: 10px 0; }
+  #mfaGate .mfa-qr img { width: 188px; height: 188px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
+  #mfaGate code { display: block; word-break: break-all; font-size: 12px; background: var(--page); border: 1px solid var(--line); border-radius: 6px; padding: 8px; margin-bottom: 14px; user-select: all; }
+  #mfaGate input { width: 100%; font-size: 20px; letter-spacing: 0.3em; text-align: center; margin-bottom: 12px; }
+  #mfaGate .mfa-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
   /* Collapsible admin sections */
   #adminTab section.panel.acc, #superTab section.panel.acc, #deptTab section.panel.acc { padding: 0; }
   section.panel.acc > h2.acc-h {
@@ -5767,11 +5777,93 @@
     window.expandPanelOf = (el) => { const sec = el && el.closest && el.closest("section.panel.acc"); if (sec) sec.classList.add("open"); };
   })();
 
+  // ---- Two-step sign-in (authenticator app) required for admins and super admins ----
+  async function requireMfa(user) {
+    // Only people who can reach admin screens need it.
+    let privileged = false;
+    try {
+      const { data: r } = await client.from("user_roles").select("role").eq("user_id", user.id).maybeSingle();
+      if (r && r.role === "admin") privileged = true;
+      if (!privileged) {
+        const { data: sa } = await client.from("superadmins").select("user_id").eq("user_id", user.id).maybeSingle();
+        privileged = !!sa;
+      }
+    } catch (_) {}
+    const { data: lvl } = await client.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (lvl && lvl.currentLevel === "aal2") return true;
+    const { data: fl } = await client.auth.mfa.listFactors();
+    const verified = ((fl && fl.totp) || []).filter((f) => f.status === "verified");
+    if (!privileged && !verified.length) return true; // regular crew: no second step
+
+    const gate = document.createElement("div");
+    gate.id = "mfaGate";
+    document.body.appendChild(gate);
+    const out = async () => { gate.remove(); await client.auth.signOut(); location.reload(); };
+    const card = (inner) => { gate.innerHTML = `<div class="mfa-card">${inner}</div>`; const so = gate.querySelector("[data-so]"); if (so) so.addEventListener("click", out); };
+
+    return new Promise((resolve) => {
+      const finish = () => { gate.remove(); resolve(true); };
+      const challenge = (factorId) => {
+        card(`<h2>Enter your code</h2><p>Open your authenticator app and type the 6-digit code for the HR Intake Portal.</p>
+          <input id="mfaCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" />
+          <div id="mfaMsg"></div>
+          <div class="mfa-row"><button class="btn-secondary" id="mfaGo">Verify</button><button type="button" class="remove-link" data-so>Sign out</button></div>`);
+        const input = gate.querySelector("#mfaCode"), go = gate.querySelector("#mfaGo"), msg = gate.querySelector("#mfaMsg");
+        input.focus();
+        const submit = async () => {
+          const code = input.value.trim();
+          if (!/^\d{6}$/.test(code)) { msg.innerHTML = `<div class="msg error">Enter the 6-digit code.</div>`; return; }
+          go.disabled = true;
+          const { data: ch, error: e1 } = await client.auth.mfa.challenge({ factorId });
+          if (e1) { go.disabled = false; msg.innerHTML = `<div class="msg error">${escHtml(e1.message)}</div>`; return; }
+          const { error: e2 } = await client.auth.mfa.verify({ factorId, challengeId: ch.id, code });
+          if (e2) { go.disabled = false; input.value = ""; input.focus(); msg.innerHTML = `<div class="msg error">That code didn't work. Check the time on your phone and try the next code.</div>`; return; }
+          finish();
+        };
+        go.addEventListener("click", submit);
+        input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+      };
+      const enroll = async () => {
+        // Clear any half-finished setup first
+        for (const f of ((fl && fl.all) || []).filter((x) => x.factor_type === "totp" && x.status !== "verified")) {
+          try { await client.auth.mfa.unenroll({ factorId: f.id }); } catch (_) {}
+        }
+        const { data: en, error: e0 } = await client.auth.mfa.enroll({ factorType: "totp", friendlyName: "HR Intake Portal " + Date.now().toString(36) });
+        if (e0) { card(`<h2>Set up two-step sign-in</h2><div class="msg error">${escHtml(e0.message)}</div><button type="button" class="remove-link" data-so>Sign out</button>`); return; }
+        card(`<h2>Set up two-step sign-in</h2>
+          <p>Admin accounts need a second step. Scan this with an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, Authy), then enter the 6-digit code it shows.</p>
+          <div class="mfa-qr"><img alt="QR code" src="${en.totp.qr_code}" /></div>
+          <p style="margin-bottom:6px;">Can't scan? Type this key into the app:</p>
+          <code>${escHtml(en.totp.secret)}</code>
+          <input id="mfaCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" />
+          <div id="mfaMsg"></div>
+          <div class="mfa-row"><button class="btn-secondary" id="mfaGo">Turn on</button><button type="button" class="remove-link" data-so>Sign out</button></div>`);
+        const input = gate.querySelector("#mfaCode"), go = gate.querySelector("#mfaGo"), msg = gate.querySelector("#mfaMsg");
+        const submit = async () => {
+          const code = input.value.trim();
+          if (!/^\d{6}$/.test(code)) { msg.innerHTML = `<div class="msg error">Enter the 6-digit code.</div>`; return; }
+          go.disabled = true;
+          const { data: ch, error: e1 } = await client.auth.mfa.challenge({ factorId: en.id });
+          if (e1) { go.disabled = false; msg.innerHTML = `<div class="msg error">${escHtml(e1.message)}</div>`; return; }
+          const { error: e2 } = await client.auth.mfa.verify({ factorId: en.id, challengeId: ch.id, code });
+          if (e2) { go.disabled = false; input.value = ""; msg.innerHTML = `<div class="msg error">That code didn't match. Try the next one.</div>`; return; }
+          finish();
+        };
+        go.addEventListener("click", submit);
+        input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+      };
+      if (verified.length) challenge(verified[0].id); else enroll();
+    });
+  }
+
   async function showApp() {
     authView.classList.add("hidden");
     appView.classList.remove("hidden");
 
     const { data: { user } } = await client.auth.getUser();
+    appView.classList.add("hidden");
+    await requireMfa(user);
+    appView.classList.remove("hidden");
     currentUserId = user.id;
     currentUserEmail = user.email;
     loadMyCompanies();
