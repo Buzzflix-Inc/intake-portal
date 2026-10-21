@@ -1337,7 +1337,7 @@
 
     const { error } =
       mode === "signup"
-        ? await client.auth.signUp({ email, password })
+        ? await client.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } })
         : await client.auth.signInWithPassword({ email, password });
 
     authSubmitBtn.disabled = false;
