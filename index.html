@@ -5513,6 +5513,26 @@
       toggle.className = "preview-link";
       toggle.textContent = "Add admin";
       right.appendChild(toggle);
+      const del = document.createElement("button");
+      del.className = "preview-link";
+      del.textContent = "Delete company";
+      if (c.admins.length) {
+        del.disabled = true;
+        del.style.opacity = "0.45";
+        del.title = "Remove every admin first. A company can only be deleted when it has none.";
+      } else {
+        del.addEventListener("click", async () => {
+          const pend = c.pending.length ? ` Its ${c.pending.length} pending admin invite${c.pending.length === 1 ? "" : "s"} will be cancelled too.` : "";
+          if (!window.confirm(`Delete ${c.name}?${pend}\n\nThis can't be undone.`)) return;
+          del.disabled = true;
+          const { error: dErr } = await client.rpc("superadmin_delete_company", { p_company: c.id });
+          const box = document.getElementById("saMsg");
+          if (dErr) { del.disabled = false; box.innerHTML = `<div class="msg error">${escHtml(dErr.message)}</div>`; return; }
+          box.innerHTML = `<div class="msg ok">${escHtml(c.name)} was deleted.</div>`;
+          loadSuperOverview();
+        });
+      }
+      right.appendChild(del);
 
       const extra = document.createElement("div");
       extra.className = "sa-company-extra hidden";
