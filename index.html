@@ -3020,12 +3020,15 @@
   // `invite` is exactly the row that was just inserted into
   // company_invites (see the shape built in sendInviteBtn below), so no
   // other code needs to change — this is the only function to fill in.
+  // The Supabase function was created with the slug "smart-handler" (its display
+  // name is send-invite-email); the slug is what the URL and invoke() use.
+  const INVITE_EMAIL_FUNCTION = "smart-handler";
   async function dispatchInviteEmail(invite) {
     // Calls the "send-invite-email" Edge Function (Resend). If it isn't
     // deployed or configured yet, this just reports sent:false and the
     // admin falls back to "Copy Invite".
     try {
-      const { data, error } = await client.functions.invoke("send-invite-email", {
+      const { data, error } = await client.functions.invoke(INVITE_EMAIL_FUNCTION, {
         body: invite.id ? { inviteId: invite.id } : { email: invite.email },
       });
       if (error) {
