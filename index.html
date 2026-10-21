@@ -1683,13 +1683,16 @@
         status.textContent = row.status;
         right.appendChild(status);
 
-        if (row.status === "rejected") {
+        const canRemove = bucket === "timesheets" ? row.status !== "approved" : row.status === "rejected";
+        if (canRemove) {
           const removeBtn = document.createElement("button");
           removeBtn.className = "remove-link";
           removeBtn.textContent = "Remove";
-          removeBtn.addEventListener("click", () =>
-            deleteSubmission(bucket, table, row.id, row.file_path)
-          );
+          removeBtn.addEventListener("click", () => {
+            if (bucket === "timesheets" && row.status === "pending" &&
+                !window.confirm("Remove this timesheet? Your supervisor will no longer see it, and you can submit the week again.")) return;
+            deleteSubmission(bucket, table, row.id, row.file_path);
+          });
           right.appendChild(removeBtn);
         }
       } else {
@@ -1882,7 +1885,7 @@
     return jsPdfReady;
   }
 
-  async function buildTimesheetPdf({ entries, totalMinutes, weekStart, email, name, department, companyName, kitDays, kitRate }) {
+  async function buildTimesheetPdf({ entries, totalMinutes, weekStart, email, name, department, companyName, kitDays, kitRate, submittedAt }) {
     const JsPDF = await ensureJsPdf();
     const doc = new JsPDF({ unit: "pt", format: "letter" });
     const L = 54, R = 558;
@@ -1944,9 +1947,45 @@
 
     y += 44;
     doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(120);
-    doc.text(`Submitted through the crew portal on ${new Date().toLocaleString("en-US")}.`, L, y);
+    doc.text(`Submitted through the crew portal on ${new Date(submittedAt || Date.now()).toLocaleString("en-US")}.`, L, y);
     doc.text("Hours are call to wrap less unpaid break. A wrap earlier than call is counted as the following morning.", L, y + 13);
     return doc.output("blob");
+  }
+
+  // Rebuilds a submitted timesheet's PDF from the data saved with it, so it
+  // is always available to reviewers even if the stored file is missing.
+  function timesheetRowPdf(row) {
+    const entries = Array.isArray(row.entries) ? row.entries : [];
+    return buildTimesheetPdf({
+      entries,
+      totalMinutes: entries.reduce((sum, en) => sum + (Number(en.minutes) || 0), 0),
+      weekStart: row.week_start,
+      email: row.employee_email || profileMap.get(row.user_id) || "",
+      name: row.employee_name, department: row.department,
+      companyName: (currentCompany && currentCompany.name) || "",
+      kitDays: Number(row.kit_days) || 0, kitRate: Number(row.kit_rate) || 0,
+      submittedAt: row.created_at,
+    });
+  }
+  function timesheetPdfName(row) {
+    const who = (row.employee_name || row.employee_email || profileMap.get(row.user_id) || "employee").replace(/[^\w.-]+/g, "_");
+    return `Timesheet-${who}-${row.week_start}.pdf`;
+  }
+  async function previewTimesheetRow(row) {
+    try {
+      const blob = await timesheetRowPdf(row);
+      openPreview(URL.createObjectURL(blob), timesheetPdfName(row));
+    } catch (err) { window.alert("Couldn't build the timesheet PDF: " + (err.message || err)); }
+  }
+  async function downloadTimesheetRow(row) {
+    try {
+      const blob = await timesheetRowPdf(row);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = timesheetPdfName(row);
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (err) { window.alert("Couldn't build the timesheet PDF: " + (err.message || err)); }
   }
 
   document.getElementById("tsPeriodSelect").addEventListener("change", renderTimesheetGrid);
@@ -2118,7 +2157,7 @@
 
     let q = client
       .from("timesheets")
-      .select("id, user_id, status, dept_status, file_path, created_at, week_start, total_hours, entries, department, employee_email, employee_name, kit_days, kit_total")
+      .select("id, user_id, status, dept_status, file_path, created_at, week_start, total_hours, entries, department, employee_email, employee_name, kit_days, kit_rate, kit_total")
       .in("department", depts)
       .neq("user_id", currentUserId)
       .order("week_start", { ascending: false })
@@ -2151,11 +2190,15 @@
       const right = document.createElement("span");
       right.className = "actions";
 
-      const { data: signed } = await client.storage.from("timesheets").createSignedUrl(row.file_path, 60 * 5);
       const previewBtn = document.createElement("button");
       previewBtn.className = "preview-link";
       previewBtn.textContent = "Preview";
-      previewBtn.addEventListener("click", () => openPreview(signed ? signed.signedUrl : "#", fileName));
+      if (row.week_start && Array.isArray(row.entries)) {
+        previewBtn.addEventListener("click", () => previewTimesheetRow(row));
+      } else {
+        const { data: signed } = await client.storage.from("timesheets").createSignedUrl(row.file_path, 60 * 5);
+        previewBtn.addEventListener("click", () => openPreview(signed ? signed.signedUrl : "#", fileName));
+      }
       right.appendChild(previewBtn);
 
       if (row.status === "pending" && row.dept_status === "pending") {
@@ -2435,7 +2478,7 @@
     const cols = bucket === "documents"
       ? "id, user_id, status, file_path, created_at, approval_step"
       : bucket === "timesheets"
-        ? "id, user_id, status, file_path, created_at, week_start, total_hours, department, dept_status, kit_days, kit_total"
+        ? "id, user_id, status, file_path, created_at, week_start, total_hours, department, dept_status, kit_days, kit_rate, kit_total, entries, employee_email, employee_name"
         : "id, user_id, status, file_path, created_at";
 
     const { data: rows, error } = await client
@@ -2507,19 +2550,26 @@
         updateStatus(table, row.id, select.value, bucket);
       });
 
-      const { data: signed } = await client.storage.from(bucket).createSignedUrl(row.file_path, 60 * 5);
+      const dataPdf = bucket === "timesheets" && row.week_start && Array.isArray(row.entries);
+      let signed = null;
+      if (!dataPdf) ({ data: signed } = await client.storage.from(bucket).createSignedUrl(row.file_path, 60 * 5));
 
       const previewBtn = document.createElement("button");
       previewBtn.className = "preview-link";
       previewBtn.textContent = "Preview";
       previewBtn.addEventListener("click", () =>
-        openPreview(signed ? signed.signedUrl : "#", name)
+        dataPdf ? previewTimesheetRow(row) : openPreview(signed ? signed.signedUrl : "#", name)
       );
 
       const a = document.createElement("a");
-      a.href = signed ? signed.signedUrl : "#";
       a.textContent = "Download";
-      a.target = "_blank";
+      if (dataPdf) {
+        a.href = "#";
+        a.addEventListener("click", (e) => { e.preventDefault(); downloadTimesheetRow(row); });
+      } else {
+        a.href = signed ? signed.signedUrl : "#";
+        a.target = "_blank";
+      }
 
       const deleteBtn = document.createElement("button");
       deleteBtn.className = "remove-link";
