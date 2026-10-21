@@ -377,6 +377,10 @@
   .deal-point-row .remove-link { flex-shrink: 0; white-space: nowrap; }
 
   /* PDF deal memos: placing and filling fields */
+  .pf-pagepick { margin: 14px 0 6px; }
+  .pf-pagepick label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+  .pf-pagepick-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pf-pagepick-row input { flex: 1; min-width: 200px; margin-bottom: 0; }
   .pf-toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
   .pf-tool { font: inherit; font-size: 12.5px; padding: 6px 11px; border-radius: 7px; border: 1px solid var(--line); background: var(--surface, #fff); color: var(--ink); cursor: pointer; }
   .pf-tool.active { background: var(--link); border-color: var(--link); color: #fff; }
@@ -1141,6 +1145,14 @@
         </div>
 
         <div id="pdfEditorWrap" class="hidden">
+          <div class="pf-pagepick">
+            <label for="pfPagesInput">Pages to keep <span id="pfPageCount" style="color:var(--ink-faint);font-weight:400;"></span></label>
+            <div class="pf-pagepick-row">
+              <input type="text" id="pfPagesInput" placeholder="e.g. 1-2, 8-10 (blank = all pages)" />
+              <button type="button" class="btn-secondary" id="pfApplyPages">Use these pages</button>
+            </div>
+            <p style="font-size:12px;color:var(--ink-faint);margin:4px 0 0;">Got several memos in one PDF? Keep just this memo's pages, save it, then pick the next memo's pages and save again.</p>
+          </div>
           <div class="pf-toolbar" id="pfToolbar">
             <button type="button" class="pf-tool active" data-tool="text">+ Text</button>
             <button type="button" class="pf-tool" data-tool="date">+ Date</button>
@@ -3389,6 +3401,7 @@
     document.getElementById("saveTemplateBtn").textContent = "Save template";
     document.getElementById("pfClearPdf").textContent = "Remove PDF";
     document.getElementById("templatePdfInput").value = "";
+    document.getElementById("pfPagesInput").value = "";
     document.getElementById("pdfEditorPages").innerHTML = "";
     document.getElementById("pdfFieldList").innerHTML = "";
     document.getElementById("pdfEditorWrap").classList.add("hidden");
@@ -3403,6 +3416,80 @@
     });
   });
 
+  // Loads PDF bytes into the editor. `keep` lists which pages of the original
+  // PDF are showing (so page choices can be changed and fields follow their page).
+  async function showEditorPdf(bytes, fields, extra) {
+    const pdfjs = await ensurePdfJs();
+    const pdf = await pdfjs.getDocument({ data: bytes.slice(0) }).promise;
+    if (pdf.numPages > 30) throw new Error("That PDF has more than 30 pages. Split it into smaller PDFs first.");
+    document.getElementById("pdfEditorWrap").classList.remove("hidden");
+    document.getElementById("manualTemplateFields").classList.add("hidden");
+    const pages = await renderPdfPages(document.getElementById("pdfEditorPages"), pdf);
+    const x = extra || {};
+    tplPdf = {
+      bytes, pages, fields,
+      original: x.original || bytes,
+      keep: x.keep || pages.map((_, i) => i),
+      editingId: x.editingId || null,
+      oldPath: x.oldPath || null,
+      changed: !!x.changed,
+    };
+    bindEditorPages(pages);
+    document.getElementById("pfPageCount").textContent = `(${pages.length} page${pages.length === 1 ? "" : "s"} showing)`;
+    drawEditorFields();
+  }
+
+  // "1-2, 5, 8-10" -> [0,1,4,7,8,9] (zero-based, in the order typed, no repeats)
+  function parsePageList(text, total) {
+    const out = [];
+    for (const part of text.split(",").map((s) => s.trim()).filter(Boolean)) {
+      const m = part.match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+      if (!m) throw new Error(`"${part}" isn't a page number or range.`);
+      const from = Number(m[1]), to = m[2] ? Number(m[2]) : from;
+      if (from < 1 || to < from || to > total) throw new Error(`Pages must be between 1 and ${total}.`);
+      for (let n = from; n <= to; n++) if (!out.includes(n - 1)) out.push(n - 1);
+    }
+    return out;
+  }
+
+  async function subsetPdf(bytes, indices) {
+    const L = await ensurePdfLib();
+    const src = await L.PDFDocument.load(bytes);
+    const out = await L.PDFDocument.create();
+    (await out.copyPages(src, indices)).forEach((pg) => out.addPage(pg));
+    return new Uint8Array(await out.save());
+  }
+
+  document.getElementById("pfApplyPages").addEventListener("click", async () => {
+    const msgEl = document.getElementById("templateMsg");
+    if (!tplPdf.original) return;
+    const btn = document.getElementById("pfApplyPages");
+    try {
+      const L = await ensurePdfLib();
+      const total = (await L.PDFDocument.load(tplPdf.original)).getPageCount();
+      const text = document.getElementById("pfPagesInput").value.trim();
+      const newKeepAll = text ? parsePageList(text, total) : Array.from({ length: total }, (_, i) => i);
+      // The page numbers typed refer to the PDF as first loaded.
+      const prevKeep = tplPdf.keep;
+      const kept = []; let dropped = 0;
+      const remapped = tplPdf.fields.map((f) => ({ ...f })).filter((f) => {
+        const np = newKeepAll.indexOf(prevKeep[f.page]);
+        if (np === -1) { dropped++; return false; }
+        f.page = np; kept.push(f); return true;
+      });
+      btn.disabled = true;
+      msgEl.innerHTML = `<div class="msg ok">Updating pages…</div>`;
+      const same = newKeepAll.length === total;
+      const bytes = same ? tplPdf.original : await subsetPdf(tplPdf.original, newKeepAll);
+      await showEditorPdf(new Uint8Array(bytes), remapped, {
+        original: tplPdf.original, keep: newKeepAll, editingId: tplPdf.editingId, oldPath: tplPdf.oldPath, changed: true,
+      });
+      msgEl.innerHTML = `<div class="msg ok">Now showing ${newKeepAll.length} of ${total} page${total === 1 ? "" : "s"}.${dropped ? ` ${dropped} field${dropped === 1 ? "" : "s"} on removed pages ${dropped === 1 ? "was" : "were"} dropped.` : ""}</div>`;
+    } catch (err) {
+      msgEl.innerHTML = `<div class="msg error">${escHtml(err.message || "Couldn't change the pages.")}</div>`;
+    } finally { btn.disabled = false; }
+  });
+
   document.getElementById("templatePdfInput").addEventListener("change", async (ev) => {
     const file = ev.target.files[0];
     const msgEl = document.getElementById("templateMsg");
@@ -3415,17 +3502,9 @@
     }
     msgEl.innerHTML = `<div class="msg ok">Loading PDF…</div>`;
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const pdfjs = await ensurePdfJs();
-      const pdf = await pdfjs.getDocument({ data: bytes.slice(0) }).promise;
-      if (pdf.numPages > 30) throw new Error("That PDF has more than 30 pages. Split it into separate memos.");
-      document.getElementById("pdfEditorWrap").classList.remove("hidden");
-      document.getElementById("manualTemplateFields").classList.add("hidden");
-      const pages = await renderPdfPages(document.getElementById("pdfEditorPages"), pdf);
-      tplPdf = { bytes, pages, fields: [] };
-      bindEditorPages(pages);
+      document.getElementById("pfPagesInput").value = "";
+      await showEditorPdf(new Uint8Array(await file.arrayBuffer()), [], {});
       msgEl.innerHTML = "";
-      drawEditorFields();
     } catch (err) {
       clearTemplatePdf();
       msgEl.innerHTML = `<div class="msg error">${escHtml(err.message || "Could not read that PDF.")}</div>`;
@@ -3458,20 +3537,14 @@
     msgEl.innerHTML = `<div class="msg ok">Loading ${escHtml(t.name)}…</div>`;
     try {
       const bytes = new Uint8Array(await loadTemplatePdfBytes(t.source_pdf_path));
-      const pdfjs = await ensurePdfJs();
-      const pdf = await pdfjs.getDocument({ data: bytes.slice(0) }).promise;
       document.getElementById("templatePdfInput").value = "";
-      document.getElementById("pdfEditorWrap").classList.remove("hidden");
-      document.getElementById("manualTemplateFields").classList.add("hidden");
-      const pages = await renderPdfPages(document.getElementById("pdfEditorPages"), pdf);
-      tplPdf = { bytes, pages, fields: JSON.parse(JSON.stringify(t.fields || [])), editingId: t.id };
-      bindEditorPages(pages);
+      document.getElementById("pfPagesInput").value = "";
+      await showEditorPdf(bytes, JSON.parse(JSON.stringify(t.fields || [])), { editingId: t.id, oldPath: t.source_pdf_path });
       document.getElementById("templateTypeSelect").value = t.type;
       document.getElementById("templateNameInput").value = t.name;
       document.getElementById("saveTemplateBtn").textContent = "Save changes";
       document.getElementById("pfClearPdf").textContent = "Cancel editing";
-      msgEl.innerHTML = `<div class="msg ok">Editing "${escHtml(t.name)}". People who already signed keep their copy; anyone still waiting will see the updated boxes.</div>`;
-      drawEditorFields();
+      msgEl.innerHTML = `<div class="msg ok">Editing "${escHtml(t.name)}". People who already signed keep their copy; anyone still waiting will see the updated version.</div>`;
       document.getElementById("pdfEditorWrap").scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) {
       clearTemplatePdf();
@@ -3557,9 +3630,21 @@
     msgEl.innerHTML = `<div class="msg ok">Saving…</div>`;
     if (tplPdf.editingId) {
       const fieldsOut = tplPdf.fields.map((f) => ({ ...f, label: (f.label || "").trim() || FIELD_KINDS[f.type].label }));
-      const { error: upErr } = await client.from("esign_templates").update({ name, type, fields: fieldsOut }).eq("id", tplPdf.editingId);
+      const patch = { name, type, fields: fieldsOut };
+      let newPath = null;
+      if (tplPdf.changed) {
+        newPath = `${currentCompany.id}/templates/${crypto.randomUUID()}.pdf`;
+        const up2 = await client.storage.from(DEAL_BUCKET).upload(newPath, new Blob([tplPdf.bytes], { type: "application/pdf" }), { contentType: "application/pdf" });
+        if (up2.error) { btn.disabled = false; msgEl.innerHTML = `<div class="msg error">${escHtml(up2.error.message)}</div>`; return; }
+        patch.source_pdf_path = newPath;
+      }
+      const { error: upErr } = await client.from("esign_templates").update(patch).eq("id", tplPdf.editingId);
       btn.disabled = false;
-      if (upErr) { msgEl.innerHTML = `<div class="msg error">${escHtml(upErr.message)}</div>`; return; }
+      if (upErr) {
+        if (newPath) { try { await client.storage.from(DEAL_BUCKET).remove([newPath]); } catch (_) {} }
+        msgEl.innerHTML = `<div class="msg error">${escHtml(upErr.message)}</div>`; return;
+      }
+      if (newPath && tplPdf.oldPath) { try { await client.storage.from(DEAL_BUCKET).remove([tplPdf.oldPath]); } catch (_) {} }
       msgEl.innerHTML = `<div class="msg ok">Changes saved.</div>`;
       document.getElementById("templateNameInput").value = "";
       clearTemplatePdf();
@@ -3579,10 +3664,18 @@
       try { await client.storage.from(DEAL_BUCKET).remove([path]); } catch (_) {}
       msgEl.innerHTML = `<div class="msg error">${escHtml(error.message)}</div>`; return;
     }
-    msgEl.innerHTML = `<div class="msg ok">Template saved.</div>`;
     document.getElementById("templateNameInput").value = "";
-    clearTemplatePdf();
     loadTemplates();
+    // Splitting a packet: put the full PDF back so the next memo's pages can be picked.
+    const orig = tplPdf.original;
+    if (orig && tplPdf.keep.length !== (await (await ensurePdfLib()).PDFDocument.load(orig)).getPageCount()) {
+      document.getElementById("pfPagesInput").value = "";
+      await showEditorPdf(new Uint8Array(orig), [], {});
+      msgEl.innerHTML = `<div class="msg ok">Template saved. The full PDF is back: pick the pages for the next memo, or press Remove PDF to finish.</div>`;
+      return;
+    }
+    msgEl.innerHTML = `<div class="msg ok">Template saved.</div>`;
+    clearTemplatePdf();
   }
 
   // ----- Rendering a template for the employee (fill) or anyone (view) -----
