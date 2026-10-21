@@ -2506,10 +2506,10 @@
   // for that function's code. The function itself re-checks that the
   // caller is an admin in the same company before it will act, so this
   // isn't relying on the client alone for that safety check.
-  async function deleteAuthAccount(userId) {
+  async function deleteAuthAccount(userId, purge) {
     try {
       const { data, error } = await client.functions.invoke("delete-user", {
-        body: { userId },
+        body: { userId, purge: !!purge },
       });
       if (error) {
         // client.functions.invoke() only gives a generic message by default
@@ -2703,7 +2703,14 @@
     // The Edge Function handles everything: it verifies you're an admin
     // in the same company, deletes their profile/role rows (so nothing
     // blocks the account deletion), then deletes the auth account itself.
-    const dispatch = await deleteAuthAccount(userId);
+    let dispatch = await deleteAuthAccount(userId);
+    if (!dispatch.deleted && /database error deleting user/i.test(dispatch.error || "")) {
+      // The account still owns records (documents, timesheets, deal memos...). Ask before wiping them.
+      if (window.confirm(`${email} still has records on file (documents, timesheets, paystubs or deal memos), which block deleting the account.\n\nDelete the account AND all of those records and files? This can't be undone.`)) {
+        msgEl.innerHTML = `<div class="msg ok">Deleting the account and its records…</div>`;
+        dispatch = await deleteAuthAccount(userId, true);
+      }
+    }
     if (!dispatch.deleted) {
       msgEl.innerHTML = `<div class="msg error">Couldn't delete the account${dispatch.error ? ": " + dispatch.error : ""}. Nothing was changed.</div>`;
       return;
