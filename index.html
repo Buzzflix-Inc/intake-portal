@@ -4506,7 +4506,23 @@
     const out = [];
     const fh = 17 * pageScale / vp0.height * 1, sigH = 38 * pageScale / vp0.height;
     let n = 0;
-    lines.filter((l) => l.y1 - l.y0 <= 4 && l.x1 - l.x0 <= 0.76 * w).forEach((l) => {
+    // Outlined boxes to type in: a top rule and a bottom rule joined by two sides become ONE field
+    const used = new Set();
+    {
+      const thin = lines.filter((l) => l.y1 - l.y0 <= 4 && l.x1 - l.x0 >= 0.05 * w && l.x1 - l.x0 <= 0.6 * w);
+      thin.forEach((top) => {
+        if (used.has(top)) return;
+        const bot = thin.find((b) => b !== top && !used.has(b) && b.y0 - top.y1 >= 8 && b.y0 - top.y1 <= 0.06 * h && Math.abs(b.x0 - top.x0) <= 4 && Math.abs(b.x1 - top.x1) <= 4);
+        if (!bot) return;
+        const mid = (top.y1 + bot.y0) / 2;
+        if (!hit(top.x0, mid) || !hit(top.x1, mid)) return;
+        if (bot.y1 / h > DM_FOOTER_Y) return;
+        used.add(top); used.add(bot);
+        n++;
+        out.push({ _box: true, type: "text", label: "Blank " + n, x: (top.x0 + 2) / w, y: (top.y1 + 1) / h, w: (top.x1 - top.x0 - 4) / w, h: (bot.y0 - top.y1 - 2) / h });
+      });
+    }
+    lines.filter((l) => l.y1 - l.y0 <= 4 && l.x1 - l.x0 <= 0.76 * w && !used.has(l)).forEach((l) => {
       const y = (l.y0 + l.y1) / 2;
       if (hit(l.x0, y) && hit(l.x1, y)) return;
       if (y / h > DM_FOOTER_Y) return;
@@ -4653,6 +4669,7 @@
       // Group words on a row into phrases
       const W = cv.width, H = cv.height;
       const ws = words.map((w) => ({ s: w.text, x0: w.bbox.x0 / W, x1: w.bbox.x1 / W, y0: w.bbox.y0 / H, y1: w.bbox.y1 / H, cy: (w.bbox.y0 + w.bbox.y1) / 2 / H }))
+        .filter((p) => !list.some((f) => f._box && p.x0 >= f.x - 0.02 && p.x1 <= f.x + f.w + 0.02 && p.cy > f.y && p.cy < f.y + f.h)) // stray marks from an empty box's own border
         .sort((a, b) => a.cy - b.cy);
       // Group words into text lines first (columns side by side share a line), then split each line into phrases at wide gaps.
       const rows = [];
@@ -4694,6 +4711,12 @@
           const row = f.y + f.h * 0.6;
           const left = phr.filter((p) => p.x1 <= x0 + 0.01 && x0 - p.x1 < 0.3 && Math.abs(p.cy - row) < 0.013).sort((a, b) => b.x1 - a.x1)[0];
           if (left) lab = clean(left);
+          if (!lab || lab.replace(/[^A-Za-z]/g, "").length < 5) {
+            // a fragment (underlined words split the line): use the whole row of text left of the box
+            const rowL = phr.filter((p) => p.x1 <= x0 + 0.01 && x0 - p.x1 < 0.8 && Math.abs(p.cy - row) < 0.013).sort((a, b) => a.x0 - b.x0);
+            const joined = rowL.length > 1 ? dmTail(dmCleanLabel(rowL.map((p) => p.s).join(" ")), 80) : "";
+            if (joined && joined.replace(/[^A-Za-z]/g, "").length >= 5) lab = joined;
+          }
           if (!lab) {
             const bot = f.y + f.h;
             const below = phr.filter((p) => p.y - bot > 0 && p.y - bot <= 0.04 && Math.min(p.x1, x1) - Math.max(p.x0, x0) > 0 && p.s.length <= 40).sort((a, b) => a.y - b.y)[0];
