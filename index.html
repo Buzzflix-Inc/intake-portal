@@ -489,6 +489,8 @@
   }
 
   /* Deal/safety sign card (employee side) */
+  .pdf-field.pf-na { opacity: 0.4; }
+  .pdf-field.pf-na .pf-input { background: #ececec; }
   .pf-input.pf-auto { background: #eef6ff; }
   .my-details { border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; }
   .my-details summary { cursor: pointer; font-weight: 600; }
@@ -511,6 +513,7 @@
   .my-details-grid label { display: flex; flex-direction: column; justify-content: space-between; gap: 6px; font-size: 13px; line-height: 1.3; }
   .my-details-grid label .q { display: block; }
   .q-prev { display: block; }
+  .qgrid label.q-na { opacity: 0.4; }
   #pagePreviewOverlay { position: fixed; inset: 0; z-index: 9999; background: rgba(15, 18, 28, 0.82); display: flex; flex-direction: column; align-items: center; padding: 12px; }
   #pagePreviewOverlay .ppv-bar { width: min(900px, 100%); display: flex; justify-content: space-between; align-items: center; color: #fff; font-size: 14px; padding: 4px 4px 8px; }
   #pagePreviewOverlay .ppv-x { background: none; border: 0; color: #fff; font-size: 28px; line-height: 1; cursor: pointer; }
@@ -3905,7 +3908,7 @@
     try {
       const n = await dmRefreshWording();
       drawEditorFields();
-      msg.innerHTML = `<div class="msg ok">Reworded ${n} vague box${n === 1 ? "" : "es"} into clear questions. Check them, then save the template.</div>`;
+      msg.innerHTML = `<div class="msg ok">Reworded ${n} vague box${n === 1 ? "" : "es"} into clear questions${dmAltLinked ? ` and linked ${dmAltLinked} either/or box${dmAltLinked === 1 ? "" : "es"} (answering one removes the other)` : ""}. Check them, then save the template.</div>`;
     } catch (err) {
       msg.innerHTML = `<div class="msg error">Couldn't read the page (${escHtml(err.message || "unknown error")}). You can still rename boxes by clicking them.</div>`;
     }
@@ -4557,6 +4560,59 @@
     return out.slice(0, 80);
   }
 
+  // Either/or sections: "Yes / No" with "If Yes ... If No ...", "... OR ...", "check one", "same as above".
+  // Each box gets alt = { g: group, b: branch }. Answering one branch makes the others not needed.
+  function dmFindAlternatives(list, phr, page) {
+    if (!phr || !list.length) return list;
+    const cy = (f) => f.y + f.h / 2;
+    let gi = 0;
+    const setAlt = (fs, g, b) => fs.forEach((f) => { if (!f.alt) f.alt = { g, b }; });
+    const inBand = (y0, y1) => list.filter((f) => f.type !== "signature" && f.type !== "countersignature" && cy(f) >= y0 && cy(f) < y1);
+    const cbs = list.filter((f) => f.type === "checkbox");
+    const lab = (f) => String(f.label || "").toLowerCase();
+    const isItem = (s) => /^\d{1,2}[a-z]?[).]/.test(s.trim());
+    // Yes / No with conditional sections
+    cbs.filter((f) => /^(yes|oui|sí)\b/.test(lab(f))).forEach((y) => {
+      const n = cbs.find((c) => c !== y && !c.alt && /^(no|non)\b/.test(lab(c)) && Math.abs(cy(c) - cy(y)) < 0.015);
+      if (!n || y.alt) return;
+      const g = `p${page}-yn${++gi}`;
+      y.alt = { g, b: "yes" }; n.alt = { g, b: "no" };
+      const find = (re) => phr.filter((p) => re.test(p.s.trim()) && p.y > cy(y)).sort((a, b) => a.y - b.y)[0];
+      const ifY = find(/^if\s*[‘'’"“”]?\s*(yes|oui)\b/i), ifN = find(/^if\s*[‘'’"“”]?\s*(no|non)\b/i);
+      const end = (start) => {
+        const others = [ifY, ifN].filter((o) => o && o.y > start.y).map((o) => o.y);
+        const stop = phr.filter((p) => p.y > start.y + 0.012 && p.s.length > 50 && p.x0 < 0.2 && !isItem(p.s) && !/^if\b/i.test(p.s.trim())).map((p) => p.y - p.h);
+        return Math.min(start.y + 0.25, ...others, ...stop);
+      };
+      if (ifY) setAlt(inBand(ifY.y, end(ifY)).filter((f) => f.type !== "checkbox"), g, "yes");
+      if (ifN) setAlt(inBand(ifN.y, end(ifN)).filter((f) => f.type !== "checkbox"), g, "no");
+    });
+    // "A ... OR B ..."
+    phr.filter((p) => /^(or|ou|o)$/i.test(p.s.trim()) && p.x0 < 0.35).forEach((orp) => {
+      const prev = phr.filter((p) => p.y < orp.y - 0.01 && p.x0 < 0.28 && /^([a-z]|\d{1,2})[).](\s|$)/i.test(p.s.trim())).sort((a, b) => b.y - a.y)[0];
+      const next = phr.filter((p) => p.y > orp.y + 0.01 && p.x0 < 0.2 && /^\d{1,2}[).](\s|$)/.test(p.s.trim())).sort((a, b) => a.y - b.y)[0];
+      const y0 = prev ? prev.y - prev.h : orp.y - 0.2, y2 = next ? next.y - next.h : orp.y + 0.15;
+      const A = inBand(y0, orp.y - 0.005).filter((f) => !f.alt), B = inBand(orp.y, y2).filter((f) => !f.alt);
+      if (A.length && B.length) { const g = `p${page}-or${++gi}`; setAlt(A, g, "a"); setAlt(B, g, "b"); }
+    });
+    // "please check one"
+    phr.filter((p) => /check one|cochez une|select one/i.test(p.s)).forEach((p) => {
+      const near = cbs.filter((c) => !c.alt && c.y > p.y - 0.01 && c.y < p.y + 0.2);
+      if (near.length < 2) return;
+      const col = near.filter((c) => Math.abs(c.x - near[0].x) < 0.04);
+      if (col.length >= 2) { const g = `p${page}-co${++gi}`; col.forEach((c, i) => { c.alt = { g, b: "c" + i }; }); }
+    });
+    // "same as above" tick versus a separate address
+    cbs.filter((c) => !c.alt && /same as|même que|igual/i.test(lab(c))).forEach((c) => {
+      const nx = cbs.filter((d) => d !== c && !d.alt && d.y > c.y && d.y - c.y < 0.07).sort((a, b) => a.y - b.y)[0];
+      if (!nx) return;
+      const g = `p${page}-sa${++gi}`;
+      c.alt = { g, b: "a" }; nx.alt = { g, b: "b" };
+      setAlt(inBand(cy(nx) - 0.012, cy(nx) + 0.04).filter((f) => f.type !== "checkbox"), g, "b");
+    });
+    return list;
+  }
+
   // Scanned pages have no text to read labels from, so read the picture (OCR) and name each blank from the words beside it.
   let tessReady = null;
   function ensureTesseract() {
@@ -4573,6 +4629,7 @@
   }
   async function dmOcrLabel(page, list) {
     if (!list.length) return list;
+    let phrOut = null;
     try {
       const T = await ensureTesseract();
       const vp0 = page.getViewport({ scale: 1 });
@@ -4605,6 +4662,7 @@
           last.s += " " + w.s; last.x1 = w.x1; last.y = Math.max(last.y, w.y1); last.h = Math.max(last.h, w.y1 - w.y0);
         } else phr.push({ s: w.s, x0: w.x0, x1: w.x1, y: w.y1, cy, h: w.y1 - w.y0 });
       });
+      phrOut = phr;
       const clean = (p) => dmCleanLabel(p.s);
       list.forEach((f) => {
         const isCheck = f.type === "checkbox";
@@ -4645,6 +4703,7 @@
         }
       });
     } catch (_) { /* keep "Blank n": the admin can name them in the editor */ }
+    list._phr = phrOut;
     return list;
   }
 
@@ -4788,7 +4847,9 @@
 
     // Page full of unlabelled blanks is almost certainly a table or decoration
     const unlabelled = fields.filter((f) => f._u).length;
-    return fields.filter((f) => !(unlabelled > 12 && f._u)).slice(0, 60).map((f) => { delete f._u; return f; });
+    const outF = fields.filter((f) => !(unlabelled > 12 && f._u)).slice(0, 60).map((f) => { delete f._u; return f; });
+    outF._phr = phr;
+    return outF;
   }
 
   // Forms that already have fillable boxes use those exact positions.
@@ -4827,6 +4888,7 @@
         const page = await pdf.getPage(n);
         let list = [];
         try { list = await dmDetectPage(page, pdfjs); } catch (e) { dmLastErr = e && e.message || String(e); }
+        list = dmFindAlternatives(list, list._phr, n - 1);
         list.forEach((f) => found.push({ ...f, page: n - 1 }));
       }
     }
@@ -4861,10 +4923,11 @@
     const pdfjs = await ensurePdfJs();
     const pdf = await pdfjs.getDocument({ data: tplPdf.bytes.slice(0) }).promise;
     const found = await dmDetectFields(pdf, tplPdf.bytes);
-    let n = 0;
+    let n = 0, n2 = 0;
     tplPdf.fields.forEach((f) => {
+      const c = found.find((g) => g.page === f.page && g.type === f.type && Math.abs((g.x + g.w / 2) - (f.x + f.w / 2)) < 0.04 && Math.abs((g.y + g.h / 2) - (f.y + f.h / 2)) < 0.025);
+      if (c && c.alt && !f.alt) { f.alt = c.alt; n2++; }
       if (f.type !== "text" && f.type !== "date") return;
-      const c = found.find((g) => g.page === f.page && Math.abs((g.x + g.w / 2) - (f.x + f.w / 2)) < 0.04 && Math.abs((g.y + g.h / 2) - (f.y + f.h / 2)) < 0.025);
       if (c && c.ctx) f.ctx = c.ctx;
       const lab = dmCleanLabel(f.label).replace(/\s*\((optional|facultatif)\)\s*$/i, "");
       if (dmVague(lab) || /^blank \d+$/i.test(lab) || /^(text|date)$/i.test(lab)) {
@@ -4874,8 +4937,10 @@
         else if (r.skip && r.key === "sin") { f.label = "Social insurance number (S.I.N.)"; n++; }
       }
     });
+    dmAltLinked = n2;
     return n;
   }
+  let dmAltLinked = 0;
   // ---- end auto-place ----
 
   async function savePdfTemplate(type, name, msgEl) {
@@ -5008,18 +5073,67 @@
       }
       page.el.appendChild(el);
     });
+    if (opts.mode === "fill") dmAltSetup(container, template);
+  }
+
+  // Wires up either/or boxes: answering one branch dims and clears the others, and they stop being required.
+  function dmAltSetup(container, template) {
+    const fields = (template.fields || []).filter((f) => f.alt && f.alt.g);
+    if (!fields.length) return;
+    const groups = new Map();
+    fields.forEach((f) => { if (!groups.has(f.alt.g)) groups.set(f.alt.g, []); groups.get(f.alt.g).push(f); });
+    const inp = (f) => container.querySelector(`input[data-field-id="${f.id}"]`);
+    const filled = (f) => { const i = inp(f); return !!i && (f.type === "checkbox" ? i.checked : !!i.value.trim()); };
+    const state = new Map();
+    const apply = (changed) => {
+      groups.forEach((fs, g) => {
+        const branches = [...new Set(fs.map((f) => f.alt.b))];
+        let active = state.get(g);
+        if (changed && changed.alt.g === g && filled(changed)) active = changed.alt.b;
+        else if (!active || !fs.some((f) => f.alt.b === active && filled(f))) active = branches.find((b) => fs.some((f) => f.alt.b === b && filled(f))) || null;
+        state.set(g, active);
+        fs.forEach((f) => {
+          const i = inp(f); if (!i) return;
+          const na = !!active && f.alt.b !== active;
+          if (na && filled(f)) { if (f.type === "checkbox") i.checked = false; else i.value = ""; }
+          i.classList.toggle("pf-na", na);
+          const wrap = i.closest(".pdf-field"); if (wrap) wrap.classList.toggle("pf-na", na);
+          i.dataset.na = na ? "1" : "";
+          if (na) i.classList.remove("pf-missing");
+          if (f.type !== "checkbox") i.placeholder = na ? "Not needed" : f.label + (f.optional ? " (optional)" : "");
+        });
+      });
+    };
+    const handler = (e) => { const id = e.target && e.target.dataset && e.target.dataset.fieldId; const f = fields.find((x) => x.id === id); if (f) apply(f); };
+    container.addEventListener("input", handler);
+    container.addEventListener("change", handler);
+    apply(null);
   }
 
   function collectPdfValues(container, template) {
     const values = {}, missing = [];
+    const altSeen = new Map();   // group -> { any: bool, ask: label }
     (template.fields || []).forEach((f) => {
       const inp = container.querySelector(`input[data-field-id="${f.id}"]`);
       if (!inp) return;
-      if (f.type === "checkbox") { values[f.id] = inp.checked; return; }
-      const v = inp.value.trim();
-      values[f.id] = v;
-      inp.classList.toggle("pf-missing", !v && !f.optional);
-      if (!v && !f.optional) missing.push(f.label);
+      const na = inp.dataset.na === "1";
+      const val = f.type === "checkbox" ? inp.checked : inp.value.trim();
+      if (f.alt && f.alt.g) {
+        const a = altSeen.get(f.alt.g) || { any: false, ask: "" };
+        if (val && !na) a.any = true;
+        if (!a.ask && !f.optional && f.type !== "checkbox") a.ask = f.label;
+        altSeen.set(f.alt.g, a);
+      }
+      if (f.type === "checkbox") { values[f.id] = na ? false : inp.checked; return; }
+      values[f.id] = na ? "" : val;
+      const needed = !val && !f.optional && !na && !(f.alt && f.alt.g);
+      inp.classList.toggle("pf-missing", needed);
+      if (needed) missing.push(f.label);
+    });
+    altSeen.forEach((a, g) => {
+      if (a.any || !a.ask) return;
+      missing.push(a.ask + " (or its alternative)");
+      (template.fields || []).filter((f) => f.alt && f.alt.g === g && !f.optional).forEach((f) => { const i = container.querySelector(`input[data-field-id="${f.id}"]`); if (i && f.type !== "checkbox") i.classList.add("pf-missing"); });
     });
     return { values, missing };
   }
@@ -5905,6 +6019,7 @@
         const ord = (f.page || 0) * 1000 + Math.round((f.y || 0) * 999);
         q.order = Math.min(q.order === undefined ? ord : q.order, ord);
         if (!r.mapped && !q.prev) q.prev = { tid: t.id, page: f.page || 0, x: f.x, y: f.y, w: f.w, h: f.h };
+        if (f.alt && f.alt.g && !q.alt) q.alt = { g: f.alt.g, b: f.alt.b };
         if (f.type === "date") q.type = "date";
         if (!f.optional || DM_IDENTITY.includes(r.bind)) q.optional = false;
         qs.set(r.key, q);
@@ -5945,10 +6060,11 @@
     const qs = buildQuestions(templates, lang);
     if (!qs.length) return { html: "", blocking: false };
     const known = (q) => q.bind ? bindValue(q.bind) : (myProfile[q.key] || "");
-    const unanswered = qs.filter((q) => !q.optional && !known(q));
+    const altDone = (q) => q.alt && qs.some((o) => o !== q && o.alt && o.alt.g === q.alt.g && o.alt.b !== q.alt.b && known(o));
+    const unanswered = qs.filter((q) => !q.optional && !known(q) && !altDone(q));
     const onFile = qs.filter((q) => q.bind && !DM_IDENTITY.includes(q.bind) && bindValue(q.bind));
     const stored = qs.filter((q) => !onFile.includes(q));
-    const input = (q) => `<label class="${q.prev ? "q-wide" : ""}"><span class="q">${escHtml(q.label)}${q.optional ? ` <span class="muted">${ui.opt}</span>` : ""}</span>${q.prev ? `<span class="q-prev" data-prev="${escHtml(JSON.stringify(q.prev))}">…</span>` : ""}<input data-det="${escHtml(q.key)}" type="${q.type === "date" ? "date" : "text"}" value="${escHtml(String(known(q) || "").slice(0, q.type === "date" ? 10 : 200))}" /></label>`;
+    const input = (q) => `<label class="${q.prev ? "q-wide" : ""}"${q.alt ? ` data-altg="${escHtml(q.alt.g)}" data-altb="${escHtml(q.alt.b)}"` : ""}><span class="q">${escHtml(q.label)}${q.optional ? ` <span class="muted">${ui.opt}</span>` : ""}</span>${q.prev ? `<span class="q-prev" data-prev="${escHtml(JSON.stringify(q.prev))}">…</span>` : ""}<input data-det="${escHtml(q.key)}" type="${q.type === "date" ? "date" : "text"}" value="${escHtml(String(known(q) || "").slice(0, q.type === "date" ? 10 : 200))}" /></label>`;
     const blocking = unanswered.length > 0;
     const langPick = langs.length > 1 ? `<div class="qlang"><label><span class="q">${escHtml(ui.langShort)}</span><select data-det="lang">${langs.map((l) => `<option value="${l}"${l === lang ? " selected" : ""}>${DM_LANG_NAMES[l]}</option>`).join("")}</select></label></div>` : "";
     // Standard order: about you, address, status, work, ID, then anything specific to these forms in page order.
@@ -6026,10 +6142,34 @@
     }
   }
 
+  // Either/or questions on the details card: answering one dims and clears the other.
+  function dmCardAlt(root) {
+    const labels = [...root.querySelectorAll("label[data-altg]")];
+    if (!labels.length) return;
+    const val = (l) => { const i = l.querySelector("[data-det]"); return i ? i.value.trim() : ""; };
+    const apply = (changed) => {
+      const gs = new Set(labels.map((l) => l.dataset.altg));
+      gs.forEach((g) => {
+        const ls = labels.filter((l) => l.dataset.altg === g);
+        let active = changed && changed.dataset.altg === g && val(changed) ? changed.dataset.altb : null;
+        if (!active) { const f = ls.find((l) => val(l)); active = f ? f.dataset.altb : null; }
+        ls.forEach((l) => {
+          const na = !!active && l.dataset.altb !== active;
+          l.classList.toggle("q-na", na);
+          const i = l.querySelector("[data-det]");
+          if (na && i && i.value) i.value = "";
+          if (i) i.placeholder = na ? "Not needed" : "";
+        });
+      });
+    };
+    root.addEventListener("input", (e) => { const l = e.target.closest && e.target.closest("label[data-altg]"); if (l) apply(l); });
+    apply(null);
+  }
+
   async function saveMyDetails() {
     const msg = document.getElementById("saveMyDetailsMsg");
     const next = { ...myProfile };
-    const empty = [...document.querySelectorAll("[data-det]")].filter((e) => !e.value.trim() && e.closest("label") && !/\((optional|facultatif|opcional)\)/.test(e.closest("label").textContent));
+    const empty = [...document.querySelectorAll("[data-det]")].filter((e) => !e.value.trim() && e.closest("label") && !e.closest("label.q-na") && !(e.closest("label").dataset.altg && [...document.querySelectorAll(`label[data-altg="${e.closest("label").dataset.altg}"] [data-det]`)].some((o) => o.value.trim())) && !/\((optional|facultatif|opcional)\)/.test(e.closest("label").textContent));
     if (empty.length) { empty[0].focus(); if (msg) msg.textContent = "Please fill in / Veuillez remplir : " + empty.map((e) => e.closest("label").firstChild.textContent.trim()).join(", "); return; }
     document.querySelectorAll("[data-det]").forEach((e) => { const v = e.value.trim(); if (v) next[e.dataset.det] = v; else delete next[e.dataset.det]; });
     const { error } = await client.auth.updateUser({ data: { details: next } });
@@ -6137,6 +6277,7 @@
     if (det.blocking) { pdfJobs.length = 0; setDealsBadge(waiting); }
     body.innerHTML = cardsHtml ? det.html + (det.blocking ? `<p class="muted">${escHtml(det.wait || "Your forms will appear here, filled in, as soon as you save this.")}</p>` : cardsHtml) : `<p class="empty">Nothing to sign right now.</p>`;
     const sd = document.getElementById("saveMyDetails"); if (sd) sd.addEventListener("click", saveMyDetails);
+    dmCardAlt(body);
     renderQuestionPreviews(body, new Map((templates || []).map((t) => [t.id, t]))).catch(() => {});
     setDealsBadge(waiting);
     pdfJobs.forEach(({ template, record }) => {
