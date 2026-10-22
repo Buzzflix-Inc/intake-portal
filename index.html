@@ -101,6 +101,8 @@
   header.top .eyebrow { font-size: 12px; color: var(--link); margin: 0; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
   .top-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
   #companySwitcher { max-width: 220px; }
+  .who-am-i { font-size: 13px; font-weight: 600; color: var(--ink); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .who-am-i:empty { display: none; }
   #signOutBtn {
     background: none;
     border: 1px solid var(--line);
@@ -880,6 +882,7 @@
         </div>
         <div class="top-actions">
           <select id="companySwitcher" class="hidden" aria-label="Switch company"></select>
+          <span id="whoAmI" class="who-am-i" title=""></span>
           <button id="signOutBtn">Sign out</button>
         </div>
       </header>
@@ -1751,6 +1754,7 @@
     myInvite = data || null; myEmail = user.email;
     myRequestedDocs = (data && data.requested_documents) || [];
     myFullName = (data && data.full_name) || null;
+    { const w = document.getElementById("whoAmI"); const md = user.user_metadata || {}; const nm = myFullName || md.full_name || md.name || user.email; if (w) { w.textContent = nm; w.title = user.email; } }
     myDepartment = (data && data.department) || null;
     myKitEnabled = !!(data && data.kit_fee_enabled);
     myKitRate = myKitEnabled ? Number(data.kit_fee_rate || 0) : 0;
