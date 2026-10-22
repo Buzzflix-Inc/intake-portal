@@ -4281,7 +4281,7 @@
   }
   // Things that aren't an employee profile field but are asked the same way on many forms
   const DM_CONCEPTS = [
-    { k: "sin", skip: true, re: /\bs\.?\s?i\.?\s?n\b|social insurance|assurance sociale|\bnas\b/i },
+    { k: "sin", skip: true, re: /\bs\.?\s?[il1|]\.?\s?[nm]\b|social insurance|assurance sociale|\bnas\b/i },
     { k: "nat_date", type: "date", re: /naturali/i, en: "Date you became a citizen (naturalization)", fr: "Date de naturalisation" },
     { k: "pr_date", type: "date", re: /admission|admis\b|permanent resident since/i, en: "Date you became a permanent resident", fr: "Date d'admission comme résident permanent" },
     { k: "drivers", re: /driver|driving|licen[cs]e|permis de conduire/i, en: "Driver's licence number", fr: "Numéro de permis de conduire" },
@@ -4474,6 +4474,8 @@
     const d = ctx.getImageData(0, 0, w, h).data;
     const dark = new Uint8Array(w * h), faint = new Uint8Array(w * h);
     for (let i = 0; i < w * h; i++) faint[i] = d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11 < 215 ? 1 : 0;
+    const mid = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) mid[i] = d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11 < 185 ? 1 : 0;
     for (let i = 0; i < w * h; i++) dark[i] = d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11 < 150 ? 1 : 0;
         const pxPerPt = scale, pageScale = vp0.width / 612;
     // vertical strokes (table borders)
@@ -4497,11 +4499,29 @@
         if (x - s0 >= minLen) runs.push({ x0: s0, x1: x, y0: y, y1: y });
       }
     }
-    const lines = [];
+    let lines = [];
     runs.forEach((r) => {
       const m = lines.find((l) => r.y0 - l.y1 <= 1 && Math.abs(l.x0 - r.x0) <= 3 && Math.abs(l.x1 - r.x1) <= 3);
       if (m) m.y1 = r.y0; else lines.push({ ...r });
     });
+    // a slightly tilted or broken rule: join pieces that sit on the same row and nearly touch
+    {
+      lines.sort((a, b) => a.x0 - b.x0);
+      const merged = [];
+      lines.forEach((l) => {
+        const m = merged.find((q) => Math.abs((q.y0 + q.y1) / 2 - (l.y0 + l.y1) / 2) <= 3 && l.x0 - q.x1 <= 0.015 * w && l.x0 >= q.x0 - 2);
+        if (m) m.x1 = Math.max(m.x1, l.x1); else merged.push({ ...l });
+      });
+      lines = merged;
+      // a faint scanned rule fades at its ends: follow it along (same row +-1) through small gaps
+      lines.forEach((l) => {
+        const ym = Math.round((l.y0 + l.y1) / 2);
+        const on = (x) => x >= 0 && x < w && (mid[(ym - 1) * w + x] || mid[ym * w + x] || mid[(ym + 1) * w + x]);
+        const cnt = (a, b) => { let c = 0; for (let q = a; q < b; q++) if (on(q)) c++; return c; };
+        for (let k = 0; k < 200 && l.x1 + 10 <= w && cnt(l.x1, l.x1 + 10) >= 9; k++) l.x1 += 10;
+        for (let k = 0; k < 200 && l.x0 - 10 >= 0 && cnt(l.x0 - 10, l.x0) >= 9; k++) l.x0 -= 10;
+      });
+    }
     const hit = (x, y) => vruns.some((v) => Math.abs(v.x - x) <= 3 && v.y0 - 3 <= y && v.y1 + 3 >= y);
     const out = [];
     const fh = 17 * pageScale / vp0.height * 1, sigH = 38 * pageScale / vp0.height;
@@ -4714,6 +4734,22 @@
       });
       phrOut = phr;
       const clean = (p) => dmCleanLabel(p.s);
+      // one long rule shared by two captions printed beneath it (e.g. "(apt./number/street)" ... "(city/town)"): two blanks
+      for (let li = list.length - 1; li >= 0; li--) {
+        const f = list[li];
+        if (f.type !== "text" || f.w < 0.25) continue;
+        const bot = f.y + f.h;
+        const caps = phr.filter((p) => p.y - bot > -0.004 && p.y - bot <= 0.045 && p.x0 >= f.x - 0.02 && p.x1 <= f.x + f.w + 0.02 && p.s.length <= 40 && /^[({\[]/.test(p.s.trim())).sort((a, b) => a.x0 - b.x0);
+        const sep = caps.filter((p, i) => i === 0 || p.x0 - caps[i - 1].x1 > 0.04);
+        if (sep.length < 2 || sep.length > 4) continue;
+        const parts = [];
+        for (let i = 0; i < sep.length; i++) {
+          const xa = i === 0 ? f.x : (sep[i - 1].x1 + sep[i].x0) / 2 + 0.005;
+          const xb = i === sep.length - 1 ? f.x + f.w : (sep[i].x1 + sep[i + 1].x0) / 2 - 0.005;
+          parts.push({ ...f, x: xa, w: xb - xa });
+        }
+        list.splice(li, 1, ...parts);
+      }
       list.forEach((f) => {
         const isCheck = f.type === "checkbox";
         if (!/^(Blank|Checkbox) \d+$/.test(f.label || "")) return;
@@ -4739,6 +4775,16 @@
           const capOf = (p) => /^[({\[]/.test(p.s.trim()) && list.some((g) => g !== f && g.type === "text" && Math.min(g.x + g.w, p.x1) - Math.max(g.x, p.x0) > 0.5 * (p.x1 - p.x0) && p.cy > g.y + g.h && p.cy - (g.y + g.h) <= 0.04);
           const left = phr.filter((p) => p.x1 <= x0 + 0.01 && x0 - p.x1 < 0.3 && Math.abs(p.cy - row) < 0.013 && !capOf(p)).sort((a, b) => b.x1 - a.x1)[0];
           if (left) lab = clean(left);
+          {
+            // a real caption printed under the line ("(Occupation)", "Name of Production") beats a weak word beside it ("of", "I,", "To wit")
+            const bot0 = f.y + f.h;
+            const cap = phr.filter((p) => p.y - bot0 > -0.004 && p.y - bot0 <= 0.045 && Math.min(p.x1, x1) - Math.max(p.x0, x0) > 0.3 * (p.x1 - p.x0) && p.s.length <= 80 && !capOf(p) && !/yyyy|mm\/dd|day\/month|jour\/mois|\bdd\b/i.test(p.s) && !list.some((g) => g !== f && g.type !== "checkbox" && g.x >= p.x1 - 0.01 && g.x - p.x1 < 0.3 && Math.abs(p.cy - (g.y + g.h * 0.6)) < 0.013)).sort((a, b) => a.y - b.y)[0];
+            const letters = (t) => t.replace(/[^A-Za-z]/g, "").length;
+            if (cap) {
+              const ct = clean(cap);
+              if (letters(ct) >= 8 && (!lab || letters(lab) < 6 || /^(to wit|of|and|the)\b/i.test(lab.trim()) && letters(lab) < 8)) lab = ct;
+            }
+          }
           if (!lab || lab.replace(/[^A-Za-z]/g, "").length < 5) {
             // a fragment (underlined words split the line): use the whole row of text left of the box
             const rowL = phr.filter((p) => p.x1 <= x0 + 0.01 && x0 - p.x1 < 0.8 && Math.abs(p.cy - row) < 0.013).sort((a, b) => a.x0 - b.x0);
@@ -4748,7 +4794,7 @@
           }
           if (!lab) {
             const bot = f.y + f.h;
-            const below = phr.filter((p) => p.y - bot > 0 && p.y - bot <= 0.04 && Math.min(p.x1, x1) - Math.max(p.x0, x0) > 0 && p.s.length <= 40).sort((a, b) => a.y - b.y)[0];
+            const below = phr.filter((p) => p.y - bot > 0 && p.y - bot <= 0.04 && Math.min(p.x1, x1) - Math.max(p.x0, x0) > 0 && p.s.length <= 80).sort((a, b) => a.y - b.y)[0];
             if (below) lab = clean(below);
           }
           if (!lab) {
@@ -4769,6 +4815,12 @@
         }
       });
     } catch (_) { /* keep "Blank n": the admin can name them in the editor */ }
+    // a blank must not sit on top of the caption printed just above it
+    if (phrOut) list.forEach((f) => {
+      if (f.type !== "text" && f.type !== "date") return;
+      const above = phrOut.filter((p) => p.y > f.y + 0.002 && p.y < f.y + f.h * 0.9 && Math.min(p.x1, f.x + f.w) - Math.max(p.x0, f.x) > 0.3 * (p.x1 - p.x0) && p.cy < f.y + f.h * 0.5).sort((a, b) => b.y - a.y)[0];
+      if (above) { const ny2 = above.y + 0.002, bottom = f.y + f.h; if (bottom - ny2 >= 0.012) { f.y = ny2; f.h = bottom - ny2; } }
+    });
     if (list.some((f) => f._drop)) { const keepL = list.filter((f) => !f._drop); keepL._phr = phrOut; return keepL; }
     list._phr = phrOut;
     return list;
