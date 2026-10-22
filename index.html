@@ -995,6 +995,14 @@
         <ul class="file-list" id="saCompaniesList"></ul>
         <p class="empty hidden" id="saCompaniesEmpty">No companies yet.</p>
       </section>
+
+      <section class="panel">
+        <h2>Unassigned accounts</h2>
+        <p class="desc">Accounts that can still sign in but belong to no company (for example left over from a deleted company). Deleting one removes the account and anything it uploaded.</p>
+        <button class="btn-secondary" id="saOrphansBtn">Check for unassigned accounts</button>
+        <div id="saOrphansMsg"></div>
+        <ul class="file-list" id="saOrphansList"></ul>
+      </section>
     </div>
 
     <!-- Admin view -->
@@ -5854,6 +5862,37 @@
     try { navigator.clipboard.writeText(message).then(done, () => window.prompt("Copy this invite:", message)); }
     catch (e) { window.prompt("Copy this invite:", message); }
   }
+
+  async function loadOrphans() {
+    const listEl = document.getElementById("saOrphansList");
+    const msgEl = document.getElementById("saOrphansMsg");
+    listEl.innerHTML = "";
+    msgEl.innerHTML = `<div class="msg ok">Checking…</div>`;
+    const { data, error } = await client.functions.invoke("delete-user", { body: { action: "list-orphans" } });
+    if (error || (data && data.error)) {
+      let detail = (data && data.error) || (error && error.message) || "";
+      if (error && error.context && typeof error.context.json === "function") { try { const b = await error.context.json(); if (b && b.error) detail = b.error; } catch (_) {} }
+      msgEl.innerHTML = `<div class="msg error">Couldn't check: ${escHtml(detail)}. If this says the function doesn't understand it, redeploy the delete-user function with the newest code.</div>`;
+      return;
+    }
+    const rows = data.orphans || [];
+    msgEl.innerHTML = rows.length ? "" : `<div class="msg ok">No unassigned accounts. Everyone belongs to a company.</div>`;
+    rows.forEach((u) => {
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="info"><span class="name">${escHtml(u.email || u.id)}</span><span class="email">Created ${escHtml((u.created_at || "").slice(0, 10))}</span></span>`;
+      const right = document.createElement("span"); right.className = "actions";
+      const del = document.createElement("button"); del.className = "remove-link"; del.textContent = "Delete account";
+      del.addEventListener("click", async () => {
+        if (!window.confirm(`Permanently delete ${u.email || u.id} and everything it uploaded? This can't be undone.`)) return;
+        del.disabled = true;
+        const r = await client.functions.invoke("delete-user", { body: { action: "delete-orphan", userId: u.id } });
+        if (r.error || (r.data && r.data.error)) { del.disabled = false; msgEl.innerHTML = `<div class="msg error">Couldn't delete ${escHtml(u.email || "")}${r.data && r.data.error ? ": " + escHtml(r.data.error) : ""}.</div>`; return; }
+        loadOrphans();
+      });
+      right.appendChild(del); li.appendChild(right); listEl.appendChild(li);
+    });
+  }
+  document.getElementById("saOrphansBtn").addEventListener("click", loadOrphans);
 
   async function loadSuperOverview() {
     const listEl = document.getElementById("saCompaniesList");
