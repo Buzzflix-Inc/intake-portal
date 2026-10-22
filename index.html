@@ -496,6 +496,8 @@
   .my-details-grid { align-items: stretch; }
   .my-details-grid label { display: flex; flex-direction: column; justify-content: space-between; gap: 6px; font-size: 13px; line-height: 1.3; }
   .my-details-grid label .q { display: block; }
+  .q-prev { display: block; }
+  .q-prev-img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; display: block; }
   .my-details-grid label input, .my-details-grid label select { width: 100%; box-sizing: border-box; }
   .deal-card { border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; margin-bottom: 16px; }
   .deal-card:last-child { margin-bottom: 0; }
@@ -4311,7 +4313,7 @@
     if (vague) best = segs.find((x) => x && !dmVague(x) && x.length <= 70) || lab;
     if (dmVague(best)) {
       const here = `Detail asked on page ${(f.page || 0) + 1}`;
-      return { key: "q:p" + (f.page || 0) + "-" + Math.round((f.y || 0) * 100) + "-" + Math.round((f.x || 0) * 100), mapped: false, label: { en: here, fr: `Renseignement demandé à la page ${(f.page || 0) + 1}` }, type: f.type, lang: "", skip: /^blank \d+$/i.test(lab) };
+      return { key: "q:p" + (f.page || 0) + "-" + Math.round((f.y || 0) * 100) + "-" + Math.round((f.x || 0) * 100), mapped: false, label: { en: here, fr: `Renseignement demandé à la page ${(f.page || 0) + 1}` }, type: f.type, lang: "", vague: true, skip: /^blank \d+$/i.test(lab) };
     }
     return { key: "q:" + qNorm(best), mapped: false, label: { en: best }, type: f.type, lang: dmLang(best + " " + lab), skip: /^blank \d+$/i.test(lab) };
   }
@@ -5862,6 +5864,7 @@
         const r = res.get(f.id);
         if (!r || r.skip) return;
         const q = qs.get(r.key) || { key: r.key, bind: r.bind, label: (lang && r.label[lang]) || r.label.en || r.label.fr || "", type: r.type, optional: true };
+        if (r.vague && !q.prev) q.prev = { tid: t.id, page: f.page || 0, x: f.x, y: f.y, w: f.w, h: f.h };
         if (f.type === "date") q.type = "date";
         if (!f.optional || DM_IDENTITY.includes(r.bind)) q.optional = false;
         qs.set(r.key, q);
@@ -5896,7 +5899,7 @@
     const known = (q) => q.bind ? bindValue(q.bind) : (myProfile[q.key] || "");
     const unanswered = qs.filter((q) => !q.optional && !known(q));
     const stored = qs.filter((q) => !(q.bind && !DM_IDENTITY.includes(q.bind) && bindValue(q.bind)));
-    const input = (q) => `<label><span class="q">${escHtml(q.label)}${q.optional ? ` <span class="muted">${ui.opt}</span>` : ""}</span><input data-det="${escHtml(q.key)}" type="${q.type === "date" ? "date" : "text"}" value="${escHtml(String(known(q) || "").slice(0, q.type === "date" ? 10 : 200))}" /></label>`;
+    const input = (q) => `<label><span class="q">${escHtml(q.label)}${q.optional ? ` <span class="muted">${ui.opt}</span>` : ""}</span>${q.prev ? `<span class="q-prev" data-prev="${escHtml(JSON.stringify(q.prev))}">…</span>` : ""}<input data-det="${escHtml(q.key)}" type="${q.type === "date" ? "date" : "text"}" value="${escHtml(String(known(q) || "").slice(0, q.type === "date" ? 10 : 200))}" /></label>`;
     const blocking = unanswered.length > 0;
     const langPick = langs.length > 1 ? `<label><span class="q">Language</span><select data-det="lang">${langs.map((l) => `<option value="${l}"${l === lang ? " selected" : ""}>${DM_LANG_NAMES[l]}</option>`).join("")}</select></label>` : "";
     const html = `<details class="my-details"${blocking ? " open" : ""}>
@@ -5906,6 +5909,39 @@
       <span id="saveMyDetailsMsg" class="muted"></span>
     </details>`;
     return { html, blocking, wait: ui.wait };
+  }
+
+  // Shows the part of the form a vague question is about, with the box outlined.
+  async function renderQuestionPreviews(root, byId) {
+    const els = [...root.querySelectorAll(".q-prev")];
+    if (!els.length) return;
+    const pdfjs = await ensurePdfJs();
+    const docs = new Map();
+    for (const el of els) {
+      try {
+        const d = JSON.parse(el.dataset.prev);
+        const t = byId.get(d.tid);
+        if (!t || !t.source_pdf_path) throw new Error("no pdf");
+        let pdf = docs.get(d.tid);
+        if (!pdf) { const bytes = await loadTemplatePdfBytes(t.source_pdf_path); pdf = await pdfjs.getDocument({ data: new Uint8Array(bytes) }).promise; docs.set(d.tid, pdf); }
+        const page = await pdf.getPage(d.page + 1);
+        const vp = page.getViewport({ scale: 1.6 });
+        const cv = document.createElement("canvas");
+        cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+        const ctx = cv.getContext("2d");
+        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height);
+        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+        ctx.strokeStyle = "#dc2626"; ctx.lineWidth = 3;
+        ctx.strokeRect(d.x * cv.width - 3, d.y * cv.height - 3, d.w * cv.width + 6, d.h * cv.height + 6);
+        const cw = Math.round(cv.width * 0.72), ch = Math.round(cv.height * 0.13);
+        const sx = Math.max(0, Math.min(cv.width - cw, (d.x + d.w / 2) * cv.width - cw / 2));
+        const sy = Math.max(0, Math.min(cv.height - ch, (d.y + d.h / 2) * cv.height - ch / 2));
+        const out = document.createElement("canvas");
+        out.width = cw; out.height = ch; out.className = "q-prev-img";
+        out.getContext("2d").drawImage(cv, sx, sy, cw, ch, 0, 0, cw, ch);
+        el.textContent = ""; el.appendChild(out);
+      } catch (_) { el.remove(); }
+    }
   }
 
   async function saveMyDetails() {
@@ -6019,6 +6055,7 @@
     if (det.blocking) { pdfJobs.length = 0; setDealsBadge(waiting); }
     body.innerHTML = cardsHtml ? det.html + (det.blocking ? `<p class="muted">${escHtml(det.wait || "Your forms will appear here, filled in, as soon as you save this.")}</p>` : cardsHtml) : `<p class="empty">Nothing to sign right now.</p>`;
     const sd = document.getElementById("saveMyDetails"); if (sd) sd.addEventListener("click", saveMyDetails);
+    renderQuestionPreviews(body, new Map((templates || []).map((t) => [t.id, t]))).catch(() => {});
     setDealsBadge(waiting);
     pdfJobs.forEach(({ template, record }) => {
       const holder = body.querySelector(`.pdf-form[data-record-id="${record.id}"]`);
