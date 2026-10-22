@@ -4411,11 +4411,86 @@
     return out.slice(0, 80);
   }
 
+  // Scanned pages have no text to read labels from, so read the picture (OCR) and name each blank from the words beside it.
+  let tessReady = null;
+  function ensureTesseract() {
+    if (tessReady) return tessReady;
+    tessReady = new Promise((resolve, reject) => {
+      if (window.Tesseract) { resolve(window.Tesseract); return; }
+      const sc = document.createElement("script");
+      sc.src = "https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js";
+      sc.onload = () => resolve(window.Tesseract);
+      sc.onerror = () => { tessReady = null; reject(new Error("OCR unavailable")); };
+      document.head.appendChild(sc);
+    });
+    return tessReady;
+  }
+  async function dmOcrLabel(page, list) {
+    if (!list.length) return list;
+    try {
+      const T = await ensureTesseract();
+      const vp0 = page.getViewport({ scale: 1 });
+      const vp = page.getViewport({ scale: Math.min(2.5, 1700 / vp0.width) });
+      const cv = document.createElement("canvas");
+      cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+      const ctx = cv.getContext("2d");
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height);
+      await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      const worker = await T.createWorker("eng");
+      let words = [];
+      try {
+        const { data } = await worker.recognize(cv);
+        words = (data.words || []).filter((w) => w.text && w.confidence > 40 && !/^[_\-–—.|=~\s]+$/.test(w.text));
+      } finally { try { await worker.terminate(); } catch (_) {} }
+      // Group words on a row into phrases
+      const W = cv.width, H = cv.height;
+      const ws = words.map((w) => ({ s: w.text, x0: w.bbox.x0 / W, x1: w.bbox.x1 / W, y0: w.bbox.y0 / H, y1: w.bbox.y1 / H }))
+        .sort((a, b) => ((a.y0 + a.y1) / 2 - (b.y0 + b.y1) / 2) || a.x0 - b.x0);
+      const phr = [];
+      ws.forEach((w) => {
+        const cy = (w.y0 + w.y1) / 2;
+        const last = phr[phr.length - 1];
+        if (last && Math.abs(last.cy - cy) < 0.008 && w.x0 - last.x1 < 0.02 && w.x0 >= last.x0) {
+          last.s += " " + w.s; last.x1 = w.x1; last.y = Math.max(last.y, w.y1); last.h = Math.max(last.h, w.y1 - w.y0);
+        } else phr.push({ s: w.s, x0: w.x0, x1: w.x1, y: w.y1, cy, h: w.y1 - w.y0 });
+      });
+      const clean = (p) => dmCleanLabel(p.s);
+      list.forEach((f) => {
+        const isCheck = f.type === "checkbox";
+        if (!/^(Blank|Checkbox) \d+$/.test(f.label || "")) return;
+        const cyF = f.y + f.h / 2, x0 = f.x, x1 = f.x + f.w;
+        let lab = "";
+        if (isCheck) {
+          const right = phr.filter((p) => p.x0 >= x1 - 0.004 && p.x0 - x1 < 0.05 && Math.abs(p.cy - cyF) < 0.014).sort((a, b) => a.x0 - b.x0)[0];
+          if (right) lab = clean(right);
+        } else {
+          const row = f.y + f.h * 0.6;
+          const left = phr.filter((p) => p.x1 <= x0 + 0.01 && x0 - p.x1 < 0.3 && Math.abs(p.cy - row) < 0.013).sort((a, b) => b.x1 - a.x1)[0];
+          if (left) lab = clean(left);
+          if (!lab) {
+            const bot = f.y + f.h;
+            const below = phr.filter((p) => p.y - bot > 0 && p.y - bot <= 0.04 && Math.min(p.x1, x1) - Math.max(p.x0, x0) > 0 && p.s.length <= 40).sort((a, b) => a.y - b.y)[0];
+            if (below) lab = clean(below);
+          }
+          if (!lab) {
+            const above = phr.filter((p) => f.y - p.y > 0 && f.y - p.y <= 0.035 && Math.min(p.x1, x1) - Math.max(p.x0, x0) > 0 && p.s.length <= 45).sort((a, b) => b.y - a.y)[0];
+            if (above) lab = clean(above);
+          }
+        }
+        if (lab && lab.length > 1) {
+          f.label = lab;
+          if (!isCheck) f.type = dmTypeFor(lab, "text");
+        }
+      });
+    } catch (_) { /* keep "Blank n": the admin can name them in the editor */ }
+    return list;
+  }
+
   async function dmDetectPage(page, pdfjs) {
     const blanks = [];
     const phr = await tsPagePhrases(page, { blanks });
     dmStats.text += phr.length;
-    if (phr.length < 15) { const r = await dmDetectRaster(page); dmStats.raster = (dmStats.raster || 0) + 1; return r; }
+    if (phr.length < 15) { const r = await dmDetectRaster(page); dmStats.raster = (dmStats.raster || 0) + 1; return await dmOcrLabel(page, r); }
     const { shapes, W, H } = await dmPageShapes(page, pdfjs);
     const sc = W / 612;
     const fh = 17 * sc / H, sigH = 38 * sc / H;
@@ -4598,7 +4673,7 @@
     return found.length;
   }
   async function runAutoPlace(msgEl) {
-    msgEl.innerHTML = `<div class="msg ok">Looking for the blanks on your PDF…</div>`;
+    msgEl.innerHTML = `<div class="msg ok">Looking for the blanks on your PDF (scanned pages take a little longer while the labels are read)…</div>`;
     try {
       const n = await autoPlaceFields();
       const hasSig = tplPdf.fields.some((f) => f.type === "signature");
