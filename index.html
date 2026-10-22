@@ -502,6 +502,7 @@
   #pagePreviewOverlay .ppv-x { background: none; border: 0; color: #fff; font-size: 28px; line-height: 1; cursor: pointer; }
   #pagePreviewOverlay .ppv-scroll { width: min(900px, 100%); flex: 1; min-height: 0; overflow: auto; background: #fff; border-radius: 8px; }
   #pagePreviewOverlay img { width: 100%; height: auto; display: block; cursor: zoom-out; }
+  .q-prev-cap { display: block; font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
   .q-prev-img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; display: block; }
   .my-details-grid label input, .my-details-grid label select { width: 100%; box-sizing: border-box; }
   .deal-card { border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; margin-bottom: 16px; }
@@ -4279,7 +4280,7 @@
     // a clipped piece of a sentence ("as a permanent", "0000 Name of", "(Signature") is not a question
     if (/^[a-z0-9]/.test(raw) && !/^(from|to|name|date|address|city|province|phone|email|e-mail|position|occupation|department|signature|title|company|surname|given|print)\b/i.test(raw)) return true;
     if (/\b(of|as|a|an|the|for|to|and|in|on|my|your|at|by|with|que|de|du|des|la|le|les|et|au|aux|pour)$/i.test(raw)) return true;
-    if (/^\([^)]*$/.test(raw) || /^\d{3,}\b/.test(raw)) return true;
+    if (/^\([^)]*$/.test(raw) || /^\d{3,}\b/.test(raw) || /^[\s(\[]*[\d\s.\/\-]+[)\]]?$/.test(raw)) return true;
     if (/^\(?\s*y{2,4}\s*[\/-]\s*m{1,2}/i.test(String(l).trim())) return true;
     const ws = t.split(" ");
     return ws.length <= 2 && ws.every((w) => DM_VAGUE_WORDS.has(w) || w.length <= 2) && !/^(from|to)$/.test(t);
@@ -5887,7 +5888,7 @@
         const r = res.get(f.id);
         if (!r || r.skip) return;
         const q = qs.get(r.key) || { key: r.key, bind: r.bind, label: (lang && r.label[lang]) || r.label.en || r.label.fr || "", type: r.type, optional: true };
-        if (r.vague && !q.prev) q.prev = { tid: t.id, page: f.page || 0, x: f.x, y: f.y, w: f.w, h: f.h };
+        if (!r.mapped && !q.prev) q.prev = { tid: t.id, page: f.page || 0, x: f.x, y: f.y, w: f.w, h: f.h };
         if (f.type === "date") q.type = "date";
         if (!f.optional || DM_IDENTITY.includes(r.bind)) q.optional = false;
         qs.set(r.key, q);
@@ -5967,7 +5968,7 @@
         let pdf = docs.get(d.tid);
         if (!pdf) { const bytes = await loadTemplatePdfBytes(t.source_pdf_path); pdf = await pdfjs.getDocument({ data: new Uint8Array(bytes) }).promise; docs.set(d.tid, pdf); }
         const page = await pdf.getPage(d.page + 1);
-        const vp = page.getViewport({ scale: 1.6 });
+        const vp = page.getViewport({ scale: 2.4 });
         const cv = document.createElement("canvas");
         cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
         const ctx = cv.getContext("2d");
@@ -5975,15 +5976,16 @@
         await page.render({ canvasContext: ctx, viewport: vp }).promise;
         ctx.strokeStyle = "#dc2626"; ctx.lineWidth = 3;
         ctx.strokeRect(d.x * cv.width - 3, d.y * cv.height - 3, d.w * cv.width + 6, d.h * cv.height + 6);
-        const cw = Math.round(cv.width * 0.72), ch = Math.round(cv.height * 0.13);
+        const cw = Math.round(cv.width * 0.5), ch = Math.round(cv.height * 0.085);
         const sx = Math.max(0, Math.min(cv.width - cw, (d.x + d.w / 2) * cv.width - cw / 2));
         const sy = Math.max(0, Math.min(cv.height - ch, (d.y + d.h / 2) * cv.height - ch / 2));
         const out = document.createElement("canvas");
         out.width = cw; out.height = ch; out.className = "q-prev-img";
         out.getContext("2d").drawImage(cv, sx, sy, cw, ch, 0, 0, cw, ch);
-        out.title = "Click to see the whole page"; out.style.cursor = "zoom-in";
+        out.title = "Click to see the whole page";
+        const cap = document.createElement("span"); cap.className = "q-prev-cap"; cap.textContent = "Tap the picture to see the whole page"; out.style.cursor = "zoom-in";
         out.addEventListener("click", (ev) => { ev.preventDefault(); ev.stopPropagation(); showPagePreview(cv, d); });
-        el.textContent = ""; el.appendChild(out);
+        el.textContent = ""; el.appendChild(out); el.appendChild(cap);
       } catch (_) { el.remove(); }
     }
   }
