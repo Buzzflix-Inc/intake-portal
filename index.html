@@ -5705,7 +5705,7 @@
       const b = fieldBind(f);
       if (b === "today") return;
       const q = qs.get(key) || { key, bind: b, label: b ? DM_BINDS[b] : (f.label || "").replace(/\s*\(optional\)\s*$/i, ""), type: f.type, optional: true };
-      if (!f.optional) q.optional = false;
+      if (!f.optional || ["dob", "phone", "address", "city", "province", "postal_code"].includes(b)) q.optional = false;
       qs.set(key, q);
     }));
     return [...qs.values()];
@@ -5731,6 +5731,8 @@
   async function saveMyDetails() {
     const msg = document.getElementById("saveMyDetailsMsg");
     const next = { ...myProfile };
+    const empty = [...document.querySelectorAll("[data-det]")].filter((e) => !e.value.trim() && e.closest("label") && !/\(optional\)/.test(e.closest("label").textContent));
+    if (empty.length) { empty[0].focus(); if (msg) msg.textContent = "Please fill in: " + empty.map((e) => e.closest("label").firstChild.textContent.trim()).join(", "); return; }
     document.querySelectorAll("[data-det]").forEach((e) => { const v = e.value.trim(); if (v) next[e.dataset.det] = v; else delete next[e.dataset.det]; });
     const { error } = await client.auth.updateUser({ data: { details: next } });
     if (error) { if (msg) msg.textContent = "Couldn't save: " + error.message; return; }
