@@ -4365,10 +4365,12 @@
     const out = [];
     const fh = 17 * pageScale / vp0.height * 1, sigH = 38 * pageScale / vp0.height;
     let n = 0;
-    lines.filter((l) => l.y1 - l.y0 <= 4 && l.x1 - l.x0 <= 0.6 * w).forEach((l) => {
+    lines.filter((l) => l.y1 - l.y0 <= 4 && l.x1 - l.x0 <= 0.76 * w).forEach((l) => {
       const y = (l.y0 + l.y1) / 2;
       if (hit(l.x0, y) && hit(l.x1, y)) return;
       if (y / h > DM_FOOTER_Y) return;
+      const dupL = out.some((o) => o.type === "text" && Math.abs((o.y + 17 * pageScale / vp0.height) - (y / h + 0.003)) < 0.012 && Math.min(o.x + o.w, l.x1 / w) - Math.max(o.x, l.x0 / w) > 0.5 * Math.min(o.w, (l.x1 - l.x0) / w));
+      if (dupL) return;
       n++;
       const fhn = 17 * pageScale / vp0.height;
       out.push({ type: "text", label: "Blank " + n, x: l.x0 / w, y: y / h - fhn + 0.003, w: (l.x1 - l.x0) / w, h: fhn });
@@ -4377,7 +4379,7 @@
     const lab = new Int32Array(w * h);
     const stack = new Int32Array(w * h);
     let comp = 0, cn = 0;
-    const lo = 8 * pxPerPt * pageScale, hi = 28 * pxPerPt * pageScale;
+    const lo = 5.5 * pxPerPt * pageScale, hi = 28 * pxPerPt * pageScale;
     for (let i = 0; i < w * h; i++) {
       if (!dark[i] || lab[i]) continue;
       comp++;
@@ -4399,11 +4401,17 @@
       if (big) continue;
       const bw = maxx - minx + 1, bh = maxy - miny + 1;
       if (bw < lo || bw > hi || bh < lo || bh > hi || Math.abs(bw - bh) > 0.2 * Math.max(bw, bh)) continue;
-      if (count > 0.5 * bw * bh) continue;
+      if (count > 0.75 * bw * bh) continue;
       let edge = 0, tot = 0;
       for (let x = minx; x <= maxx; x++) { tot += 2; edge += dark[miny * w + x] + dark[maxy * w + x]; }
       for (let y = miny; y <= maxy; y++) { tot += 2; edge += dark[y * w + minx] + dark[y * w + maxx]; }
-      if (edge / tot < 0.85) continue;
+      if (edge / tot < 0.8) continue;
+      const cd = (cx, cy) => { for (let dy = 0; dy <= 2; dy++) for (let dx = 0; dx <= 2; dx++) { const xx = Math.min(Math.max(cx + dx * (cx === minx ? 1 : -1), 0), w - 1), yy = Math.min(Math.max(cy + dy * (cy === miny ? 1 : -1), 0), h - 1); if (dark[yy * w + xx]) return 1; } return 0; };
+      if (cd(minx, miny) + cd(maxx, miny) + cd(minx, maxy) + cd(maxx, maxy) < 4) continue;
+      // a real checkbox stands apart from its neighbours; a letter sits tight against the next one
+      const gap = Math.max(4, Math.round(0.25 * Math.max(bw, bh)));
+      const freeCols = (x0, x1) => { for (let xx = Math.max(x0, 0); xx <= Math.min(x1, w - 1); xx++) for (let yy = miny; yy <= maxy; yy++) if (dark[yy * w + xx]) return false; return true; };
+      if (!freeCols(minx - gap, minx - 1) || !freeCols(maxx + 1, maxx + gap)) continue;
       if (maxy / h > DM_FOOTER_Y) continue;
       cn++;
       out.push({ type: "checkbox", label: "Checkbox " + cn, x: minx / w, y: miny / h, w: bw / w, h: bh / h });
@@ -4479,7 +4487,10 @@
         }
         if (lab && lab.length > 1) {
           f.label = lab;
-          if (!isCheck) f.type = dmTypeFor(lab, "text");
+          if (!isCheck) {
+            f.type = dmTypeFor(lab, "text");
+            if (f.type === "signature" || f.type === "countersignature") { const nh = 0.045; f.y -= nh - f.h; f.h = nh; }
+          }
         }
       });
     } catch (_) { /* keep "Blank n": the admin can name them in the editor */ }
