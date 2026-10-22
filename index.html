@@ -215,14 +215,16 @@
   #mfaGate input { width: 100%; box-sizing: border-box; font-size: 20px; letter-spacing: 0.3em; text-align: center; margin-bottom: 12px; }
   #mfaGate .mfa-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
   /* Admin tab: grouped sub-navigation */
-  .adm-nav { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; position: sticky; top: 0; z-index: 30; background: var(--page); padding: 8px 0; margin: -4px 0 0; border-bottom: 1px solid var(--line); }
-  .adm-nav .adm-pills { display: flex; gap: 6px; overflow-x: auto; flex: 1; min-width: 0; padding-bottom: 2px; }
-  .adm-pill { font: inherit; font-size: 13.5px; font-weight: 500; white-space: nowrap; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); cursor: pointer; }
-  .adm-pill:hover { color: var(--ink); border-color: var(--ink-faint); }
-  .adm-pill.active { background: var(--accent-soft); color: var(--ink); border-color: var(--link); font-weight: 600; }
-  .adm-bulk { display: flex; gap: 10px; font-size: 12.5px; }
-  .adm-bulk button { background: none; border: none; color: var(--ink-faint); text-decoration: underline; cursor: pointer; font: inherit; padding: 0; }
+  .adm-nav { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; position: sticky; top: 8px; z-index: 30; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 5px 14px 5px 5px; margin: 0; }
+  .adm-nav .adm-pills { display: flex; gap: 2px; overflow-x: auto; flex: 1; min-width: 0; scrollbar-width: none; }
+  .adm-nav .adm-pills::-webkit-scrollbar { display: none; }
+  .adm-pill { font: inherit; font-size: 13px; font-weight: 500; letter-spacing: -0.005em; white-space: nowrap; padding: 7px 15px; border-radius: 12px; border: none; background: transparent; color: var(--ink-soft); cursor: pointer; transition: background .15s, color .15s; }
+  .adm-pill:hover { color: var(--ink); background: var(--page); }
+  .adm-pill.active { background: var(--accent-soft); color: var(--link); font-weight: 600; }
+  .adm-bulk { display: flex; gap: 12px; font-size: 12px; white-space: nowrap; }
+  .adm-bulk button { background: none; border: none; color: var(--ink-faint); cursor: pointer; font: inherit; padding: 0; }
   .adm-bulk button:hover { color: var(--ink); }
+  @media (max-width: 520px) { .adm-bulk { display: none; } .adm-nav { padding-right: 5px; } }
   section.panel.acc.adm-off { display: none; }
   section.panel.acc > h2.acc-h .acc-sub { display: block; font-size: 12px; font-weight: 400; color: var(--ink-faint); margin-top: 1px; }
   /* Collapsible admin sections */
