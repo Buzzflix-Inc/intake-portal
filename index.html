@@ -492,6 +492,20 @@
   .pf-input.pf-auto { background: #eef6ff; }
   .my-details { border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; }
   .my-details summary { cursor: pointer; font-weight: 600; }
+  .my-details summary { display: flex; align-items: center; gap: 8px; }
+  .qprog { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--ink-soft); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; }
+  .qlang { margin: 12px 0 4px; max-width: 240px; }
+  .qlang label, .qgrid label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.3; }
+  .qlang select, .qgrid input { width: 100%; box-sizing: border-box; }
+  .qonfile { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin: 10px 0 4px; font-size: 12px; color: var(--ink-soft); }
+  .qonfile em { font-style: normal; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; }
+  .qgroup { margin: 16px 0 0; padding: 14px 16px 16px; border: 1px solid var(--line); border-left: 3px solid var(--link); border-radius: 10px; background: var(--surface); }
+  .qgroup h4 { margin: 0 0 12px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--link); }
+  .qgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px 16px; align-items: start; }
+  .qgrid label.q-wide { grid-column: 1 / -1; max-width: 560px; }
+  .qgrid .q { font-weight: 600; color: var(--ink); }
+  .qgrid .q .muted { font-weight: 400; }
+  .qactions { margin-top: 16px; display: flex; align-items: center; gap: 12px; }
   .my-details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin: 12px 0; }
   .my-details-grid { align-items: stretch; }
   .my-details-grid label { display: flex; flex-direction: column; justify-content: space-between; gap: 6px; font-size: 13px; line-height: 1.3; }
@@ -5888,6 +5902,8 @@
         const r = res.get(f.id);
         if (!r || r.skip) return;
         const q = qs.get(r.key) || { key: r.key, bind: r.bind, label: (lang && r.label[lang]) || r.label.en || r.label.fr || "", type: r.type, optional: true };
+        const ord = (f.page || 0) * 1000 + Math.round((f.y || 0) * 999);
+        q.order = Math.min(q.order === undefined ? ord : q.order, ord);
         if (!r.mapped && !q.prev) q.prev = { tid: t.id, page: f.page || 0, x: f.x, y: f.y, w: f.w, h: f.h };
         if (f.type === "date") q.type = "date";
         if (!f.optional || DM_IDENTITY.includes(r.bind)) q.optional = false;
@@ -5897,10 +5913,18 @@
     return [...qs.values()];
   }
 
+  const DM_GROUPS = [
+    { id: "you", en: "About you", fr: "À propos de vous", keys: ["full_name", "first_name", "last_name", "dob", "phone", "email"] },
+    { id: "address", en: "Where you live", fr: "Où vous habitez", keys: ["address", "city", "province", "postal_code"] },
+    { id: "status", en: "Citizenship and residency", fr: "Citoyenneté et résidence", keys: ["nat_date", "pr_date"] },
+    { id: "work", en: "Your work on this production", fr: "Votre travail sur cette production", keys: ["position", "department", "company", "production", "start_date", "end_date", "loanout"] },
+    { id: "id", en: "Identification", fr: "Pièces d'identité", keys: ["drivers"] },
+    { id: "other", en: "A few other details these forms ask for", fr: "Autres renseignements demandés", keys: null },
+  ];
   const DM_UI = {
-    en: { step: "Step 1: tell us a bit about you (asked once, fills every form)", yours: "Your details (used to fill forms)", save: "Save and fill my forms", change: "Save changes", opt: "(optional)", lang: "Which language would you like to answer in?", cont: "Continue", wait: "Your forms will appear here, filled in, as soon as you save this." },
-    fr: { step: "Étape 1 : quelques renseignements sur vous (demandés une seule fois)", yours: "Vos renseignements (utilisés pour remplir les formulaires)", save: "Enregistrer et remplir mes formulaires", change: "Enregistrer", opt: "(facultatif)", lang: "Dans quelle langue souhaitez-vous répondre ?", cont: "Continuer", wait: "Vos formulaires apparaîtront ici, remplis, dès que vous aurez enregistré." },
-    es: { step: "Paso 1: cuéntenos un poco sobre usted (se pregunta una sola vez)", yours: "Sus datos (se usan para completar los formularios)", save: "Guardar y completar mis formularios", change: "Guardar cambios", opt: "(opcional)", lang: "¿En qué idioma desea responder?", cont: "Continuar", wait: "Sus formularios aparecerán aquí, completados, en cuanto guarde esto." },
+    en: { step: "Step 1: tell us a bit about you (asked once, fills every form)", yours: "Your details (used to fill forms)", save: "Save and fill my forms", change: "Save changes", opt: "(optional)", langShort: "Language", onfile: "Already on file:", lang: "Which language would you like to answer in?", cont: "Continue", wait: "Your forms will appear here, filled in, as soon as you save this." },
+    fr: { step: "Étape 1 : quelques renseignements sur vous (demandés une seule fois)", yours: "Vos renseignements (utilisés pour remplir les formulaires)", save: "Enregistrer et remplir mes formulaires", change: "Enregistrer", opt: "(facultatif)", langShort: "Langue", onfile: "Déjà au dossier :", lang: "Dans quelle langue souhaitez-vous répondre ?", cont: "Continuer", wait: "Vos formulaires apparaîtront ici, remplis, dès que vous aurez enregistré." },
+    es: { step: "Paso 1: cuéntenos un poco sobre usted (se pregunta una sola vez)", yours: "Sus datos (se usan para completar los formularios)", save: "Guardar y completar mis formularios", change: "Guardar cambios", opt: "(opcional)", langShort: "Idioma", onfile: "Ya registrado:", lang: "¿En qué idioma desea responder?", cont: "Continuar", wait: "Sus formularios aparecerán aquí, completados, en cuanto guarde esto." },
   };
 
   function myDetailsCardHtml(templates) {
@@ -5922,15 +5946,27 @@
     if (!qs.length) return { html: "", blocking: false };
     const known = (q) => q.bind ? bindValue(q.bind) : (myProfile[q.key] || "");
     const unanswered = qs.filter((q) => !q.optional && !known(q));
-    const stored = qs.filter((q) => !(q.bind && !DM_IDENTITY.includes(q.bind) && bindValue(q.bind)));
-    const input = (q) => `<label><span class="q">${escHtml(q.label)}${q.optional ? ` <span class="muted">${ui.opt}</span>` : ""}</span>${q.prev ? `<span class="q-prev" data-prev="${escHtml(JSON.stringify(q.prev))}">…</span>` : ""}<input data-det="${escHtml(q.key)}" type="${q.type === "date" ? "date" : "text"}" value="${escHtml(String(known(q) || "").slice(0, q.type === "date" ? 10 : 200))}" /></label>`;
+    const onFile = qs.filter((q) => q.bind && !DM_IDENTITY.includes(q.bind) && bindValue(q.bind));
+    const stored = qs.filter((q) => !onFile.includes(q));
+    const input = (q) => `<label class="${q.prev ? "q-wide" : ""}"><span class="q">${escHtml(q.label)}${q.optional ? ` <span class="muted">${ui.opt}</span>` : ""}</span>${q.prev ? `<span class="q-prev" data-prev="${escHtml(JSON.stringify(q.prev))}">…</span>` : ""}<input data-det="${escHtml(q.key)}" type="${q.type === "date" ? "date" : "text"}" value="${escHtml(String(known(q) || "").slice(0, q.type === "date" ? 10 : 200))}" /></label>`;
     const blocking = unanswered.length > 0;
-    const langPick = langs.length > 1 ? `<label><span class="q">Language</span><select data-det="lang">${langs.map((l) => `<option value="${l}"${l === lang ? " selected" : ""}>${DM_LANG_NAMES[l]}</option>`).join("")}</select></label>` : "";
+    const langPick = langs.length > 1 ? `<div class="qlang"><label><span class="q">${escHtml(ui.langShort)}</span><select data-det="lang">${langs.map((l) => `<option value="${l}"${l === lang ? " selected" : ""}>${DM_LANG_NAMES[l]}</option>`).join("")}</select></label></div>` : "";
+    // Standard order: about you, address, status, work, ID, then anything specific to these forms in page order.
+    const used = new Set();
+    const groupsHtml = DM_GROUPS.map((g) => {
+      const items = (g.keys ? g.keys.map((k) => stored.find((q) => q.key === k)).filter(Boolean) : stored.filter((q) => !DM_GROUPS.some((x) => x.keys && x.keys.includes(q.key))).sort((a, b) => (a.order || 0) - (b.order || 0)));
+      items.forEach((q) => used.add(q.key));
+      if (!items.length) return "";
+      return `<section class="qgroup"><h4>${escHtml(g[lang] || g.en)}</h4><div class="qgrid">${items.map(input).join("")}</div></section>`;
+    }).join("");
+    const chips = onFile.length ? `<div class="qonfile"><span>${escHtml(ui.onfile)}</span>${onFile.map((q) => `<em>${escHtml(q.label)}: ${escHtml(String(bindValue(q.bind)).slice(0, 40))}</em>`).join("")}</div>` : "";
+    const total = stored.filter((q) => !q.optional).length, done = stored.filter((q) => !q.optional && known(q)).length;
+    const prog = total ? `<span class="qprog">${done}/${total}</span>` : "";
     const html = `<details class="my-details"${blocking ? " open" : ""}>
-      <summary>${blocking ? `<span class="deal-bang">!</span> ${escHtml(ui.step)}` : escHtml(ui.yours)}</summary>
-      <div class="my-details-grid">${langPick}${stored.map(input).join("")}</div>
-      <button type="button" id="saveMyDetails" class="secondary">${blocking ? ui.save : ui.change}</button>
-      <span id="saveMyDetailsMsg" class="muted"></span>
+      <summary>${blocking ? `<span class="deal-bang">!</span> ${escHtml(ui.step)}` : escHtml(ui.yours)}${prog}</summary>
+      ${langPick}${chips}${groupsHtml}
+      <div class="qactions"><button type="button" id="saveMyDetails" class="secondary">${blocking ? ui.save : ui.change}</button>
+      <span id="saveMyDetailsMsg" class="muted"></span></div>
     </details>`;
     return { html, blocking, wait: ui.wait };
   }
