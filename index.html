@@ -875,7 +875,7 @@
         <div class="brand">
           <div class="brand-mark" id="brandMark">HR</div>
           <div>
-            <p class="eyebrow" id="brandEyebrow">Buzzflix</p>
+            <p class="eyebrow" id="brandEyebrow"></p>
             <h1>HR Intake Portal</h1>
             <p class="company-tagline" id="brandTagline"></p>
           </div>
@@ -3153,12 +3153,20 @@
         .eq("user_id", user.id)
         .maybeSingle();
       companyId = myProfile && myProfile.company_id;
+      if (!companyId) {
+        const { data: mem } = await client.from("company_memberships").select("company_id").eq("user_id", user.id).order("created_at").limit(1).maybeSingle();
+        companyId = mem && mem.company_id;
+      }
     }
 
     let query = client.from("companies").select("*");
     query = companyId ? query.eq("id", companyId) : query.limit(1);
     const { data: company, error } = await query.maybeSingle();
-    if (error || !company) return;
+    if (error || !company) {
+      // Couldn't read the company: show the employee's own company name from the picker data instead of a stale default.
+      try { const { data: mine } = await client.rpc("my_companies"); const m = mine && (mine.find((c) => c.id === companyId) || mine[0]); if (m) document.getElementById("brandEyebrow").textContent = m.name || ""; } catch (_) {}
+      return;
+    }
     currentCompany = company;
 
     document.documentElement.style.setProperty("--accent", company.primary_color);
