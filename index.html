@@ -4262,13 +4262,19 @@
     { k: "nat_date", type: "date", re: /naturali/i, en: "Date you became a citizen (naturalization)", fr: "Date de naturalisation" },
     { k: "pr_date", type: "date", re: /admission|admis\b|permanent resident since/i, en: "Date you became a permanent resident", fr: "Date d'admission comme résident permanent" },
     { k: "drivers", re: /driver|driving|licen[cs]e|permis de conduire/i, en: "Driver's licence number", fr: "Numéro de permis de conduire" },
-    { k: "production", re: /entitled|intitul|production title|content title|title of (the )?production|name of production|titre de la production|^production$/i, en: "Production title", fr: "Titre de la production" },
+    { k: "loanout", re: /loan[\s-]?out/i, en: "Loan-out company name (leave blank if you work as an individual)", fr: "Nom de votre société de prêt de services (laisser vide si individu)" },
+    { k: "production", re: /^content\b|entitled|intitul|production title|content title|title of (the )?production|name of production|titre de la production|^production$/i, en: "Production title", fr: "Titre de la production" },
   ];
   const DM_VAGUE_WORDS = new Set("of de du des d la le les au à a and et entitled intitulée intitulee resident résident the for pour date name no number print given ending to from".split(" "));
   const qNorm = (l) => String(l || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\(optional\)|\(facultatif\)/g, "").replace(/[^a-z0-9]+/g, " ").trim();
   function dmVague(l) {
     const t = qNorm(l);
     if (!t) return true;
+    const raw = String(l).trim();
+    // a clipped piece of a sentence ("as a permanent", "0000 Name of", "(Signature") is not a question
+    if (/^[a-z0-9]/.test(raw) && !/^(from|to|name|date|address|city|province|phone|email|e-mail|position|occupation|department|signature|title|company|surname|given|print)\b/i.test(raw)) return true;
+    if (/\b(of|as|a|an|the|for|to|and|in|on|my|your|at|by|with|que|de|du|des|la|le|les|et|au|aux|pour)$/i.test(raw)) return true;
+    if (/^\([^)]*$/.test(raw) || /^\d{3,}\b/.test(raw)) return true;
     if (/^\(?\s*y{2,4}\s*[\/-]\s*m{1,2}/i.test(String(l).trim())) return true;
     const ws = t.split(" ");
     return ws.length <= 2 && ws.every((w) => DM_VAGUE_WORDS.has(w) || w.length <= 2) && !/^(from|to)$/.test(t);
@@ -4287,6 +4293,13 @@
     return "";
   }
   const DM_LANG_NAMES = { en: "English", fr: "Français", es: "Español" };
+  // Last ~n characters of a sentence, starting on a word boundary
+  function dmTail(s, n) {
+    s = String(s || "").trim();
+    if (s.length <= n) return s;
+    const cut = s.slice(s.length - n), sp = cut.indexOf(" ");
+    return (sp > -1 ? cut.slice(sp + 1) : cut).trim();
+  }
   function dmSegs(f) {
     const segs = [dmCleanLabel(f.label)];
     String(f.ctx || "").split(" | ").forEach((x) => { x = dmCleanLabel(x); if (x) segs.push(x); });
@@ -4310,7 +4323,7 @@
     if (bind) return { key: bind, bind, mapped: true, label: { en: DM_BINDS[bind], fr: DM_BINDS_FR[bind] }, type: f.type, lang, skip: bind === "today" };
     if (concept) return { key: concept.k, mapped: true, skip: !!concept.skip, label: { en: concept.en, fr: concept.fr }, type: concept.type || f.type, lang };
     let best = text;
-    if (vague) best = segs.find((x) => x && !dmVague(x) && x.length <= 70) || lab;
+    if (vague) best = segs.find((x) => x && !dmVague(x) && x.length <= 90) || lab;
     if (dmVague(best)) {
       const here = `Detail asked on page ${(f.page || 0) + 1}`;
       return { key: "q:p" + (f.page || 0) + "-" + Math.round((f.y || 0) * 100) + "-" + Math.round((f.x || 0) * 100), mapped: false, label: { en: here, fr: `Renseignement demandé à la page ${(f.page || 0) + 1}` }, type: f.type, lang: "", vague: true, skip: /^blank \d+$/i.test(lab) };
@@ -4549,11 +4562,16 @@
       const ctx = cv.getContext("2d");
       ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height);
       await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      { // keep only dark ink so pale watermarks and shading don't confuse the reader
+        const id = ctx.getImageData(0, 0, cv.width, cv.height), px = id.data;
+        for (let i = 0; i < px.length; i += 4) { const v = px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11 < 140 ? 0 : 255; px[i] = px[i + 1] = px[i + 2] = v; }
+        ctx.putImageData(id, 0, 0);
+      }
       const worker = await T.createWorker("eng");
       let words = [];
       try {
         const { data } = await worker.recognize(cv);
-        words = (data.words || []).filter((w) => w.text && w.confidence > 40 && !/^[_\-–—.|=~\s]+$/.test(w.text));
+        words = (data.words || []).filter((w) => w.text && w.confidence > 25 && !/^[_\-–—.|=~\s]+$/.test(w.text));
       } finally { try { await worker.terminate(); } catch (_) {} }
       // Group words on a row into phrases
       const W = cv.width, H = cv.height;
@@ -4563,7 +4581,7 @@
       ws.forEach((w) => {
         const cy = (w.y0 + w.y1) / 2;
         const last = phr[phr.length - 1];
-        if (last && Math.abs(last.cy - cy) < 0.008 && w.x0 - last.x1 < 0.02 && w.x0 >= last.x0) {
+        if (last && Math.abs(last.cy - cy) < 0.008 && w.x0 - last.x1 < 0.03 && w.x0 >= last.x0) {
           last.s += " " + w.s; last.x1 = w.x1; last.y = Math.max(last.y, w.y1); last.h = Math.max(last.h, w.y1 - w.y0);
         } else phr.push({ s: w.s, x0: w.x0, x1: w.x1, y: w.y1, cy, h: w.y1 - w.y0 });
       });
@@ -4576,7 +4594,7 @@
         {
           const rowY = isCheck ? cyF : f.y + f.h * 0.6, bot = f.y + f.h;
           const parts = [];
-          phr.filter((p) => p.x1 <= x0 + 0.01 && x0 - p.x1 < 0.45 && Math.abs(p.cy - rowY) < 0.013).sort((a, b) => b.x1 - a.x1).slice(0, 2).forEach((p) => parts.push(clean(p)));
+          { const rowL = phr.filter((p) => p.x1 <= x0 + 0.01 && x0 - p.x1 < 0.8 && Math.abs(p.cy - rowY) < 0.013).sort((a, b) => a.x0 - b.x0); if (rowL.length) parts.push(dmTail(dmCleanLabel(rowL.map((p) => p.s).join(" ")), 80)); }
           phr.filter((p) => p.y - bot > 0 && p.y - bot <= 0.05 && Math.min(p.x1, x1 + 0.15) - Math.max(p.x0, x0 - 0.15) > 0 && p.s.length <= 60).sort((a, b) => a.y - b.y).slice(0, 2).forEach((p) => parts.push(clean(p)));
           phr.filter((p) => f.y - p.y > 0 && f.y - p.y <= 0.045 && Math.min(p.x1, x1) - Math.max(p.x0, x0) > 0 && p.s.length <= 70).sort((a, b) => b.y - a.y).slice(0, 1).forEach((p) => parts.push(clean(p)));
           f.ctx = [...new Set(parts.filter(Boolean))].join(" | ").slice(0, 220);
@@ -4696,7 +4714,7 @@
       const row = c.shape === "line" || c.shape === "box" ? (c.shape === "box" ? (c.y0 + c.y1) / 2 : c.y - 0.006) : (c.y0 + c.y1) / 2;
       const x0 = c.x0, x1 = c.x1, bot = c.shape === "box" ? c.y1 : (c.y1 !== undefined ? c.y1 : c.y), top = c.shape === "box" ? c.y0 : (c.y0 !== undefined ? c.y0 : c.y);
       const parts = [];
-      phr.filter((p) => p.x1 <= x0 + 0.01 && x0 - p.x1 < 0.45 && Math.abs(p.cy - row) < 0.013).sort((a, b) => b.x1 - a.x1).slice(0, 2).forEach((p) => parts.push(dmCleanLabel(p.s)));
+      { const rowL = phr.filter((p) => p.x1 <= x0 + 0.01 && x0 - p.x1 < 0.8 && Math.abs(p.cy - row) < 0.013).sort((a, b) => a.x0 - b.x0); if (rowL.length) parts.push(dmTail(dmCleanLabel(rowL.map((p) => p.s).join(" ")), 80)); }
       phr.filter((p) => p.y - bot > 0 && p.y - bot <= 0.05 && Math.min(p.x1, x1 + 0.15) - Math.max(p.x0, x0 - 0.15) > 0 && p.s.length <= 60).sort((a, b) => a.y - b.y).slice(0, 2).forEach((p) => parts.push(dmCleanLabel(p.s)));
       phr.filter((p) => top - p.y > 0 && top - p.y <= 0.045 && Math.min(p.x1, x1) - Math.max(p.x0, x0) > 0 && p.s.length <= 70).sort((a, b) => b.y - a.y).slice(0, 1).forEach((p) => parts.push(dmCleanLabel(p.s)));
       return [...new Set(parts.filter(Boolean))].join(" | ").slice(0, 220);
