@@ -2743,8 +2743,9 @@
     if (e.target.id === "employeeModalOverlay") closeEmployeeModal();
   });
 
+  let removeMsgTarget = null;
   async function removeEmployee(userId, email) {
-    const msgEl = document.getElementById("employeesMsg");
+    const msgEl = document.getElementById(removeMsgTarget || "employeesMsg");
     if (!window.confirm(`Remove ${email}'s portal access? If this is their only company, this deletes their account entirely — they will no longer be able to sign in at all. Their submitted documents, timesheets and paystubs are kept on file.`)) {
       return;
     }
@@ -3552,6 +3553,26 @@
         cancelBtn.textContent = "Cancel";
         cancelBtn.addEventListener("click", () => cancelInvite(row.id));
         right.appendChild(cancelBtn);
+      } else if (row.email !== currentUserEmail) {
+        const rmBtn = document.createElement("button");
+        rmBtn.className = "remove-link";
+        rmBtn.textContent = "Remove access";
+        rmBtn.addEventListener("click", async () => {
+          const { data: prof } = await client.from("profiles").select("user_id").eq("email", row.email).maybeSingle();
+          const msgEl = document.getElementById("inviteMsg");
+          if (!prof) {
+            // Account is already gone: just clear the stale invite.
+            if (window.confirm(`${row.email} has no active account. Remove this entry from the list?`)) {
+              await client.from("company_invites").delete().eq("id", row.id);
+              loadPendingInvites();
+            }
+            return;
+          }
+          removeMsgTarget = "inviteMsg";
+          try { await removeEmployee(prof.user_id, row.email); } finally { removeMsgTarget = null; }
+          loadPendingInvites();
+        });
+        right.appendChild(rmBtn);
       }
 
       li.appendChild(left);
