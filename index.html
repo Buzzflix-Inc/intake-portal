@@ -4509,7 +4509,7 @@
       lines.sort((a, b) => a.x0 - b.x0);
       const merged = [];
       lines.forEach((l) => {
-        const m = merged.find((q) => Math.abs((q.y0 + q.y1) / 2 - (l.y0 + l.y1) / 2) <= 3 && l.x0 - q.x1 <= 0.015 * w && l.x0 >= q.x0 - 2);
+        const m = merged.find((q) => Math.abs((q.y0 + q.y1) / 2 - (l.y0 + l.y1) / 2) <= 3 && l.x0 - q.x1 <= 0.006 * w && l.x0 >= q.x0 - 2);
         if (m) m.x1 = Math.max(m.x1, l.x1); else merged.push({ ...l });
       });
       lines = merged;
@@ -4734,12 +4734,39 @@
       });
       phrOut = phr;
       const clean = (p) => dmCleanLabel(p.s);
+      // Stacked rules with a small caption between them ("Production Company" / "Content Title"): each band between two rules is one blank,
+      // typed to the RIGHT of its caption. The rules themselves are just row dividers.
+      {
+        const tf = list.filter((f) => f.type === "text").sort((a, b) => a.y - b.y);
+        const bands = [];
+        tf.forEach((top) => {
+          const lt = top.y + top.h;
+          const bot = tf.find((g) => g !== top && Math.abs(g.x - top.x) < 0.012 && Math.abs(g.w - top.w) < 0.02 && (g.y + g.h) - lt >= 0.014 && (g.y + g.h) - lt <= 0.05);
+          if (!bot) return;
+          const lb = bot.y + bot.h, span = lb - lt;
+          const c = phr.filter((p) => p.x0 >= top.x - 0.01 && p.x0 <= top.x + 0.03 && p.x1 - p.x0 <= 0.45 * top.w && (p.cy - lt) / span >= 0.28 && (p.cy - lt) / span <= 0.8 && p.s.replace(/[^A-Za-z]/g, "").length >= 4)[0];
+          if (!c) return;
+          const rightSide = phr.some((p) => p !== c && p.x0 > c.x1 && p.x0 < top.x + top.w && Math.abs(p.cy - c.cy) < 0.012);
+          if (rightSide) return;
+          bands.push({ top, bot, c, lt, lb });
+        });
+        if (bands.length) {
+          const used = new Set();
+          bands.forEach((b) => { used.add(b.top); used.add(b.bot); });
+          const made = bands.map((b) => {
+            const x = Math.min(b.c.x1 + 0.012, b.top.x + b.top.w - 0.05);
+            return { type: dmTypeFor(dmCleanLabel(b.c.s), "text"), label: dmCleanLabel(b.c.s), x, y: b.lt + 0.002, w: b.top.x + b.top.w - x, h: Math.max(0.012, b.lb - b.lt - 0.004), _band: true, _named: true };
+          });
+          for (let li = list.length - 1; li >= 0; li--) if (used.has(list[li])) list.splice(li, 1);
+          list.push(...made);
+        }
+      }
       // one long rule shared by two captions printed beneath it (e.g. "(apt./number/street)" ... "(city/town)"): two blanks
       for (let li = list.length - 1; li >= 0; li--) {
         const f = list[li];
         if (f.type !== "text" || f.w < 0.25) continue;
         const bot = f.y + f.h;
-        const caps = phr.filter((p) => p.y - bot > -0.004 && p.y - bot <= 0.045 && p.x0 >= f.x - 0.02 && p.x1 <= f.x + f.w + 0.02 && p.s.length <= 40 && /^[({\[]/.test(p.s.trim())).sort((a, b) => a.x0 - b.x0);
+        const caps = phr.filter((p) => p.y - bot > -0.004 && p.y - bot <= 0.045 && p.x0 >= f.x - 0.02 && p.x1 <= f.x + f.w + 0.005 && p.s.length <= 40 && p.s.replace(/[^A-Za-z]/g, "").length >= 4).sort((a, b) => a.x0 - b.x0);
         const sep = caps.filter((p, i) => i === 0 || p.x0 - caps[i - 1].x1 > 0.04);
         if (sep.length < 2 || sep.length > 4) continue;
         const parts = [];
@@ -4751,6 +4778,7 @@
         list.splice(li, 1, ...parts);
       }
       list.forEach((f) => {
+        if (f._named) return;
         const isCheck = f.type === "checkbox";
         if (!/^(Blank|Checkbox) \d+$/.test(f.label || "")) return;
         const cyF = f.y + f.h / 2, x0 = f.x, x1 = f.x + f.w;
@@ -4778,11 +4806,11 @@
           {
             // a real caption printed under the line ("(Occupation)", "Name of Production") beats a weak word beside it ("of", "I,", "To wit")
             const bot0 = f.y + f.h;
-            const cap = phr.filter((p) => p.y - bot0 > -0.004 && p.y - bot0 <= 0.045 && Math.min(p.x1, x1) - Math.max(p.x0, x0) > 0.3 * (p.x1 - p.x0) && p.s.length <= 80 && !capOf(p) && !/yyyy|mm\/dd|day\/month|jour\/mois|\bdd\b/i.test(p.s) && !list.some((g) => g !== f && g.type !== "checkbox" && g.x >= p.x1 - 0.01 && g.x - p.x1 < 0.3 && Math.abs(p.cy - (g.y + g.h * 0.6)) < 0.013)).sort((a, b) => a.y - b.y)[0];
+            const cap = phr.filter((p) => p.y - bot0 > -0.004 && p.y - bot0 <= 0.045 && Math.min(p.x1, x1) - Math.max(p.x0, x0) > 0.3 * (p.x1 - p.x0) && p.s.length <= 80 && !capOf(p) && !/yyyy|mm\/dd|day\/month|jour\/mois|\bdd\b/i.test(p.s) && !list.some((g) => g !== f && g.type !== "checkbox" && g.x >= p.x1 - 0.01 && g.x - p.x1 < 0.3 && Math.abs(p.cy - (g.y + g.h * 0.6)) < 0.007)).sort((a, b) => a.y - b.y)[0];
             const letters = (t) => t.replace(/[^A-Za-z]/g, "").length;
             if (cap) {
               const ct = clean(cap);
-              if (letters(ct) >= 8 && (!lab || letters(lab) < 6 || /^(to wit|of|and|the)\b/i.test(lab.trim()) && letters(lab) < 8)) lab = ct;
+              if ((letters(ct) >= 8 || (letters(ct) >= 5 && left && f.x - left.x1 > 0.04)) && (!lab || (left && f.x - left.x1 > 0.04) || letters(lab) < 6 || /^(to wit|of|and|the)\b/i.test(lab.trim()) && letters(lab) < 8)) lab = ct;
             }
           }
           if (!lab || lab.replace(/[^A-Za-z]/g, "").length < 5) {
