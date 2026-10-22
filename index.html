@@ -493,7 +493,10 @@
   .my-details { border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; }
   .my-details summary { cursor: pointer; font-weight: 600; }
   .my-details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin: 12px 0; }
-  .my-details-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+  .my-details-grid { align-items: stretch; }
+  .my-details-grid label { display: flex; flex-direction: column; justify-content: space-between; gap: 6px; font-size: 13px; line-height: 1.3; }
+  .my-details-grid label .q { display: block; }
+  .my-details-grid label input, .my-details-grid label select { width: 100%; box-sizing: border-box; }
   .deal-card { border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; margin-bottom: 16px; }
   .deal-card:last-child { margin-bottom: 0; }
   .deal-card h4 { margin: 0 0 2px; font-size: 14.5px; }
@@ -1295,6 +1298,7 @@
             <button type="button" class="pf-tool" data-tool="signature">+ Employee signature</button>
             <button type="button" class="pf-tool" data-tool="countersignature">+ Company signature</button>
             <button type="button" class="btn-secondary" id="pfAutoFind">Find fields automatically</button>
+            <button type="button" class="btn-secondary" id="pfRewording" title="Keeps your boxes and names; reads the page around each box and rewrites vague names like &quot;of&quot; or &quot;Blank 3&quot; into clear questions">Improve question wording</button>
             <button type="button" class="remove-link" id="pfClearPdf" style="margin-left:auto;">Remove PDF</button>
           </div>
           <p style="font-size:12px;color:var(--ink-faint);margin:0 0 8px;">Pick a field type, then click the page to add a box. Click any box to name it, mark it optional or remove it right there, and press Enter to jump to the next one. Drag a box to move it; drag its corner to resize.</p>
@@ -3872,6 +3876,19 @@
     tplPdf.fields.forEach((f) => { if (f.type === "text" || f.type === "date") f.optional = v; });
     drawEditorFields();
   }));
+  document.getElementById("pfRewording").addEventListener("click", async () => {
+    const btn = document.getElementById("pfRewording"), msg = document.getElementById("templateMsg");
+    btn.disabled = true;
+    msg.innerHTML = `<div class="msg ok">Reading the words around each box…</div>`;
+    try {
+      const n = await dmRefreshWording();
+      drawEditorFields();
+      msg.innerHTML = `<div class="msg ok">Reworded ${n} vague box${n === 1 ? "" : "es"} into clear questions. Check them, then save the template.</div>`;
+    } catch (err) {
+      msg.innerHTML = `<div class="msg error">Couldn't read the page (${escHtml(err.message || "unknown error")}). You can still rename boxes by clicking them.</div>`;
+    }
+    btn.disabled = false;
+  });
   document.getElementById("pfAutoFind").addEventListener("click", async () => {
     const btn = document.getElementById("pfAutoFind");
     btn.disabled = true;
@@ -4292,6 +4309,10 @@
     if (concept) return { key: concept.k, mapped: true, skip: !!concept.skip, label: { en: concept.en, fr: concept.fr }, type: concept.type || f.type, lang };
     let best = text;
     if (vague) best = segs.find((x) => x && !dmVague(x) && x.length <= 70) || lab;
+    if (dmVague(best)) {
+      const here = `Detail asked on page ${(f.page || 0) + 1}`;
+      return { key: "q:p" + (f.page || 0) + "-" + Math.round((f.y || 0) * 100) + "-" + Math.round((f.x || 0) * 100), mapped: false, label: { en: here, fr: `Renseignement demandé à la page ${(f.page || 0) + 1}` }, type: f.type, lang: "", skip: /^blank \d+$/i.test(lab) };
+    }
     return { key: "q:" + qNorm(best), mapped: false, label: { en: best }, type: f.type, lang: dmLang(best + " " + lab), skip: /^blank \d+$/i.test(lab) };
   }
   // Resolve every box on a form; a box that's just a translation of another box nearby shares its answer.
@@ -4794,6 +4815,26 @@
     } catch (err) {
       msgEl.innerHTML = `<div class="msg error">Auto-detect failed (${escHtml(err.message || "unknown error")}). You can still add fields by clicking the page.</div>`;
     }
+  }
+  // Keeps the admin's boxes and names, but adds surrounding context and rewrites vague names.
+  async function dmRefreshWording() {
+    const pdfjs = await ensurePdfJs();
+    const pdf = await pdfjs.getDocument({ data: tplPdf.bytes.slice(0) }).promise;
+    const found = await dmDetectFields(pdf, tplPdf.bytes);
+    let n = 0;
+    tplPdf.fields.forEach((f) => {
+      if (f.type !== "text" && f.type !== "date") return;
+      const c = found.find((g) => g.page === f.page && Math.abs((g.x + g.w / 2) - (f.x + f.w / 2)) < 0.04 && Math.abs((g.y + g.h / 2) - (f.y + f.h / 2)) < 0.025);
+      if (c && c.ctx) f.ctx = c.ctx;
+      const lab = dmCleanLabel(f.label).replace(/\s*\((optional|facultatif)\)\s*$/i, "");
+      if (dmVague(lab) || /^blank \d+$/i.test(lab) || /^(text|date)$/i.test(lab)) {
+        const r = dmResolveField(f);
+        const nl = r.label.en || "";
+        if (nl && nl !== lab && !r.skip) { f.label = nl; n++; }
+        else if (r.skip && r.key === "sin") { f.label = "Social insurance number (S.I.N.)"; n++; }
+      }
+    });
+    return n;
   }
   // ---- end auto-place ----
 
@@ -5855,9 +5896,9 @@
     const known = (q) => q.bind ? bindValue(q.bind) : (myProfile[q.key] || "");
     const unanswered = qs.filter((q) => !q.optional && !known(q));
     const stored = qs.filter((q) => !(q.bind && !DM_IDENTITY.includes(q.bind) && bindValue(q.bind)));
-    const input = (q) => `<label>${escHtml(q.label)}${q.optional ? ` <span class="muted">${ui.opt}</span>` : ""}<input data-det="${escHtml(q.key)}" type="${q.type === "date" ? "date" : "text"}" value="${escHtml(String(known(q) || "").slice(0, q.type === "date" ? 10 : 200))}" /></label>`;
+    const input = (q) => `<label><span class="q">${escHtml(q.label)}${q.optional ? ` <span class="muted">${ui.opt}</span>` : ""}</span><input data-det="${escHtml(q.key)}" type="${q.type === "date" ? "date" : "text"}" value="${escHtml(String(known(q) || "").slice(0, q.type === "date" ? 10 : 200))}" /></label>`;
     const blocking = unanswered.length > 0;
-    const langPick = langs.length > 1 ? `<label>Language<select data-det="lang">${langs.map((l) => `<option value="${l}"${l === lang ? " selected" : ""}>${DM_LANG_NAMES[l]}</option>`).join("")}</select></label>` : "";
+    const langPick = langs.length > 1 ? `<label><span class="q">Language</span><select data-det="lang">${langs.map((l) => `<option value="${l}"${l === lang ? " selected" : ""}>${DM_LANG_NAMES[l]}</option>`).join("")}</select></label>` : "";
     const html = `<details class="my-details"${blocking ? " open" : ""}>
       <summary>${blocking ? `<span class="deal-bang">!</span> ${escHtml(ui.step)}` : escHtml(ui.yours)}</summary>
       <div class="my-details-grid">${langPick}${stored.map(input).join("")}</div>
