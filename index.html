@@ -4655,8 +4655,7 @@
         if (f.type === "checkbox") inp.type = "checkbox";
         else {
           inp.type = f.type === "date" ? "date" : "text"; inp.placeholder = f.label + (f.optional ? " (optional)" : "");
-          const bnd = f.bind === undefined ? dmGuessBind(f.label, f.type) : f.bind;
-          const pre = bnd ? bindValue(bnd) : "";
+          const pre = fieldKnown(f) === "today" ? localIso(new Date()) : fieldKnown(f);
           if (pre) { inp.value = f.type === "date" ? String(pre).slice(0, 10) : pre; inp.classList.add("pf-auto"); inp.title = "Filled in for you. Edit it if it's wrong."; inp.addEventListener("input", () => inp.classList.remove("pf-auto")); }
         }
         el.appendChild(inp);
@@ -5535,35 +5534,59 @@
   }
 
   async function loadMyDetails(user) {
-    const { data } = await client.from("profiles").select("dob, phone, address, city, province, postal_code").eq("user_id", user.id).maybeSingle();
-    myProfile = data || {};
+    const d = user && user.user_metadata && user.user_metadata.details;
+    myProfile = d && typeof d === "object" ? { ...d } : {};
+  }
+
+  const qNorm = (l) => String(l || "").toLowerCase().replace(/\(optional\)/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+  function fieldBind(f) { return f.bind === undefined ? dmGuessBind(f.label, f.type) : f.bind; }
+  function fieldKey(f) { const b = fieldBind(f); return b || "q:" + qNorm(f.label); }
+  function fieldKnown(f) {
+    const b = fieldBind(f);
+    if (b === "today") return "today";
+    return b ? bindValue(b) : (myProfile["q:" + qNorm(f.label)] || "");
+  }
+
+  // One question per distinct thing the pending forms ask for.
+  function buildQuestions(templates) {
+    const qs = new Map();
+    templates.forEach((t) => (t.fields || []).forEach((f) => {
+      if (f.type !== "text" && f.type !== "date") return;
+      if (/^blank \d+$/i.test(f.label || "")) return;
+      const key = fieldKey(f);
+      const b = fieldBind(f);
+      if (b === "today") return;
+      const q = qs.get(key) || { key, bind: b, label: b ? DM_BINDS[b] : (f.label || "").replace(/\s*\(optional\)\s*$/i, ""), type: f.type, optional: true };
+      if (!f.optional) q.optional = false;
+      qs.set(key, q);
+    }));
+    return [...qs.values()];
   }
 
   function myDetailsCardHtml(templates) {
-    const used = new Set();
-    templates.forEach((t) => (t.fields || []).forEach((f) => { const b = f.bind === undefined ? dmGuessBind(f.label, f.type) : f.bind; if (b) used.add(b); }));
-    const need = ["dob", "address", "city", "province", "postal_code", "phone"].filter((k) => used.has(k));
-    if (!need.length) return "";
-    const pr = myProfile || {};
-    const missing = need.filter((k) => !bindValue(k));
-    const lab = { dob: "Date of birth", address: "Street address", city: "City", province: "Province / state", postal_code: "Postal / ZIP code", phone: "Phone" };
-    const inp = (k) => need.includes(k) ? `<label>${lab[k]}<input data-det="${k}" type="${k === "dob" ? "date" : "text"}" value="${escHtml(bindValue(k) || "")}" /></label>` : "";
-    return `<details class="my-details"${missing.length ? " open" : ""}>
-      <summary>${missing.length ? `<span class="deal-bang">!</span> Add your details once, forms fill in for you` : "Your details (used to fill forms)"}</summary>
-      <div class="my-details-grid">${["dob", "phone", "address", "city", "province", "postal_code"].map(inp).join("")}</div>
-      <button type="button" id="saveMyDetails" class="secondary">Save my details</button>
+    const qs = buildQuestions(templates);
+    if (!qs.length) return { html: "", blocking: false };
+    const known = (q) => q.bind ? bindValue(q.bind) : (myProfile[q.key] || "");
+    const unanswered = qs.filter((q) => !q.optional && !known(q));
+    const stored = qs.filter((q) => !(q.bind && !["dob", "phone", "address", "city", "province", "postal_code"].includes(q.bind) && bindValue(q.bind)));
+    const input = (q) => `<label>${escHtml(q.label)}${q.optional ? ` <span class="muted">(optional)</span>` : ""}<input data-det="${escHtml(q.key)}" type="${q.type === "date" ? "date" : "text"}" value="${escHtml(String(known(q) || "").slice(0, q.type === "date" ? 10 : 200))}" /></label>`;
+    const blocking = unanswered.length > 0;
+    const html = `<details class="my-details"${blocking ? " open" : ""}>
+      <summary>${blocking ? `<span class="deal-bang">!</span> Step 1: tell us a bit about you (asked once, fills every form)` : "Your details (used to fill forms)"}</summary>
+      <div class="my-details-grid">${stored.map(input).join("")}</div>
+      <button type="button" id="saveMyDetails" class="secondary">${blocking ? "Save and fill my forms" : "Save changes"}</button>
       <span id="saveMyDetailsMsg" class="muted"></span>
     </details>`;
+    return { html, blocking };
   }
 
   async function saveMyDetails() {
-    const g = (k) => { const e = document.querySelector(`[data-det="${k}"]`); return e ? e.value.trim() : (myProfile[k === "postal" ? "postal_code" : k] || ""); };
     const msg = document.getElementById("saveMyDetailsMsg");
-    const { error } = await client.rpc("save_my_details", {
-      p_dob: g("dob") || null, p_phone: g("phone"), p_address: g("address"), p_city: g("city"), p_province: g("province"), p_postal: g("postal_code"),
-    });
+    const next = { ...myProfile };
+    document.querySelectorAll("[data-det]").forEach((e) => { const v = e.value.trim(); if (v) next[e.dataset.det] = v; else delete next[e.dataset.det]; });
+    const { error } = await client.auth.updateUser({ data: { details: next } });
     if (error) { if (msg) msg.textContent = "Couldn't save: " + error.message; return; }
-    if (msg) msg.textContent = "Saved.";
+    myProfile = next;
     loadMyDeals();
   }
 
@@ -5662,8 +5685,9 @@
         </div>`;
     }
 
-    const detailsHtml = myDetailsCardHtml(pdfJobs.filter((j) => j.record.status === "awaiting_signature").map((j) => j.template));
-    body.innerHTML = cardsHtml ? detailsHtml + cardsHtml : `<p class="empty">Nothing to sign right now.</p>`;
+    const det = myDetailsCardHtml(pdfJobs.filter((j) => j.record.status === "awaiting_signature").map((j) => j.template));
+    if (det.blocking) { pdfJobs.length = 0; setDealsBadge(waiting); }
+    body.innerHTML = cardsHtml ? det.html + (det.blocking ? `<p class="muted">Your forms will appear here, filled in, as soon as you save this.</p>` : cardsHtml) : `<p class="empty">Nothing to sign right now.</p>`;
     const sd = document.getElementById("saveMyDetails"); if (sd) sd.addEventListener("click", saveMyDetails);
     setDealsBadge(waiting);
     pdfJobs.forEach(({ template, record }) => {
