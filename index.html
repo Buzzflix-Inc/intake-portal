@@ -4208,27 +4208,109 @@
   const DM_BINDS = {
     full_name: "Full name", first_name: "First name", last_name: "Last name", email: "Email", phone: "Phone",
     dob: "Date of birth", address: "Street address", city: "City", province: "Province / state", postal_code: "Postal / ZIP code",
-    position: "Position / role", department: "Department", start_date: "Start date", end_date: "End date", today: "Today's date",
+    position: "Position / role", department: "Department", company: "Production company", start_date: "Start date", end_date: "End date", today: "Today's date",
+  };
+  const DM_BINDS_FR = {
+    full_name: "Nom complet", first_name: "Prénom", last_name: "Nom de famille", email: "Courriel", phone: "Téléphone",
+    dob: "Date de naissance", address: "Adresse (rue)", city: "Ville", province: "Province", postal_code: "Code postal",
+    position: "Poste / fonction", department: "Département", company: "Société de production", start_date: "Date de début", end_date: "Date de fin",
   };
   function dmGuessBind(label, type) {
     const l = String(label || "").trim();
     if (!l || type === "checkbox" || type === "signature" || type === "countersignature") return "";
-    if (/birth|\bdob\b/i.test(l)) return "dob";
-    if (/e-?mail/i.test(l)) return "email";
-    if (/postal|zip/i.test(l)) return "postal_code";
-    if (/phone|\btel\b|cell|mobile/i.test(l)) return "phone";
-    if (/\bcity\b|\btown\b/i.test(l)) return "city";
-    if (/province|\bstate\b/i.test(l)) return "province";
-    if (/address|street/i.test(l)) return "address";
-    if (/first\s*name|given\s*name/i.test(l)) return "first_name";
-    if (/last\s*name|surname|family\s*name/i.test(l)) return "last_name";
-    if (/start(ing)?\s*date|commenc|effective/i.test(l)) return "start_date";
-    if (/end(ing)?\s*date|wrap\s*date/i.test(l)) return "end_date";
-    if (/depart/i.test(l)) return "department";
-    if (/position|job\s*title|\brole\b|occupation|classification/i.test(l)) return "position";
-    if (/^(date|dated|date signed|signing date|today'?s date)$/i.test(l)) return "today";
+    if (/birth|naissance|\bdob\b|nacimiento/i.test(l)) return "dob";
+    if (/e-?mail|courriel|correo/i.test(l)) return "email";
+    if (/postal|\bzip\b|c[oó]digo postal/i.test(l)) return "postal_code";
+    if (/phone|\btel\b|cell|mobile|t[ée]l[ée]phone|tel[ée]fono/i.test(l)) return "phone";
+    if (/\bcity\b|\btown\b|\bville\b|ciudad/i.test(l)) return "city";
+    if (/province|\bstate\b|provincia/i.test(l)) return "province";
+    if (/address|street|adresse|\brue\b|direcci[oó]n|\bapt\b/i.test(l)) return "address";
+    if (/first\s*name|given\s*name|pr[ée]nom|nombre de pila/i.test(l) || /^given$/i.test(l)) return "first_name";
+    if (/last\s*name|surname|family\s*name|nom de famille|apellido/i.test(l) || /^surname/i.test(l)) return "last_name";
+    if (/start(ing)?\s*date|commenc|effective|d[ée]but|date de d[ée]but|^from\b|^du$/i.test(l)) return "start_date";
+    if (/end(ing)?\s*date|wrap\s*date|completion|^to$|^au$|and ending|date de fin|^fin\b/i.test(l)) return "end_date";
+    if (/depart|d[ée]partement/i.test(l)) return "department";
+    if (/services (of|de)|position|job\s*title|\brole\b|occupation|classification|\bposte\b|fonction|ocupaci/i.test(l)) return "position";
+    if (/production company|name of applicant \(production|soci[ée]t[ée] de production|company name|nom de la soci/i.test(l)) return "company";
+    if (/^(date|dated|date signed|signing date|today'?s date|\(date\)|date de signature|fecha)$/i.test(l)) return "today";
     if (/^(your |full |legal |print(ed)? |employee('?s)? |contractor('?s)? |crew( member)?('?s)? |name of (the )?(employee|contractor|crew member) ?)*(full |legal )?name( \(print(ed)?\))?$/i.test(l) && !/company|production|show|emergency|witness|supervisor|manager/i.test(l)) return "full_name";
+    if (/^(nom|nombre)( complet)?( \(.*\))?$|full name of declarant|name of (the )?(applicant|declarant)$/i.test(l)) return "full_name";
     return "";
+  }
+  // Things that aren't an employee profile field but are asked the same way on many forms
+  const DM_CONCEPTS = [
+    { k: "sin", skip: true, re: /\bs\.?\s?i\.?\s?n\b|social insurance|assurance sociale|\bnas\b/i },
+    { k: "nat_date", type: "date", re: /naturali/i, en: "Date you became a citizen (naturalization)", fr: "Date de naturalisation" },
+    { k: "pr_date", type: "date", re: /admission|admis\b|permanent resident since/i, en: "Date you became a permanent resident", fr: "Date d'admission comme résident permanent" },
+    { k: "drivers", re: /driver|driving|licen[cs]e|permis de conduire/i, en: "Driver's licence number", fr: "Numéro de permis de conduire" },
+    { k: "production", re: /entitled|intitul|production title|content title|title of (the )?production|name of production|titre de la production|^production$/i, en: "Production title", fr: "Titre de la production" },
+  ];
+  const DM_VAGUE_WORDS = new Set("of de du des d la le les au à a and et entitled intitulée intitulee resident résident the for pour date name no number print given ending to from".split(" "));
+  const qNorm = (l) => String(l || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\(optional\)|\(facultatif\)/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+  function dmVague(l) {
+    const t = qNorm(l);
+    if (!t) return true;
+    if (/^\(?\s*y{2,4}\s*[\/-]\s*m{1,2}/i.test(String(l).trim())) return true;
+    const ws = t.split(" ");
+    return ws.length <= 2 && ws.every((w) => DM_VAGUE_WORDS.has(w) || w.length <= 2) && !/^(from|to)$/.test(t);
+  }
+  function dmLang(text) {
+    const t = " " + String(text || "").toLowerCase() + " ";
+    const cnt = (re) => (t.match(re) || []).length;
+    const fr = cnt(/[éèêëàâçùûôîï]/g) * 2 + cnt(/\b(de|du|des|les|et|au|aux|nom|adresse|naissance|ville|prénom|numéro|numero|permis|je|suis|pour|sur|intitulée|naturalisation|résident|resident permanent|la|le)\b/g);
+    const en = cnt(/\b(the|of|and|name|address|street|city|birth|to|from|production|resident|licen[cs]e|number|print|entitled|ending|services|surname|given|postal|date of)\b/g);
+    const es = cnt(/[ñ¿¡]/g) * 2 + cnt(/\b(el|los|las|nombre|dirección|direccion|fecha|ciudad|número|numero|apellido|licencia)\b/g);
+    const m = Math.max(fr, en, es);
+    if (!m) return "";
+    if (fr === m && fr > en && fr > es) return "fr";
+    if (es === m && es > en && es > fr) return "es";
+    if (en === m && en > fr && en > es) return "en";
+    return "";
+  }
+  const DM_LANG_NAMES = { en: "English", fr: "Français", es: "Español" };
+  function dmSegs(f) {
+    const segs = [dmCleanLabel(f.label)];
+    String(f.ctx || "").split(" | ").forEach((x) => { x = dmCleanLabel(x); if (x) segs.push(x); });
+    return segs;
+  }
+  // What a box is really asking, in plain common terms, whatever the language it's printed in.
+  function dmResolveField(f) {
+    const lab = dmCleanLabel(f.label).replace(/\s*\((optional|facultatif)\)\s*$/i, "");
+    const vague = dmVague(lab);
+    const segs = vague ? dmSegs(f) : [lab];
+    let bind = "", concept = null, text = lab;
+    if (f.bind === undefined) {
+      for (const sg of segs) {
+        const b = dmGuessBind(sg, f.type);
+        if (b) { bind = b; text = sg; break; }
+        const c = DM_CONCEPTS.find((c) => c.re.test(sg));
+        if (c) { concept = c; text = sg; break; }
+      }
+    } else if (f.bind) bind = f.bind;
+    const lang = dmLang(text + " " + lab);
+    if (bind) return { key: bind, bind, mapped: true, label: { en: DM_BINDS[bind], fr: DM_BINDS_FR[bind] }, type: f.type, lang, skip: bind === "today" };
+    if (concept) return { key: concept.k, mapped: true, skip: !!concept.skip, label: { en: concept.en, fr: concept.fr }, type: concept.type || f.type, lang };
+    let best = text;
+    if (vague) best = segs.find((x) => x && !dmVague(x) && x.length <= 70) || lab;
+    return { key: "q:" + qNorm(best), mapped: false, label: { en: best }, type: f.type, lang: dmLang(best + " " + lab), skip: /^blank \d+$/i.test(lab) };
+  }
+  // Resolve every box on a form; a box that's just a translation of another box nearby shares its answer.
+  function dmResolveTemplate(t, lang) {
+    const list = (t.fields || []).filter((f) => f.type === "text" || f.type === "date");
+    const out = new Map();
+    list.forEach((f) => out.set(f.id, dmResolveField(f)));
+    if (lang) list.forEach((f) => {
+      const r = out.get(f.id);
+      if (r.mapped || r.skip || !r.lang || r.lang === lang) return;
+      const partner = list.find((g) => { const q = out.get(g.id); return g !== f && g.page === f.page && !q.mapped && q.lang === lang && Math.abs(g.y - f.y) < 0.03; });
+      if (partner) { const q = out.get(partner.id); r.key = q.key; r.label = q.label; r.hidden = true; }
+    });
+    return out;
+  }
+  function dmLanguages(templates) {
+    const n = { en: 0, fr: 0, es: 0 };
+    templates.forEach((t) => (t.fields || []).forEach((f) => { if (f.type === "text" || f.type === "date") { const l = dmLang(dmCleanLabel(f.label) + " " + (String(f.ctx || "").split(" | ")[0] || "")); if (l) n[l]++; } }));
+    return Object.keys(n).filter((k) => (k === "en" ? n[k] >= 1 : n[k] >= 3));
   }
   function dmCleanLabel(s) {
     return String(s || "").replace(/_+/g, " ").replace(/\s+/g, " ").replace(/^[\s:.\-–—]+|[\s:.\-–—]+$/g, "").slice(0, 60);
@@ -4468,6 +4550,14 @@
         if (!/^(Blank|Checkbox) \d+$/.test(f.label || "")) return;
         const cyF = f.y + f.h / 2, x0 = f.x, x1 = f.x + f.w;
         let lab = "";
+        {
+          const rowY = isCheck ? cyF : f.y + f.h * 0.6, bot = f.y + f.h;
+          const parts = [];
+          phr.filter((p) => p.x1 <= x0 + 0.01 && x0 - p.x1 < 0.45 && Math.abs(p.cy - rowY) < 0.013).sort((a, b) => b.x1 - a.x1).slice(0, 2).forEach((p) => parts.push(clean(p)));
+          phr.filter((p) => p.y - bot > 0 && p.y - bot <= 0.05 && Math.min(p.x1, x1 + 0.15) - Math.max(p.x0, x0 - 0.15) > 0 && p.s.length <= 60).sort((a, b) => a.y - b.y).slice(0, 2).forEach((p) => parts.push(clean(p)));
+          phr.filter((p) => f.y - p.y > 0 && f.y - p.y <= 0.045 && Math.min(p.x1, x1) - Math.max(p.x0, x0) > 0 && p.s.length <= 70).sort((a, b) => b.y - a.y).slice(0, 1).forEach((p) => parts.push(clean(p)));
+          f.ctx = [...new Set(parts.filter(Boolean))].join(" | ").slice(0, 220);
+        }
         if (isCheck) {
           const right = phr.filter((p) => p.x0 >= x1 - 0.004 && p.x0 - x1 < 0.05 && Math.abs(p.cy - cyF) < 0.014).sort((a, b) => a.x0 - b.x0)[0];
           if (right) lab = clean(right);
@@ -4578,21 +4668,31 @@
       return above ? text(above) : "";
     };
 
+    // The wording around a blank (same row to its left, the caption just below, the line above), so a vague label can be understood later.
+    const ctxFor = (c) => {
+      const row = c.shape === "line" || c.shape === "box" ? (c.shape === "box" ? (c.y0 + c.y1) / 2 : c.y - 0.006) : (c.y0 + c.y1) / 2;
+      const x0 = c.x0, x1 = c.x1, bot = c.shape === "box" ? c.y1 : (c.y1 !== undefined ? c.y1 : c.y), top = c.shape === "box" ? c.y0 : (c.y0 !== undefined ? c.y0 : c.y);
+      const parts = [];
+      phr.filter((p) => p.x1 <= x0 + 0.01 && x0 - p.x1 < 0.45 && Math.abs(p.cy - row) < 0.013).sort((a, b) => b.x1 - a.x1).slice(0, 2).forEach((p) => parts.push(dmCleanLabel(p.s)));
+      phr.filter((p) => p.y - bot > 0 && p.y - bot <= 0.05 && Math.min(p.x1, x1 + 0.15) - Math.max(p.x0, x0 - 0.15) > 0 && p.s.length <= 60).sort((a, b) => a.y - b.y).slice(0, 2).forEach((p) => parts.push(dmCleanLabel(p.s)));
+      phr.filter((p) => top - p.y > 0 && top - p.y <= 0.045 && Math.min(p.x1, x1) - Math.max(p.x0, x0) > 0 && p.s.length <= 70).sort((a, b) => b.y - a.y).slice(0, 1).forEach((p) => parts.push(dmCleanLabel(p.s)));
+      return [...new Set(parts.filter(Boolean))].join(" | ").slice(0, 220);
+    };
     const fields = [];
     keep.forEach((c) => {
       const label = labelFor(c);
       const type = dmTypeFor(label, c.shape);
       if (c.shape === "checkbox") {
         const side = Math.min(Math.max(c.x1 - c.x0, 8 * sc / W), 22 * sc / W), cyc = (c.y0 + c.y1) / 2;
-        fields.push({ type, label: label || "Checkbox", x: (c.x0 + c.x1) / 2 - side / 2, y: cyc - side * (W / H) / 2, w: side, h: side * (W / H), _u: !label });
+        fields.push({ type, label: label || "Checkbox", x: (c.x0 + c.x1) / 2 - side / 2, y: cyc - side * (W / H) / 2, w: side, h: side * (W / H), _u: !label, ctx: ctxFor(c) });
       } else if (c.shape === "box") {
         const isSig = type === "signature" || type === "countersignature";
-        fields.push({ type, label: label || FIELD_KINDS[type].label, x: c.x0 + 0.002, y: c.y0 + 0.002, w: Math.max(0.03, c.x1 - c.x0 - 0.004), h: Math.max(0.012, c.y1 - c.y0 - 0.004), _u: !label });
+        fields.push({ type, label: label || FIELD_KINDS[type].label, x: c.x0 + 0.002, y: c.y0 + 0.002, w: Math.max(0.03, c.x1 - c.x0 - 0.004), h: Math.max(0.012, c.y1 - c.y0 - 0.004), _u: !label, ctx: ctxFor(c) });
       } else {
         const isSig = type === "signature" || type === "countersignature";
         const h = isSig ? sigH : fh;
         const w = Math.min(c.x1 - c.x0, isSig ? 0.4 : 0.6);
-        fields.push({ type, label: label || FIELD_KINDS[type].label, x: c.x0, y: c.y - h + 0.003, w, h, _u: !label });
+        fields.push({ type, label: label || FIELD_KINDS[type].label, x: c.x0, y: c.y - h + 0.003, w, h, _u: !label, ctx: ctxFor(c) });
       }
     });
 
@@ -4771,6 +4871,7 @@
     const full = (myFullName || "").trim();
     switch (bind) {
       case "full_name": return full;
+      case "company": return (currentCompany && currentCompany.name) || "";
       case "first_name": return full.split(/\s+/)[0] || "";
       case "last_name": return full.split(/\s+/).slice(1).join(" ");
       case "email": return myEmail || "";
@@ -4814,7 +4915,7 @@
         if (f.type === "checkbox") inp.type = "checkbox";
         else {
           inp.type = f.type === "date" ? "date" : "text"; inp.placeholder = f.label + (f.optional ? " (optional)" : "");
-          const pre = fieldKnown(f) === "today" ? localIso(new Date()) : fieldKnown(f);
+          const pre = dmFieldValue(template, f);
           if (pre) { inp.value = f.type === "date" ? String(pre).slice(0, 10) : pre; inp.classList.add("pf-auto"); inp.title = "Filled in for you. Edit it if it's wrong."; inp.addEventListener("input", () => inp.classList.remove("pf-auto")); }
         }
         el.appendChild(inp);
@@ -5700,53 +5801,77 @@
     myProfile = d && typeof d === "object" ? { ...d } : {};
   }
 
-  const qNorm = (l) => String(l || "").toLowerCase().replace(/\(optional\)/g, "").replace(/[^a-z0-9]+/g, " ").trim();
-  function fieldBind(f) { return f.bind === undefined ? dmGuessBind(f.label, f.type) : f.bind; }
-  function fieldKey(f) { const b = fieldBind(f); return b || "q:" + qNorm(f.label); }
-  function fieldKnown(f) {
-    const b = fieldBind(f);
-    if (b === "today") return "today";
-    return b ? bindValue(b) : (myProfile["q:" + qNorm(f.label)] || "");
+  const DM_IDENTITY = ["dob", "phone", "address", "city", "province", "postal_code"];
+  function dmChosenLang() { return myProfile && myProfile.lang || ""; }
+  // value for one box on a form, from the profile or a stored answer
+  function dmFieldValue(template, f) {
+    const langs = dmLanguages([template]);
+    const r = dmResolveTemplate(template, dmChosenLang() || (langs.length > 1 ? "" : langs[0] || "en")).get(f.id);
+    if (!r || r.skip && r.key !== "today") return "";
+    if (r.key === "today") return localIso(new Date());
+    return r.bind ? bindValue(r.bind) : (myProfile[r.key] || "");
   }
 
-  // One question per distinct thing the pending forms ask for.
-  function buildQuestions(templates) {
+  // One question per distinct thing the pending forms ask for, in the employee's language.
+  function buildQuestions(templates, lang) {
     const qs = new Map();
-    templates.forEach((t) => (t.fields || []).forEach((f) => {
-      if (f.type !== "text" && f.type !== "date") return;
-      if (/^blank \d+$/i.test(f.label || "")) return;
-      const key = fieldKey(f);
-      const b = fieldBind(f);
-      if (b === "today") return;
-      const q = qs.get(key) || { key, bind: b, label: b ? DM_BINDS[b] : (f.label || "").replace(/\s*\(optional\)\s*$/i, ""), type: f.type, optional: true };
-      if (!f.optional || ["dob", "phone", "address", "city", "province", "postal_code"].includes(b)) q.optional = false;
-      qs.set(key, q);
-    }));
+    templates.forEach((t) => {
+      const res = dmResolveTemplate(t, lang);
+      (t.fields || []).forEach((f) => {
+        const r = res.get(f.id);
+        if (!r || r.skip) return;
+        const q = qs.get(r.key) || { key: r.key, bind: r.bind, label: (lang && r.label[lang]) || r.label.en || r.label.fr || "", type: r.type, optional: true };
+        if (f.type === "date") q.type = "date";
+        if (!f.optional || DM_IDENTITY.includes(r.bind)) q.optional = false;
+        qs.set(r.key, q);
+      });
+    });
     return [...qs.values()];
   }
 
+  const DM_UI = {
+    en: { step: "Step 1: tell us a bit about you (asked once, fills every form)", yours: "Your details (used to fill forms)", save: "Save and fill my forms", change: "Save changes", opt: "(optional)", lang: "Which language would you like to answer in?", cont: "Continue", wait: "Your forms will appear here, filled in, as soon as you save this." },
+    fr: { step: "Étape 1 : quelques renseignements sur vous (demandés une seule fois)", yours: "Vos renseignements (utilisés pour remplir les formulaires)", save: "Enregistrer et remplir mes formulaires", change: "Enregistrer", opt: "(facultatif)", lang: "Dans quelle langue souhaitez-vous répondre ?", cont: "Continuer", wait: "Vos formulaires apparaîtront ici, remplis, dès que vous aurez enregistré." },
+    es: { step: "Paso 1: cuéntenos un poco sobre usted (se pregunta una sola vez)", yours: "Sus datos (se usan para completar los formularios)", save: "Guardar y completar mis formularios", change: "Guardar cambios", opt: "(opcional)", lang: "¿En qué idioma desea responder?", cont: "Continuar", wait: "Sus formularios aparecerán aquí, completados, en cuanto guarde esto." },
+  };
+
   function myDetailsCardHtml(templates) {
-    const qs = buildQuestions(templates);
+    const langs = dmLanguages(templates);
+    let lang = dmChosenLang();
+    if (lang && !langs.includes(lang)) lang = "";
+    if (langs.length > 1 && !lang) {
+      const html = `<details class="my-details" open>
+        <summary><span class="deal-bang">!</span> ${escHtml(DM_UI.en.lang)}</summary>
+        <div class="my-details-grid"><label>Language<select data-det="lang">${langs.map((l) => `<option value="${l}">${DM_LANG_NAMES[l]}</option>`).join("")}</select></label></div>
+        <button type="button" id="saveMyDetails" class="secondary">${DM_UI.en.cont}</button>
+        <span id="saveMyDetailsMsg" class="muted"></span>
+      </details>`;
+      return { html, blocking: true, wait: "" };
+    }
+    if (!lang) lang = langs[0] || "en";
+    const ui = DM_UI[lang] || DM_UI.en;
+    const qs = buildQuestions(templates, lang);
     if (!qs.length) return { html: "", blocking: false };
     const known = (q) => q.bind ? bindValue(q.bind) : (myProfile[q.key] || "");
     const unanswered = qs.filter((q) => !q.optional && !known(q));
-    const stored = qs.filter((q) => !(q.bind && !["dob", "phone", "address", "city", "province", "postal_code"].includes(q.bind) && bindValue(q.bind)));
-    const input = (q) => `<label>${escHtml(q.label)}${q.optional ? ` <span class="muted">(optional)</span>` : ""}<input data-det="${escHtml(q.key)}" type="${q.type === "date" ? "date" : "text"}" value="${escHtml(String(known(q) || "").slice(0, q.type === "date" ? 10 : 200))}" /></label>`;
+    const stored = qs.filter((q) => !(q.bind && !DM_IDENTITY.includes(q.bind) && bindValue(q.bind)));
+    const input = (q) => `<label>${escHtml(q.label)}${q.optional ? ` <span class="muted">${ui.opt}</span>` : ""}<input data-det="${escHtml(q.key)}" type="${q.type === "date" ? "date" : "text"}" value="${escHtml(String(known(q) || "").slice(0, q.type === "date" ? 10 : 200))}" /></label>`;
     const blocking = unanswered.length > 0;
+    const langPick = langs.length > 1 ? `<label>Language<select data-det="lang">${langs.map((l) => `<option value="${l}"${l === lang ? " selected" : ""}>${DM_LANG_NAMES[l]}</option>`).join("")}</select></label>` : "";
     const html = `<details class="my-details"${blocking ? " open" : ""}>
-      <summary>${blocking ? `<span class="deal-bang">!</span> Step 1: tell us a bit about you (asked once, fills every form)` : "Your details (used to fill forms)"}</summary>
-      <div class="my-details-grid">${stored.map(input).join("")}</div>
-      <button type="button" id="saveMyDetails" class="secondary">${blocking ? "Save and fill my forms" : "Save changes"}</button>
+      <summary>${blocking ? `<span class="deal-bang">!</span> ${escHtml(ui.step)}` : escHtml(ui.yours)}</summary>
+      <div class="my-details-grid">${langPick}${stored.map(input).join("")}</div>
+      <button type="button" id="saveMyDetails" class="secondary">${blocking ? ui.save : ui.change}</button>
       <span id="saveMyDetailsMsg" class="muted"></span>
     </details>`;
-    return { html, blocking };
+    return { html, blocking, wait: ui.wait };
   }
 
   async function saveMyDetails() {
     const msg = document.getElementById("saveMyDetailsMsg");
     const next = { ...myProfile };
-    const empty = [...document.querySelectorAll("[data-det]")].filter((e) => !e.value.trim() && e.closest("label") && !/\(optional\)/.test(e.closest("label").textContent));
-    if (empty.length) { empty[0].focus(); if (msg) msg.textContent = "Please fill in: " + empty.map((e) => e.closest("label").firstChild.textContent.trim()).join(", "); return; }
+    const empty = [...document.querySelectorAll("[data-det]")].filter((e) => !e.value.trim() && e.closest("label") && !/\((optional|facultatif|opcional)\)/.test(e.closest("label").textContent));
+    if (empty.length) { empty[0].focus(); if (msg) msg.textContent = "Please fill in / Veuillez remplir : " + empty.map((e) => e.closest("label").firstChild.textContent.trim()).join(", "); return; }
     document.querySelectorAll("[data-det]").forEach((e) => { const v = e.value.trim(); if (v) next[e.dataset.det] = v; else delete next[e.dataset.det]; });
     const { error } = await client.auth.updateUser({ data: { details: next } });
     if (error) { if (msg) msg.textContent = "Couldn't save: " + error.message; return; }
@@ -5851,7 +5976,7 @@
 
     const det = myDetailsCardHtml(pdfJobs.filter((j) => j.record.status === "awaiting_signature").map((j) => j.template));
     if (det.blocking) { pdfJobs.length = 0; setDealsBadge(waiting); }
-    body.innerHTML = cardsHtml ? det.html + (det.blocking ? `<p class="muted">Your forms will appear here, filled in, as soon as you save this.</p>` : cardsHtml) : `<p class="empty">Nothing to sign right now.</p>`;
+    body.innerHTML = cardsHtml ? det.html + (det.blocking ? `<p class="muted">${escHtml(det.wait || "Your forms will appear here, filled in, as soon as you save this.")}</p>` : cardsHtml) : `<p class="empty">Nothing to sign right now.</p>`;
     const sd = document.getElementById("saveMyDetails"); if (sd) sd.addEventListener("click", saveMyDetails);
     setDealsBadge(waiting);
     pdfJobs.forEach(({ template, record }) => {
