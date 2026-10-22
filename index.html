@@ -5009,6 +5009,9 @@
     tc.items.forEach((it) => {
       const s = String(it.str || "").replace(/\s+/g, " ");
       if (!s.trim()) return;
+      // Skip watermarks and other turned or oversized text: it isn't a label and its box would cover real blanks.
+      const tr = it.transform;
+      if (Math.abs(tr[1]) > 0.15 * Math.abs(tr[0] || 1e-6) || Math.abs(tr[2]) > 0.5 * Math.abs(tr[3] || 1e-6) || Math.abs(it.height) > 36) return;
       const [vx, vy] = vp.convertToViewportPoint(it.transform[4], it.transform[5]);
       const hPx = Math.abs(it.height) || Math.hypot(it.transform[2], it.transform[3]) || 9;
       const base = { y: vy / vp.height, h: hPx / vp.height, hx: hPx / vp.width };
