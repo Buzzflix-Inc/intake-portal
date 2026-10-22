@@ -484,6 +484,11 @@
   }
 
   /* Deal/safety sign card (employee side) */
+  .pf-input.pf-auto { background: #eef6ff; }
+  .my-details { border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; }
+  .my-details summary { cursor: pointer; font-weight: 600; }
+  .my-details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin: 12px 0; }
+  .my-details-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
   .deal-card { border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; margin-bottom: 16px; }
   .deal-card:last-child { margin-bottom: 0; }
   .deal-card h4 { margin: 0 0 2px; font-size: 14.5px; }
@@ -1730,6 +1735,7 @@
   let myKitEnabled = false;
   let myKitRate = 0;
   let myCrewRole = "";
+  let myInvite = null, myEmail = "", myProfile = {};
   let myTsTemplate = null;   // the union form this person's timesheets are filled onto, if any
 
   async function loadMyRequestedDocuments() {
@@ -1742,6 +1748,7 @@
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+    myInvite = data || null; myEmail = user.email;
     myRequestedDocs = (data && data.requested_documents) || [];
     myFullName = (data && data.full_name) || null;
     myDepartment = (data && data.department) || null;
@@ -3982,6 +3989,7 @@
       </div>
       <input type="text" class="pf-pop-name" placeholder="What is this field? (shown to the employee)" />
       ${f.type === "text" || f.type === "date" ? `<label class="pf-pop-opt"><input type="checkbox" class="pf-pop-optbox"${f.optional ? " checked" : ""} /> Optional (employee can leave it blank)</label>` : ""}
+      ${f.type === "text" || f.type === "date" ? `<label class="pf-pop-opt">Autofill with <select class="pf-pop-bind"><option value="">Nothing (employee types it)</option>${Object.entries(DM_BINDS).map(([k, v]) => `<option value="${k}"${(f.bind === undefined ? dmGuessBind(f.label, f.type) : f.bind) === k ? " selected" : ""}>${v}</option>`).join("")}</select></label>` : ""}
       <div class="pf-pop-actions">
         <button type="button" class="pf-pop-prev" title="Previous box">&#9664;</button>
         <button type="button" class="pf-pop-next" title="Next box (Enter)">Next &#9654;</button>
@@ -4020,9 +4028,11 @@
     });
     const ob = pop.querySelector(".pf-pop-optbox");
     if (ob) ob.addEventListener("change", () => { f.optional = ob.checked; drawEditorFields(); });
+    const bs = pop.querySelector(".pf-pop-bind");
+    if (bs) bs.addEventListener("change", () => { f.bind = bs.value; });
     const ty = pop.querySelector(".pf-pop-type");
     if (ty) ty.addEventListener("change", () => {
-      const old = f.type; f.type = ty.value;
+      const old = f.type; f.type = ty.value; if (f.type !== "text" && f.type !== "date") delete f.bind;
       if (f.type === "signature" || f.type === "countersignature") { f.optional = false; if (!f.label || f.label === FIELD_KINDS[old].label) f.label = FIELD_KINDS[f.type].label; }
       else if (!f.label || f.label === FIELD_KINDS[old].label) f.label = FIELD_KINDS[f.type].label;
       drawEditorFields();
@@ -4122,6 +4132,31 @@
   const DM_COUNTER_RE = /(producer|company|authori[sz]ed|employer|upm|production manager)/i;
   const DM_FOOTER_Y = 0.935;
 
+  const DM_BINDS = {
+    full_name: "Full name", first_name: "First name", last_name: "Last name", email: "Email", phone: "Phone",
+    dob: "Date of birth", address: "Street address", city: "City", province: "Province / state", postal_code: "Postal / ZIP code",
+    position: "Position / role", department: "Department", start_date: "Start date", end_date: "End date", today: "Today's date",
+  };
+  function dmGuessBind(label, type) {
+    const l = String(label || "").trim();
+    if (!l || type === "checkbox" || type === "signature" || type === "countersignature") return "";
+    if (/birth|\bdob\b/i.test(l)) return "dob";
+    if (/e-?mail/i.test(l)) return "email";
+    if (/postal|zip/i.test(l)) return "postal_code";
+    if (/phone|\btel\b|cell|mobile/i.test(l)) return "phone";
+    if (/\bcity\b|\btown\b/i.test(l)) return "city";
+    if (/province|\bstate\b/i.test(l)) return "province";
+    if (/address|street/i.test(l)) return "address";
+    if (/first\s*name|given\s*name/i.test(l)) return "first_name";
+    if (/last\s*name|surname|family\s*name/i.test(l)) return "last_name";
+    if (/start(ing)?\s*date|commenc|effective/i.test(l)) return "start_date";
+    if (/end(ing)?\s*date|wrap\s*date/i.test(l)) return "end_date";
+    if (/depart/i.test(l)) return "department";
+    if (/position|job\s*title|\brole\b|occupation|classification/i.test(l)) return "position";
+    if (/^(date|dated|date signed|signing date|today'?s date)$/i.test(l)) return "today";
+    if (/^(your |full |legal |print(ed)? |employee('?s)? |contractor('?s)? |crew( member)?('?s)? |name of (the )?(employee|contractor|crew member) ?)*(full |legal )?name( \(print(ed)?\))?$/i.test(l) && !/company|production|show|emergency|witness|supervisor|manager/i.test(l)) return "full_name";
+    return "";
+  }
   function dmCleanLabel(s) {
     return String(s || "").replace(/_+/g, " ").replace(/\s+/g, " ").replace(/^[\s:.\-–—]+|[\s:.\-–—]+$/g, "").slice(0, 60);
   }
@@ -4477,7 +4512,7 @@
     }
     return found.map((f) => {
       const x = clamp(f.x, 0, 0.99), y = clamp(f.y, 0, 0.99);
-      return { ...f, id: "f" + Math.random().toString(36).slice(2, 8), auto: true, x, y, w: clamp(f.w, 0.015, 1 - x), h: clamp(f.h, 0.008, 1 - y) };
+      return { ...f, id: "f" + Math.random().toString(36).slice(2, 8), auto: true, bind: dmGuessBind(f.label, f.type) || undefined, x, y, w: clamp(f.w, 0.015, 1 - x), h: clamp(f.h, 0.008, 1 - y) };
     });
   }
 
@@ -4571,6 +4606,30 @@
     return await data.arrayBuffer();
   }
 
+  function localIso(d) { const z = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`; }
+  function bindValue(bind) {
+    const inv = myInvite || {}, pr = myProfile || {};
+    const full = (myFullName || "").trim();
+    switch (bind) {
+      case "full_name": return full;
+      case "first_name": return full.split(/\s+/)[0] || "";
+      case "last_name": return full.split(/\s+/).slice(1).join(" ");
+      case "email": return myEmail || "";
+      case "phone": return pr.phone || inv.phone || "";
+      case "dob": return pr.dob || "";
+      case "address": return pr.address || "";
+      case "city": return pr.city || "";
+      case "province": return pr.province || "";
+      case "postal_code": return pr.postal_code || "";
+      case "position": return myCrewRole || "";
+      case "department": return myDepartment || "";
+      case "start_date": return inv.start_date || "";
+      case "end_date": return inv.end_date || "";
+      case "today": return localIso(new Date());
+    }
+    return "";
+  }
+
   async function renderPdfForm(container, template, opts) {
     const bytes = await loadTemplatePdfBytes(template.source_pdf_path);
     const pdfjs = await ensurePdfJs();
@@ -4594,7 +4653,12 @@
         const inp = document.createElement("input");
         inp.className = "pf-input"; inp.dataset.fieldId = f.id; inp.setAttribute("aria-label", f.label);
         if (f.type === "checkbox") inp.type = "checkbox";
-        else { inp.type = f.type === "date" ? "date" : "text"; inp.placeholder = f.label + (f.optional ? " (optional)" : ""); }
+        else {
+          inp.type = f.type === "date" ? "date" : "text"; inp.placeholder = f.label + (f.optional ? " (optional)" : "");
+          const bnd = f.bind === undefined ? dmGuessBind(f.label, f.type) : f.bind;
+          const pre = bnd ? bindValue(bnd) : "";
+          if (pre) { inp.value = f.type === "date" ? String(pre).slice(0, 10) : pre; inp.classList.add("pf-auto"); inp.title = "Filled in for you. Edit it if it's wrong."; inp.addEventListener("input", () => inp.classList.remove("pf-auto")); }
+        }
         el.appendChild(inp);
       } else {
         const s = document.createElement("span");
@@ -5470,11 +5534,45 @@
     if (tb) tb.innerHTML = "My Portal" + bang("!");
   }
 
+  async function loadMyDetails(user) {
+    const { data } = await client.from("profiles").select("dob, phone, address, city, province, postal_code").eq("user_id", user.id).maybeSingle();
+    myProfile = data || {};
+  }
+
+  function myDetailsCardHtml(templates) {
+    const used = new Set();
+    templates.forEach((t) => (t.fields || []).forEach((f) => { const b = f.bind === undefined ? dmGuessBind(f.label, f.type) : f.bind; if (b) used.add(b); }));
+    const need = ["dob", "address", "city", "province", "postal_code", "phone"].filter((k) => used.has(k));
+    if (!need.length) return "";
+    const pr = myProfile || {};
+    const missing = need.filter((k) => !bindValue(k));
+    const lab = { dob: "Date of birth", address: "Street address", city: "City", province: "Province / state", postal_code: "Postal / ZIP code", phone: "Phone" };
+    const inp = (k) => need.includes(k) ? `<label>${lab[k]}<input data-det="${k}" type="${k === "dob" ? "date" : "text"}" value="${escHtml(bindValue(k) || "")}" /></label>` : "";
+    return `<details class="my-details"${missing.length ? " open" : ""}>
+      <summary>${missing.length ? `<span class="deal-bang">!</span> Add your details once, forms fill in for you` : "Your details (used to fill forms)"}</summary>
+      <div class="my-details-grid">${["dob", "phone", "address", "city", "province", "postal_code"].map(inp).join("")}</div>
+      <button type="button" id="saveMyDetails" class="secondary">Save my details</button>
+      <span id="saveMyDetailsMsg" class="muted"></span>
+    </details>`;
+  }
+
+  async function saveMyDetails() {
+    const g = (k) => { const e = document.querySelector(`[data-det="${k}"]`); return e ? e.value.trim() : (myProfile[k === "postal" ? "postal_code" : k] || ""); };
+    const msg = document.getElementById("saveMyDetailsMsg");
+    const { error } = await client.rpc("save_my_details", {
+      p_dob: g("dob") || null, p_phone: g("phone"), p_address: g("address"), p_city: g("city"), p_province: g("province"), p_postal: g("postal_code"),
+    });
+    if (error) { if (msg) msg.textContent = "Couldn't save: " + error.message; return; }
+    if (msg) msg.textContent = "Saved.";
+    loadMyDeals();
+  }
+
   async function loadMyDeals() {
     const body = document.getElementById("myDealsBody");
     const { data: { user } } = await client.auth.getUser();
     if (!user || !user.email) return;
 
+    await loadMyDetails(user);
     const { data: invite } = await client
       .from("company_invites")
       .select("deal_memo_template_id, safety_template_id")
@@ -5564,7 +5662,9 @@
         </div>`;
     }
 
-    body.innerHTML = cardsHtml || `<p class="empty">Nothing to sign right now.</p>`;
+    const detailsHtml = myDetailsCardHtml(pdfJobs.filter((j) => j.record.status === "awaiting_signature").map((j) => j.template));
+    body.innerHTML = cardsHtml ? detailsHtml + cardsHtml : `<p class="empty">Nothing to sign right now.</p>`;
+    const sd = document.getElementById("saveMyDetails"); if (sd) sd.addEventListener("click", saveMyDetails);
     setDealsBadge(waiting);
     pdfJobs.forEach(({ template, record }) => {
       const holder = body.querySelector(`.pdf-form[data-record-id="${record.id}"]`);
