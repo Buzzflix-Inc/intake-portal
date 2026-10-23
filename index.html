@@ -480,6 +480,8 @@
   .pdf-field.pf-edit.ts-fixed { background: rgba(47, 125, 79, .15); border-color: #2f7d4f; }
   .pdf-field.pf-edit.ts-fixed .pf-label { color: #1c4d30; }
   .pf-fieldlist select { flex: 0 0 210px; min-width: 0; margin-bottom: 0; }
+  .ts-tools { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; flex-wrap: wrap; font-size: 12px; color: var(--ink-faint); margin: 0 0 8px; }
+  .ts-copy { display: block; margin-top: 4px; font-size: 11px; padding: 2px 4px; width: auto; max-width: 84px; color: var(--ink-soft); border: 1px solid var(--line); border-radius: 5px; background: var(--surface); cursor: pointer; }
   .ts-ot { margin: 10px 0 4px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
   .ts-ot summary { cursor: pointer; font-weight: 600; font-size: 13.5px; }
   .ts-ot .muted { font-weight: 400; color: var(--ink-faint); font-size: 12px; }
@@ -2063,10 +2065,10 @@
     const start = parseYmd(tsGridWeek);
     grid.classList.toggle("has-kit", myKitEnabled);
     tsMeals = tsTemplateMeals();
-    let html = `<div class="ts-head"><span>Day</span><span>Call</span><span>Wrap</span><span>Break</span>${myKitEnabled ? "<span>Kit</span>" : ""}<span>Hours</span></div>`;
+    let html = `<div class="ts-tools"><span>Same hours most days? Fill one day, then use <b>Copy…</b> under its date. You can also paste times from a spreadsheet into a Call box.</span><button type="button" class="remove-link" id="tsClearAll">Clear all days</button></div><div class="ts-head"><span>Day</span><span>Call</span><span>Wrap</span><span>Break</span>${myKitEnabled ? "<span>Kit</span>" : ""}<span>Hours</span></div>`;
     for (let i = 0; i < 7; i++) {
       html += `<div class="ts-row">
-        <div class="ts-day">${DAY_NAMES[i].slice(0, 3)}<small>${fmtShort(addDays(start, i))}</small></div>
+        <div class="ts-day">${DAY_NAMES[i].slice(0, 3)}<small>${fmtShort(addDays(start, i))}</small><select class="ts-copy" data-from="${i}" aria-label="Copy ${DAY_NAMES[i]} to other days"><option value="">Copy…</option><option value="next">To next day</option><option value="weekdays">To Mon–Fri</option><option value="all">To every day</option></select></div>
         <div class="ts-call"><span class="ts-lab">Call</span><input type="time" id="tsCall${i}" aria-label="Call time, ${DAY_NAMES[i]}" /></div>
         <div class="ts-wrap"><span class="ts-lab">Wrap</span><input type="time" id="tsWrap${i}" aria-label="Wrap time, ${DAY_NAMES[i]}" /></div>
         <div class="ts-brk"><span class="ts-lab">Break (min)</span><input type="number" id="tsBrk${i}" min="0" max="240" step="5" inputmode="numeric" placeholder="0" aria-label="Unpaid break in minutes, ${DAY_NAMES[i]}" /></div>
@@ -2087,7 +2089,58 @@
       inp.addEventListener("input", updateTimesheetTotals);
       inp.addEventListener("change", updateTimesheetTotals);
     });
+    tsWireCopy(grid);
     updateTimesheetTotals();
+  }
+
+  // ---- Copy a day's hours to other days, and paste hours from a spreadsheet ----
+  function tsCopyDay(from, to) {
+    const ids = ["tsCall", "tsWrap", "tsBrk", "tsM1o", "tsM1i", "tsM2o", "tsM2i"];
+    ids.forEach((p) => {
+      const a = document.getElementById(p + from), b = document.getElementById(p + to);
+      if (a && b && !b.readOnly) b.value = a.value;
+    });
+    const ka = document.getElementById("tsKit" + from), kb = document.getElementById("tsKit" + to);
+    if (ka && kb) kb.checked = ka.checked;
+  }
+  function tsParseTime(t) {
+    const m = /^\s*(\d{1,2})(?::?(\d{2}))?\s*([ap])?\.?m?\.?\s*$/i.exec(String(t || ""));
+    if (!m) return "";
+    let h = Number(m[1]); const mi = Number(m[2] || 0);
+    if (m[3]) { const pm = m[3].toLowerCase() === "p"; if (h === 12) h = pm ? 12 : 0; else if (pm) h += 12; }
+    if (h > 23 || mi > 59) return "";
+    return String(h).padStart(2, "0") + ":" + String(mi).padStart(2, "0");
+  }
+  function tsWireCopy(grid) {
+    grid.querySelectorAll(".ts-copy").forEach((sel) => sel.addEventListener("change", () => {
+      const from = Number(sel.dataset.from), mode = sel.value;
+      sel.value = "";
+      if (!mode) return;
+      if (!document.getElementById("tsCall" + from).value && !document.getElementById("tsWrap" + from).value) { const me = document.getElementById("timesheetsMsg"); if (me) me.innerHTML = `<div class="msg error">Fill in this day's call and wrap first, then copy it.</div>`; return; }
+      const targets = mode === "next" ? (from < 6 ? [from + 1] : []) : mode === "weekdays" ? [1, 2, 3, 4, 5].filter((d) => d !== from) : [0, 1, 2, 3, 4, 5, 6].filter((d) => d !== from);
+      targets.forEach((t) => tsCopyDay(from, t));
+      updateTimesheetTotals();
+    }));
+    const clr = document.getElementById("tsClearAll");
+    if (clr) clr.addEventListener("click", () => {
+      grid.querySelectorAll(".ts-row input, .ts-meals input, .ts-ot input").forEach((inp) => { if (inp.type === "checkbox") inp.checked = false; else if (!inp.readOnly) inp.value = ""; });
+      updateTimesheetTotals();
+    });
+    // paste rows like "9:00 AM<tab>5:00 PM" (one line per day) starting at the box you paste into
+    grid.querySelectorAll('input[id^="tsCall"], input[id^="tsWrap"]').forEach((inp) => inp.addEventListener("paste", (e) => {
+      const text = (e.clipboardData || window.clipboardData).getData("text") || "";
+      if (!/[\t\n]/.test(text.trim())) return;
+      const start = Number(inp.id.replace(/\D/g, "")), isWrap = inp.id.startsWith("tsWrap");
+      const rows = text.trim().split(/\r?\n/).map((r) => r.split("\t"));
+      let filled = 0;
+      rows.forEach((cols, r) => {
+        const d = start + r; if (d > 6) return;
+        const t = cols.map(tsParseTime);
+        const order = isWrap ? ["tsWrap", "tsM1o", "tsM1i", "tsM2o", "tsM2i"] : ["tsCall", "tsWrap", "tsM1o", "tsM1i", "tsM2o", "tsM2i"];
+        order.forEach((p, k) => { const el = document.getElementById(p + d); if (el && t[k]) { el.value = t[k]; filled++; } });
+      });
+      if (filled) { e.preventDefault(); updateTimesheetTotals(); }
+    }));
   }
 
   // Which meal columns the assigned union form needs (none = plain "break minutes").
