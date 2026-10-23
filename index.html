@@ -480,17 +480,13 @@
   .pdf-field.pf-edit.ts-fixed { background: rgba(47, 125, 79, .15); border-color: #2f7d4f; }
   .pdf-field.pf-edit.ts-fixed .pf-label { color: #1c4d30; }
   .pf-fieldlist select { flex: 0 0 210px; min-width: 0; margin-bottom: 0; }
-  .ts-tools { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; flex-wrap: wrap; font-size: 12px; color: var(--ink-faint); margin: 0 0 8px; }
-  .ts-copy { display: block; margin-top: 4px; font-size: 11px; padding: 2px 4px; width: auto; max-width: 84px; color: var(--ink-soft); border: 1px solid var(--line); border-radius: 5px; background: var(--surface); cursor: pointer; }
+  .ts-copy { font-size: 12px; padding: 4px 6px; width: auto; max-width: 110px; margin: 0; color: var(--ink-soft); border: 1px solid var(--line); border-radius: 6px; background: var(--surface); cursor: pointer; }
   .ts-ot { margin: 10px 0 4px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
   .ts-ot summary { cursor: pointer; font-weight: 600; font-size: 13.5px; }
   .ts-ot .muted { font-weight: 400; color: var(--ink-faint); font-size: 12px; }
   .ts-ot-grid { display: grid; grid-template-columns: 44px repeat(3, minmax(0, 1fr)); gap: 6px 8px; align-items: center; max-width: 360px; font-size: 12px; color: var(--ink-faint); }
   .ts-ot-grid input { width: 100%; box-sizing: border-box; padding: 5px 6px; font-size: 13.5px; }
   .ts-ot-day { color: var(--ink); font-weight: 600; }
-  .ts-meals { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 0 6px 64px; align-items: flex-end; }
-  .ts-meals label { display: flex; flex-direction: column; font-size: 11.5px; color: var(--ink-faint); gap: 2px; margin: 0; }
-  .ts-meals input[type="time"] { width: 112px; }
   .ts-extras { margin: 6px 0 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 10px; }
   .ts-extras .field-line { display: flex; flex-direction: column; gap: 4px; }
   .ts-extras .field-line label { margin: 0; font-size: 13px; }
@@ -787,33 +783,29 @@
   #documentsTypeSelect { width: 100%; }
   #documentsPanelRow { display: flex; flex-direction: column; gap: 10px; }
   #tsPeriodSelect { width: 100%; max-width: 100%; font-weight: 500; }
-  .ts-grid { display: flex; flex-direction: column; gap: 4px; margin: 16px 0 10px; }
-  .ts-head, .ts-row {
-    display: grid;
-    grid-template-columns: 56px minmax(0, 1fr) minmax(0, 1fr) 72px 56px;
-    gap: 8px;
-    align-items: center;
-  }
-  .ts-grid.has-kit .ts-head, .ts-grid.has-kit .ts-row { grid-template-columns: 56px minmax(0, 1fr) minmax(0, 1fr) 72px 40px 56px; }
-  .ts-kit { text-align: center; }
-  .ts-kit input { width: 18px; height: 18px; cursor: pointer; }
-  .ts-brk input { text-align: center; }
-  .ts-kit-note { font-size: 13px; color: var(--ink-soft); margin: 0 0 8px; display: flex; justify-content: space-between; gap: 12px; }
-  .ts-head { font-size: 11.5px; font-weight: 600; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .03em; }
-  .ts-head span:last-child, .ts-hrs { text-align: right; }
-  .ts-day { font-size: 13px; font-weight: 500; color: var(--ink); line-height: 1.25; }
-  .ts-day small { display: block; font-size: 11.5px; font-weight: 400; color: var(--ink-faint); }
-  .ts-hrs { font-size: 13px; font-weight: 600; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-  .ts-row input[type="time"], .ts-row input[type="number"] {
-    padding: 8px 10px; min-width: 0; border-color: transparent; background: var(--bg);
-    font-variant-numeric: tabular-nums;
-  }
-  .ts-row input:hover { border-color: var(--line); }
-  .ts-row input:focus { outline: none; border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px var(--accent-soft); }
-  .ts-row input[type="time"]::-webkit-calendar-picker-indicator { opacity: .35; cursor: pointer; }
-  .ts-row { padding: 3px 0; }
+  .ts-grid { display: flex; flex-direction: column; gap: 10px; margin: 16px 0 10px; }
+  .ts-quick { border: 1px dashed var(--line); border-radius: 12px; padding: 12px 14px; background: var(--accent-soft, #fdf0cd); background: color-mix(in srgb, var(--accent-soft) 45%, var(--surface)); }
+  .ts-quick-h { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; margin-bottom: 8px; font-size: 13px; }
+  .ts-quick-h span { color: var(--ink-faint); font-size: 12px; }
+  .ts-quick-b { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 10px; align-items: end; }
+  .ts-quick-go { width: auto; padding: 9px 14px; }
+  .ts-quick-f { margin-top: 8px; font-size: 12px; color: var(--ink-faint); display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: space-between; }
+  .ts-card { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 10px 14px 12px; border-left: 4px solid var(--line); }
+  .ts-card.filled { border-left-color: var(--link); }
+  .ts-card.bad { border-left-color: var(--error, #dc2626); }
+  .ts-card-h { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .ts-day { display: flex; align-items: baseline; gap: 8px; font-size: 14px; font-weight: 600; color: var(--ink); line-height: 1.25; flex: 1; min-width: 0; }
+  .ts-day small { font-size: 12px; font-weight: 400; color: var(--ink-faint); }
+  .ts-hrs { font-size: 14px; font-weight: 600; color: var(--ink-faint); font-variant-numeric: tabular-nums; text-align: right; }
   .ts-hrs.has { color: var(--ink); }
-  .ts-lab { display: none; font-size: 11.5px; color: var(--ink-faint); margin-bottom: 3px; }
+  .ts-card-b { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 10px; align-items: end; }
+  .ts-f { display: flex; flex-direction: column; gap: 3px; margin: 0; min-width: 0; font-size: 11.5px; font-weight: 500; color: var(--ink-faint); }
+  .ts-f input[type="time"], .ts-f input[type="number"], .ts-f select { width: 100%; box-sizing: border-box; min-width: 0; margin: 0; padding: 8px 10px; font-variant-numeric: tabular-nums; }
+  .ts-f input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .ts-brk input { text-align: center; }
+  .ts-kit { align-items: flex-start; }
+  .ts-kit input { width: 20px; height: 20px; margin: 6px 0 0; cursor: pointer; }
+  .ts-kit-note { font-size: 13px; color: var(--ink-soft); margin: 0 0 8px; display: flex; justify-content: space-between; gap: 12px; }
   .ts-total-row {
     display: flex; justify-content: space-between; align-items: baseline;
     border-top: 1px solid var(--line); padding: 10px 0 14px; font-size: 13.5px; color: var(--ink-soft);
@@ -852,26 +844,6 @@
   .btn-approve:disabled, .btn-reject:disabled { opacity: .5; cursor: not-allowed; }
 
   @media (max-width: 520px) {
-    .ts-head { display: none; }
-    .ts-grid .ts-row, .ts-grid.has-kit .ts-row {
-      grid-template-columns: 1fr 1fr;
-      grid-template-areas: "day hrs" "call wrap" "brk kit";
-      padding: 8px 0;
-      border-bottom: 1px solid var(--line);
-    }
-    .ts-grid:not(.has-kit) .ts-row {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 76px;
-      grid-template-areas: "day day hrs" "call wrap brk";
-    }
-    .ts-row input[type="time"]::-webkit-calendar-picker-indicator { display: none; }
-    .ts-row .ts-day { grid-area: day; }
-    .ts-row .ts-hrs { grid-area: hrs; }
-    .ts-row .ts-call { grid-area: call; }
-    .ts-row .ts-wrap { grid-area: wrap; }
-    .ts-row .ts-brk { grid-area: brk; }
-    .ts-row .ts-kit { grid-area: kit; text-align: left; align-self: end; }
-    .ts-kit label { display: flex; align-items: center; gap: 8px; margin: 0; padding-bottom: 8px; }
-    .ts-lab { display: block; }
     .dh-add, .sa-form, .sa-company-extra { grid-template-columns: 1fr; }
     header.top { flex-wrap: wrap; gap: 12px; }
     .top-actions { width: 100%; flex-wrap: nowrap; justify-content: flex-end; }
@@ -2065,19 +2037,34 @@
     const start = parseYmd(tsGridWeek);
     grid.classList.toggle("has-kit", myKitEnabled);
     tsMeals = tsTemplateMeals();
-    let html = `<div class="ts-tools"><span>Same hours most days? Fill one day, then use <b>Copy…</b> under its date. You can also paste times from a spreadsheet into a Call box.</span><button type="button" class="remove-link" id="tsClearAll">Clear all days</button></div><div class="ts-head"><span>Day</span><span>Call</span><span>Wrap</span><span>Break</span>${myKitEnabled ? "<span>Kit</span>" : ""}<span>Hours</span></div>`;
+    const tf = (lab, inner) => `<label class="ts-f"><span>${lab}</span>${inner}</label>`;
+    let html = `<div class="ts-quick">
+      <div class="ts-quick-h"><b>Quick fill</b><span>Same hours most days? Enter them once and apply.</span></div>
+      <div class="ts-quick-b">
+        ${tf("Call", `<input type="time" id="tsQCall" aria-label="Call time for quick fill" />`)}
+        ${tf("Wrap", `<input type="time" id="tsQWrap" aria-label="Wrap time for quick fill" />`)}
+        ${tsMeals.m1 ? tf("Meal out", `<input type="time" id="tsQM1o" aria-label="Meal out for quick fill" />`) + tf("Meal in", `<input type="time" id="tsQM1i" aria-label="Meal in for quick fill" />`) : tf("Break (min)", `<input type="number" id="tsQBrk" min="0" max="240" step="5" inputmode="numeric" placeholder="0" aria-label="Break minutes for quick fill" />`)}
+        ${tf("Apply to", `<select id="tsQDays"><option value="weekdays">Mon – Fri</option><option value="all">Every day</option><option value="sunthu">Sun – Thu</option><option value="weekend">Sat &amp; Sun</option></select>`)}
+        <button type="button" class="btn-secondary ts-quick-go" id="tsQGo">Fill days</button>
+      </div>
+      <div class="ts-quick-f"><span>You can also paste times from a spreadsheet into any <b>Call</b> box.</span><button type="button" class="remove-link" id="tsClearAll">Clear all days</button></div>
+    </div>`;
     for (let i = 0; i < 7; i++) {
-      html += `<div class="ts-row">
-        <div class="ts-day">${DAY_NAMES[i].slice(0, 3)}<small>${fmtShort(addDays(start, i))}</small><select class="ts-copy" data-from="${i}" aria-label="Copy ${DAY_NAMES[i]} to other days"><option value="">Copy…</option><option value="next">To next day</option><option value="weekdays">To Mon–Fri</option><option value="all">To every day</option></select></div>
-        <div class="ts-call"><span class="ts-lab">Call</span><input type="time" id="tsCall${i}" aria-label="Call time, ${DAY_NAMES[i]}" /></div>
-        <div class="ts-wrap"><span class="ts-lab">Wrap</span><input type="time" id="tsWrap${i}" aria-label="Wrap time, ${DAY_NAMES[i]}" /></div>
-        <div class="ts-brk"><span class="ts-lab">Break (min)</span><input type="number" id="tsBrk${i}" min="0" max="240" step="5" inputmode="numeric" placeholder="0" aria-label="Unpaid break in minutes, ${DAY_NAMES[i]}" /></div>
-        ${myKitEnabled ? `<div class="ts-kit"><label><input type="checkbox" id="tsKit${i}" aria-label="Kit fee, ${DAY_NAMES[i]}" /><span class="ts-lab">Kit fee</span></label></div>` : ""}
-        <div class="ts-hrs" id="tsHrs${i}">–</div>
+      html += `<div class="ts-card" id="tsCard${i}">
+        <div class="ts-card-h">
+          <div class="ts-day"><span class="ts-dname">${DAY_NAMES[i]}</span><small>${fmtShort(addDays(start, i))}</small></div>
+          <div class="ts-hrs" id="tsHrs${i}">–</div>
+          <select class="ts-copy" data-from="${i}" aria-label="Copy ${DAY_NAMES[i]} to other days"><option value="">Copy day…</option><option value="next">To next day</option><option value="weekdays">To Mon–Fri</option><option value="all">To every day</option></select>
+        </div>
+        <div class="ts-card-b">
+          ${tf("Call", `<input type="time" id="tsCall${i}" aria-label="Call time, ${DAY_NAMES[i]}" />`)}
+          ${tf("Wrap", `<input type="time" id="tsWrap${i}" aria-label="Wrap time, ${DAY_NAMES[i]}" />`)}
+          ${tsMeals.m1 ? tf("Meal out", `<input type="time" id="tsM1o${i}" aria-label="Meal out, ${DAY_NAMES[i]}" />`) + tf("Meal in", `<input type="time" id="tsM1i${i}" aria-label="Meal in, ${DAY_NAMES[i]}" />`) : ""}
+          ${tsMeals.m2 ? tf("2nd meal out", `<input type="time" id="tsM2o${i}" aria-label="Second meal out, ${DAY_NAMES[i]}" />`) + tf("2nd meal in", `<input type="time" id="tsM2i${i}" aria-label="Second meal in, ${DAY_NAMES[i]}" />`) : ""}
+          <label class="ts-f ts-brk"><span>${tsMeals.m1 ? "Break (auto)" : "Break (min)"}</span><input type="number" id="tsBrk${i}" min="0" max="240" step="5" inputmode="numeric" placeholder="0" aria-label="Unpaid break in minutes, ${DAY_NAMES[i]}" /></label>
+          ${myKitEnabled ? `<label class="ts-f ts-kit"><span>Kit fee</span><input type="checkbox" id="tsKit${i}" aria-label="Kit fee, ${DAY_NAMES[i]}" /></label>` : ""}
+        </div>
       </div>`;
-      if (tsMeals.m1) {
-        html += `<div class="ts-meals"><label>Meal out<input type="time" id="tsM1o${i}" aria-label="Meal out, ${DAY_NAMES[i]}" /></label><label>Meal in<input type="time" id="tsM1i${i}" aria-label="Meal in, ${DAY_NAMES[i]}" /></label>${tsMeals.m2 ? `<label>2nd meal out<input type="time" id="tsM2o${i}" aria-label="Second meal out, ${DAY_NAMES[i]}" /></label><label>2nd meal in<input type="time" id="tsM2i${i}" aria-label="Second meal in, ${DAY_NAMES[i]}" /></label>` : ""}</div>`;
-      }
     }
     html += `<details class="ts-ot" id="tsOt"><summary>Add overtime <span class="muted">(only if you worked any)</span></summary>
       <p class="ts-note" style="margin:6px 0 8px;">Enter the hours you worked at each overtime rate (for example 2 or 1.5). They are part of that day's hours, not extra on top.</p>
@@ -2121,9 +2108,24 @@
       targets.forEach((t) => tsCopyDay(from, t));
       updateTimesheetTotals();
     }));
+    const go = document.getElementById("tsQGo");
+    if (go) go.addEventListener("click", () => {
+      const v = (id) => (document.getElementById(id) || {}).value || "";
+      if (!v("tsQCall") || !v("tsQWrap")) { const me = document.getElementById("timesheetsMsg"); if (me) me.innerHTML = `<div class="msg error">Enter a call and a wrap time to fill in.</div>`; return; }
+      const m = v("tsQDays");
+      const days = m === "all" ? [0, 1, 2, 3, 4, 5, 6] : m === "sunthu" ? [0, 1, 2, 3, 4] : m === "weekend" ? [0, 6] : [1, 2, 3, 4, 5];
+      days.forEach((d) => {
+        [["tsCall", "tsQCall"], ["tsWrap", "tsQWrap"], ["tsM1o", "tsQM1o"], ["tsM1i", "tsQM1i"], ["tsBrk", "tsQBrk"]].forEach(([t, q]) => {
+          const a = document.getElementById(t + d), b = document.getElementById(q);
+          if (a && b && !a.readOnly) a.value = b.value;
+        });
+      });
+      const me = document.getElementById("timesheetsMsg"); if (me) me.innerHTML = "";
+      updateTimesheetTotals();
+    });
     const clr = document.getElementById("tsClearAll");
     if (clr) clr.addEventListener("click", () => {
-      grid.querySelectorAll(".ts-row input, .ts-meals input, .ts-ot input").forEach((inp) => { if (inp.type === "checkbox") inp.checked = false; else if (!inp.readOnly) inp.value = ""; });
+      grid.querySelectorAll(".ts-card input, .ts-ot input, .ts-quick input").forEach((inp) => { if (inp.type === "checkbox") inp.checked = false; else if (!inp.readOnly) inp.value = ""; });
       updateTimesheetTotals();
     });
     // paste rows like "9:00 AM<tab>5:00 PM" (one line per day) starting at the box you paste into
@@ -2182,6 +2184,7 @@
       const m = dayMinutes(i);
       const out = document.getElementById(`tsHrs${i}`);
       out.classList.toggle("has", m != null && !Number.isNaN(m));
+      { const cd = document.getElementById(`tsCard${i}`); if (cd) { cd.classList.toggle("filled", m != null && !Number.isNaN(m)); cd.classList.toggle("bad", Number.isNaN(m)); } }
       if (m == null) out.textContent = "–";
       else if (Number.isNaN(m)) out.textContent = "!";
       else {
