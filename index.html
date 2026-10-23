@@ -784,6 +784,9 @@
   #documentsPanelRow { display: flex; flex-direction: column; gap: 10px; }
   #tsPeriodSelect { width: 100%; max-width: 100%; font-weight: 500; }
   .ts-grid { display: flex; flex-direction: column; gap: 10px; margin: 16px 0 10px; }
+  .deal-fold { margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; }
+  .deal-fold > summary { cursor: pointer; padding: 10px 0; font-size: 13.5px; font-weight: 600; color: var(--ink-soft); }
+  .deal-fold[open] > summary { border-bottom: 1px solid var(--line); margin-bottom: 10px; }
   .ts-quick { border: 1px dashed var(--line); border-radius: 12px; padding: 12px 14px; background: var(--accent-soft, #fdf0cd); background: color-mix(in srgb, var(--accent-soft) 45%, var(--surface)); }
   .ts-quick-h { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; margin-bottom: 8px; font-size: 13px; }
   .ts-quick-h span { color: var(--ink-faint); font-size: 12px; }
@@ -801,6 +804,8 @@
   .ts-card-b { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 10px; align-items: end; }
   .ts-f { display: flex; flex-direction: column; gap: 3px; margin: 0; min-width: 0; font-size: 11.5px; font-weight: 500; color: var(--ink-faint); }
   .ts-f input[type="time"], .ts-f input[type="number"], .ts-f select { width: 100%; box-sizing: border-box; min-width: 0; margin: 0; padding: 8px 10px; font-variant-numeric: tabular-nums; }
+  .ts-f input.ts-time { width: 100%; box-sizing: border-box; min-width: 0; margin: 0; padding: 9px 10px; font-variant-numeric: tabular-nums; }
+  .ts-f input.ts-time.ts-time-bad { border-color: var(--error, #dc2626); background: rgba(220, 38, 38, .06); }
   .ts-f input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .ts-brk input { text-align: center; }
   .ts-kit { align-items: flex-start; }
@@ -2029,6 +2034,69 @@
     if (sel.value !== tsGridWeek) renderTimesheetGrid();
   }
 
+  // Time boxes you can just type into ("9", "930", "5p", "17:30") or pick from the list, and nudge with the up/down keys.
+  function tsTimeInput(id, aria) {
+    return `<input type="text" class="ts-time" data-for="${id}" list="tsTimes" inputmode="text" autocomplete="off" placeholder="9:00 AM" aria-label="${aria}" /><input type="hidden" id="${id}" />`;
+  }
+  function tsParseTimeX(t) {
+    const m = /^\s*(\d{1,2})(?::?(\d{2}))?\s*([ap])?\.?m?\.?\s*$/i.exec(String(t || ""));
+    if (!m) return null;
+    const h = Number(m[1]), mi = Number(m[2] || 0);
+    if (h > 24 || mi > 59 || (h === 24 && mi)) return null;
+    return { h: h === 24 ? 0 : h, mi, suffix: m[3] ? m[3].toLowerCase() : "", explicit24: h > 12 || /^0\d/.test(m[1]) };
+  }
+  function tsTimeFrom(id, text) {
+    const p = tsParseTimeX(text);
+    if (!p) return "";
+    let h = p.h;
+    if (p.suffix) { if (p.suffix === "p" && h < 12) h += 12; else if (p.suffix === "a" && h === 12) h = 0; }
+    else if (!p.explicit24 && h >= 1 && h <= 11 && !/^tsCall|^tsQCall/.test(id)) {
+      // wrap and meal times typed without am/pm: assume the later one (after call)
+      const day = id.replace(/\D/g, ""), callEl = document.getElementById((id.startsWith("tsQ") ? "tsQCall" : "tsCall" + day));
+      const callMin = callEl && callEl.value ? toMinutes(callEl.value) : null;
+      const cand = h * 60 + p.mi;
+      if (callMin != null) { if (cand <= callMin) h += 12; } else if (h <= 6) h += 12;
+    }
+    return String(h).padStart(2, "0") + ":" + String(p.mi).padStart(2, "0");
+  }
+  function tsSyncTimes(root) {
+    (root || document).querySelectorAll(".ts-time").forEach((v) => {
+      if (document.activeElement === v) return;
+      const h = document.getElementById(v.dataset.for);
+      if (h && v.classList.contains("ts-time-bad") && !h.value) return;   // keep what they typed so they can fix it
+      if (h) { v.value = h.value ? fmtTime(h.value) : ""; v.classList.remove("ts-time-bad"); }
+    });
+  }
+  function tsWireTimes(grid) {
+    grid.querySelectorAll(".ts-time").forEach((v) => {
+      const h = document.getElementById(v.dataset.for);
+      const commit = () => {
+        const txt = v.value.trim();
+        if (!txt) { h.value = ""; v.classList.remove("ts-time-bad"); updateTimesheetTotals(); return; }
+        const t = tsTimeFrom(v.dataset.for, txt);
+        h.value = t; v.classList.toggle("ts-time-bad", !t);
+        if (t) v.value = fmtTime(t);
+        updateTimesheetTotals();
+      };
+      v.addEventListener("focus", () => { try { v.select(); } catch (_) {} });
+      v.addEventListener("change", commit);
+      v.addEventListener("blur", commit);
+      v.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); commit(); const all = [...grid.querySelectorAll(".ts-time")], k = all.indexOf(v); if (all[k + 1]) all[k + 1].focus(); }
+        else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+          e.preventDefault();
+          const cur = tsTimeFrom(v.dataset.for, v.value) || h.value || "";
+          let m = cur ? toMinutes(cur) : (v.dataset.for.includes("Wrap") ? 17 * 60 : 9 * 60);
+          m = (m + (e.key === "ArrowUp" ? 15 : -15) + 1440) % 1440;
+          m = Math.round(m / 15) * 15 % 1440;
+          h.value = String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+          v.value = fmtTime(h.value); v.classList.remove("ts-time-bad");
+          updateTimesheetTotals();
+        }
+      });
+    });
+  }
+
   function renderTimesheetGrid() {
     const sel = document.getElementById("tsPeriodSelect");
     const grid = document.getElementById("tsGrid");
@@ -2038,12 +2106,12 @@
     grid.classList.toggle("has-kit", myKitEnabled);
     tsMeals = tsTemplateMeals();
     const tf = (lab, inner) => `<label class="ts-f"><span>${lab}</span>${inner}</label>`;
-    let html = `<div class="ts-quick">
+    let html = `<datalist id="tsTimes">${Array.from({ length: 96 }, (_, k) => `<option value="${fmtTime(String(Math.floor(k / 4)).padStart(2, "0") + ":" + String((k % 4) * 15).padStart(2, "0"))}"></option>`).join("")}</datalist><div class="ts-quick">
       <div class="ts-quick-h"><b>Quick fill</b><span>Same hours most days? Enter them once and apply.</span></div>
       <div class="ts-quick-b">
-        ${tf("Call", `<input type="time" id="tsQCall" aria-label="Call time for quick fill" />`)}
-        ${tf("Wrap", `<input type="time" id="tsQWrap" aria-label="Wrap time for quick fill" />`)}
-        ${tsMeals.m1 ? tf("Meal out", `<input type="time" id="tsQM1o" aria-label="Meal out for quick fill" />`) + tf("Meal in", `<input type="time" id="tsQM1i" aria-label="Meal in for quick fill" />`) : tf("Break (min)", `<input type="number" id="tsQBrk" min="0" max="240" step="5" inputmode="numeric" placeholder="0" aria-label="Break minutes for quick fill" />`)}
+        ${tf("Call", `${tsTimeInput(`tsQCall`, `Call time for quick fill`)}`)}
+        ${tf("Wrap", `${tsTimeInput(`tsQWrap`, `Wrap time for quick fill`)}`)}
+        ${tsMeals.m1 ? tf("Meal out", `${tsTimeInput(`tsQM1o`, `Meal out for quick fill`)}`) + tf("Meal in", `${tsTimeInput(`tsQM1i`, `Meal in for quick fill`)}`) : tf("Break (min)", `<input type="number" id="tsQBrk" min="0" max="240" step="5" inputmode="numeric" placeholder="0" aria-label="Break minutes for quick fill" />`)}
         ${tf("Apply to", `<select id="tsQDays"><option value="weekdays">Mon – Fri</option><option value="all">Every day</option><option value="sunthu">Sun – Thu</option><option value="weekend">Sat &amp; Sun</option></select>`)}
         <button type="button" class="btn-secondary ts-quick-go" id="tsQGo">Fill days</button>
       </div>
@@ -2057,10 +2125,10 @@
           <select class="ts-copy" data-from="${i}" aria-label="Copy ${DAY_NAMES[i]} to other days"><option value="">Copy day…</option><option value="next">To next day</option><option value="weekdays">To Mon–Fri</option><option value="all">To every day</option></select>
         </div>
         <div class="ts-card-b">
-          ${tf("Call", `<input type="time" id="tsCall${i}" aria-label="Call time, ${DAY_NAMES[i]}" />`)}
-          ${tf("Wrap", `<input type="time" id="tsWrap${i}" aria-label="Wrap time, ${DAY_NAMES[i]}" />`)}
-          ${tsMeals.m1 ? tf("Meal out", `<input type="time" id="tsM1o${i}" aria-label="Meal out, ${DAY_NAMES[i]}" />`) + tf("Meal in", `<input type="time" id="tsM1i${i}" aria-label="Meal in, ${DAY_NAMES[i]}" />`) : ""}
-          ${tsMeals.m2 ? tf("2nd meal out", `<input type="time" id="tsM2o${i}" aria-label="Second meal out, ${DAY_NAMES[i]}" />`) + tf("2nd meal in", `<input type="time" id="tsM2i${i}" aria-label="Second meal in, ${DAY_NAMES[i]}" />`) : ""}
+          ${tf("Call", `${tsTimeInput(`tsCall${i}`, `Call time, ${DAY_NAMES[i]}`)}`)}
+          ${tf("Wrap", `${tsTimeInput(`tsWrap${i}`, `Wrap time, ${DAY_NAMES[i]}`)}`)}
+          ${tsMeals.m1 ? tf("Meal out", `${tsTimeInput(`tsM1o${i}`, `Meal out, ${DAY_NAMES[i]}`)}`) + tf("Meal in", `${tsTimeInput(`tsM1i${i}`, `Meal in, ${DAY_NAMES[i]}`)}`) : ""}
+          ${tsMeals.m2 ? tf("2nd meal out", `${tsTimeInput(`tsM2o${i}`, `Second meal out, ${DAY_NAMES[i]}`)}`) + tf("2nd meal in", `${tsTimeInput(`tsM2i${i}`, `Second meal in, ${DAY_NAMES[i]}`)}`) : ""}
           <label class="ts-f ts-brk"><span>${tsMeals.m1 ? "Break (auto)" : "Break (min)"}</span><input type="number" id="tsBrk${i}" min="0" max="240" step="5" inputmode="numeric" placeholder="0" aria-label="Unpaid break in minutes, ${DAY_NAMES[i]}" /></label>
           ${myKitEnabled ? `<label class="ts-f ts-kit"><span>Kit fee</span><input type="checkbox" id="tsKit${i}" aria-label="Kit fee, ${DAY_NAMES[i]}" /></label>` : ""}
         </div>
@@ -2077,6 +2145,7 @@
       inp.addEventListener("change", updateTimesheetTotals);
     });
     tsWireCopy(grid);
+    tsWireTimes(grid);
     updateTimesheetTotals();
   }
 
@@ -2129,10 +2198,10 @@
       updateTimesheetTotals();
     });
     // paste rows like "9:00 AM<tab>5:00 PM" (one line per day) starting at the box you paste into
-    grid.querySelectorAll('input[id^="tsCall"], input[id^="tsWrap"]').forEach((inp) => inp.addEventListener("paste", (e) => {
+    grid.querySelectorAll('.ts-time[data-for^="tsCall"], .ts-time[data-for^="tsWrap"]').forEach((inp) => inp.addEventListener("paste", (e) => {
       const text = (e.clipboardData || window.clipboardData).getData("text") || "";
       if (!/[\t\n]/.test(text.trim())) return;
-      const start = Number(inp.id.replace(/\D/g, "")), isWrap = inp.id.startsWith("tsWrap");
+      const start = Number(inp.dataset.for.replace(/\D/g, "")), isWrap = inp.dataset.for.startsWith("tsWrap");
       const rows = text.trim().split(/\r?\n/).map((r) => r.split("\t"));
       let filled = 0;
       rows.forEach((cols, r) => {
@@ -2180,6 +2249,7 @@
 
   function updateTimesheetTotals() {
     let total = 0, kitDays = 0;
+    tsSyncTimes(document.getElementById("tsGrid"));
     for (let i = 0; i < 7; i++) {
       const m = dayMinutes(i);
       const out = document.getElementById(`tsHrs${i}`);
@@ -6714,10 +6784,12 @@
         <div class="deal-card${needsSig ? " deal-new" : ""}">
           <div class="deal-kind">${template.type === "deal_memo" ? "Deal memo" : "Safety acknowledgment"}${needsSig ? `<span class="deal-flag"><span class="deal-bang">!</span>${updated ? "Updated, needs your signature" : "Needs your signature"}</span>` : ""}</div>
           <h4>${escHtml(template.name)}</h4>
-          ${isPdf ? `<div class="pdf-form" data-record-id="${record.id}"><p class="pdf-form-loading">Loading form…</p></div>` : ""}
+          ${isPdf && record.status !== "awaiting_signature"
+            ? `${signBoxHtml}<details class="deal-fold"><summary>${record.status === "countersigned" ? "View the executed memo" : "View the memo you signed"}</summary><div class="pdf-form" data-record-id="${record.id}"><p class="pdf-form-loading">Loading form…</p></div></details>`
+            : `${isPdf ? `<div class="pdf-form" data-record-id="${record.id}"><p class="pdf-form-loading">Loading form…</p></div>` : ""}
           ${pointsHtml}
           ${termsHtml}
-          ${signBoxHtml}
+          ${signBoxHtml}`}
         </div>`;
     }
 
