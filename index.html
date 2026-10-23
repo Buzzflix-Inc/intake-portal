@@ -874,6 +874,23 @@
   .ts-pop-i.on.cur::after { opacity: 1; }
   .sel-pop .ts-pop-i { white-space: normal; }
   select.sel-open { border-color: var(--link); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .inv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px 14px; margin: 10px 0; }
+  .inv-grid .inv-wide { grid-column: 1 / -1; }
+  .inv-lines { margin: 14px 0; }
+  .inv-lh, .inv-line { display: grid; grid-template-columns: minmax(0, 1fr) 70px 90px 90px 28px; gap: 8px; align-items: center; }
+  .inv-lh { font-size: 11.5px; color: var(--ink-faint); font-weight: 600; padding: 0 2px 4px; text-transform: uppercase; letter-spacing: .04em; }
+  .inv-line { margin-bottom: 8px; }
+  .inv-line input { margin: 0; min-width: 0; }
+  .inv-amt { text-align: right; font-variant-numeric: tabular-nums; font-size: 13.5px; }
+  .inv-totals { margin: 12px 0 16px; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; font-variant-numeric: tabular-nums; }
+  .inv-totals div { display: flex; gap: 24px; justify-content: space-between; min-width: 220px; font-size: 13.5px; }
+  .inv-totals .inv-grand { font-size: 16px; border-top: 1px solid var(--line); padding-top: 6px; }
+  @media (max-width: 560px) {
+    .inv-lh { display: none; }
+    .inv-line { grid-template-columns: 1fr 1fr 1fr 28px; padding-bottom: 8px; border-bottom: 1px dashed var(--line); }
+    .inv-line input[data-k="desc"] { grid-column: 1 / -1; }
+    .inv-line .inv-amt { grid-column: 3; }
+  }
   /* ---- Smooth scrolling & controls ---- */
   html { scroll-behavior: smooth; scrollbar-gutter: stable; -webkit-text-size-adjust: 100%; }
   body { -webkit-tap-highlight-color: transparent; text-rendering: optimizeLegibility; }
@@ -982,7 +999,16 @@
         <div id="myDealsBody"><p class="empty">Nothing to sign right now.</p></div>
       </section>
 
-      <section class="panel ts-panel">
+      <section class="panel ts-panel hidden" id="invoicePanel">
+        <h2>Invoices</h2>
+        <p class="desc">Create an invoice for your work. It is sent for approval as a PDF.</p>
+        <div id="invForm"></div>
+        <div id="invoicesMsg"></div>
+        <h3 style="margin:18px 0 6px;font-size:14px;">Submitted invoices</h3>
+        <ul class="file-list" id="invoicesList"></ul>
+      </section>
+
+      <section class="panel ts-panel" id="tsPanel">
         <h2>Timesheets</h2>
         <p class="desc">Pick a pay period (Sunday to Saturday) and enter your call and wrap time for each day you worked. Leave days off blank.</p>
         <label for="tsPeriodSelect">Pay period</label>
@@ -1193,12 +1219,16 @@
             <select id="inviteSafetySelect"><option value="">None</option></select>
           </div>
           <div>
+            <label for="inviteTypeSelect">Worker type</label>
+            <select id="inviteTypeSelect"><option value="">Employee (timesheets)</option><option value="contractor">Solo contractor (invoices)</option></select>
+          </div>
+          <div id="inviteTsWrap">
             <label for="inviteTimesheetSelect">Timesheet form</label>
             <select id="inviteTimesheetSelect"><option value="">Standard portal timesheet</option></select>
           </div>
         </div>
 
-        <div class="kit-toggle-row">
+        <div class="kit-toggle-row" id="inviteKitRow">
           <label class="checkbox-label" for="inviteKitToggle">
             <input type="checkbox" id="inviteKitToggle" />
             Crew member supplies own kit
@@ -1856,6 +1886,12 @@
   }
 
   // ---- Employee listing (own records only) ----
+  const CONTRACTOR_TAG = "__contractor__";
+  const realDocs = (arr) => (arr || []).filter((d) => d !== CONTRACTOR_TAG);
+  const isContractorInv = (inv) => !!(inv && (inv.requested_documents || []).includes(CONTRACTOR_TAG));
+  const invoiceOf = (row) => (row && row.entries && !Array.isArray(row.entries) && row.entries.invoice) || null;
+  const money = (n) => "$" + Number(n || 0).toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  let myIsContractor = false;
   let myRequestedDocs = [];
   let myFullName = null;
   let myDepartment = null;
@@ -1876,7 +1912,9 @@
       .limit(1)
       .maybeSingle();
     myInvite = data || null; myEmail = user.email;
-    myRequestedDocs = (data && data.requested_documents) || [];
+    myRequestedDocs = realDocs(data && data.requested_documents);
+    myIsContractor = isContractorInv(data);
+    applyWorkerType();
     myFullName = (data && data.full_name) || null;
     { const w = document.getElementById("whoAmI"); const md = user.user_metadata || {}; const nm = myFullName || md.full_name || md.name || user.email; if (w) { w.textContent = nm; w.title = user.email; } }
     myDepartment = (data && data.department) || null;
@@ -1927,7 +1965,7 @@
   }
 
   async function loadList(bucket, table, showDownload) {
-    const listEl = document.getElementById(`${bucket}List`);
+    const listEl = document.getElementById(bucket === "timesheets" && myIsContractor ? "invoicesList" : `${bucket}List`);
     const emptyEl = document.getElementById(`${bucket}Empty`);
     listEl.innerHTML = "";
 
@@ -1967,7 +2005,10 @@
 
       const left = document.createElement("span");
       left.className = "info";
-      left.innerHTML = row.doc_type
+      const invo = invoiceOf(row);
+      left.innerHTML = invo
+        ? `<span class="name">Invoice ${escHtml(invo.number)}</span><span class="email">${money(invo.total)} · ${escHtml(invo.date)}</span>`
+        : row.doc_type
         ? `<span class="name">${row.doc_type}</span><span class="email">${name}</span>`
         : row.week_start
           ? `<span class="name">Week of ${periodLabel(row.week_start)}</span><span class="email">${Number(row.total_hours || 0).toFixed(2)} hrs${Number(row.kit_days) > 0 ? ` · kit $${Number(row.kit_total || 0).toFixed(2)}` : ""} · ${name}</span>`
@@ -1995,7 +2036,7 @@
           removeBtn.textContent = "Remove";
           removeBtn.addEventListener("click", () => {
             if (bucket === "timesheets" && row.status === "pending" &&
-                !window.confirm("Remove this timesheet? Your supervisor will no longer see it, and you can submit the week again.")) return;
+                !window.confirm(invoiceOf(row) ? "Remove this invoice? Your supervisor will no longer see it." : "Remove this timesheet? Your supervisor will no longer see it, and you can submit the week again.")) return;
             deleteSubmission(bucket, table, row.id, row.file_path);
           });
           right.appendChild(removeBtn);
@@ -2763,6 +2804,139 @@
     }
   });
 
+
+  // ---- Solo contractor invoices (replaces the timesheet module) ----
+  let invLines = [];
+  function applyWorkerType() {
+    const p = document.getElementById("invoicePanel"), t = document.getElementById("tsPanel");
+    if (!p || !t) return;
+    p.classList.toggle("hidden", !myIsContractor);
+    t.classList.toggle("hidden", myIsContractor);
+    if (myIsContractor) { renderInvoiceForm(); if (!applyWorkerType.done) { applyWorkerType.done = true; loadList("timesheets", "timesheets", true); } }
+  }
+  function invCalc() {
+    const sub = invLines.reduce((a, l) => a + (Number(l.qty) || 0) * (Number(l.rate) || 0), 0);
+    const taxPct = Number((document.getElementById("invTax") || {}).value) || 0;
+    const tax = Math.round(sub * taxPct) / 100;
+    return { sub: Math.round(sub * 100) / 100, taxPct, tax, total: Math.round((sub + tax) * 100) / 100 };
+  }
+  function invUpdateTotals() {
+    const c = invCalc(), el = document.getElementById("invTotals"); if (!el) return;
+    el.innerHTML = `<div><span>Subtotal</span><strong>${money(c.sub)}</strong></div>${c.taxPct ? `<div><span>Tax (${c.taxPct}%)</span><strong>${money(c.tax)}</strong></div>` : ""}<div class="inv-grand"><span>Total due</span><strong>${money(c.total)}</strong></div>`;
+    invLines.forEach((l, i) => { const a = document.getElementById("invAmt" + i); if (a) a.textContent = money((Number(l.qty) || 0) * (Number(l.rate) || 0)); });
+  }
+  function renderInvoiceForm() {
+    const box = document.getElementById("invForm"); if (!box) return;
+    const keep = (id) => { const e = document.getElementById(id); return e ? e.value : null; };
+    const v = { num: keep("invNum"), date: keep("invDate"), period: keep("invPeriod"), tax: keep("invTax"), taxno: keep("invTaxNo"), notes: keep("invNotes") };
+    if (!invLines.length) invLines = [{ desc: "", qty: 1, rate: "" }];
+    const next = "INV-" + String(myTimesheetRows.filter((r) => invoiceOf(r)).length + 1).padStart(3, "0");
+    box.innerHTML = `
+      <div class="inv-grid">
+        <div><label for="invNum">Invoice #</label><input type="text" id="invNum" value="${escHtml(v.num != null ? v.num : next)}" /></div>
+        <div><label for="invDate">Invoice date</label><input type="date" id="invDate" value="${escHtml(v.date || ymd(new Date()))}" /></div>
+        <div class="inv-wide"><label for="invPeriod">Work period / project</label><input type="text" id="invPeriod" placeholder="e.g. Oct 6 – Oct 17, 2026 · Episode 3" value="${escHtml(v.period || "")}" /></div>
+      </div>
+      <div class="inv-lines">
+        <div class="inv-lh"><span>Description</span><span>Qty</span><span>Rate</span><span>Amount</span><span></span></div>
+        ${invLines.map((l, i) => `<div class="inv-line">
+          <input type="text" data-i="${i}" data-k="desc" placeholder="Services rendered" value="${escHtml(l.desc)}" aria-label="Description" />
+          <input type="number" data-i="${i}" data-k="qty" min="0" step="0.25" inputmode="decimal" value="${escHtml(l.qty)}" aria-label="Quantity" />
+          <input type="number" data-i="${i}" data-k="rate" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value="${escHtml(l.rate)}" aria-label="Rate" />
+          <span class="inv-amt" id="invAmt${i}">$0.00</span>
+          <button type="button" class="remove-link" data-del="${i}" ${invLines.length < 2 ? "disabled" : ""} aria-label="Remove line">✕</button>
+        </div>`).join("")}
+        <button type="button" class="btn-secondary" id="invAddLine" style="width:auto;margin-top:8px;">+ Add line</button>
+      </div>
+      <div class="inv-grid">
+        <div><label for="invTax">Tax % (GST/HST, optional)</label><input type="number" id="invTax" min="0" max="30" step="0.01" inputmode="decimal" placeholder="0" value="${escHtml(v.tax || "")}" /></div>
+        <div><label for="invTaxNo">Tax registration # (optional)</label><input type="text" id="invTaxNo" value="${escHtml(v.taxno || "")}" /></div>
+        <div class="inv-wide"><label for="invNotes">Notes / payment details (optional)</label><textarea id="invNotes" rows="2" placeholder="e.g. e-Transfer to … / payment terms">${escHtml(v.notes || "")}</textarea></div>
+      </div>
+      <div class="inv-totals" id="invTotals"></div>
+      <button class="btn-primary" id="invSubmitBtn" type="button">Submit invoice</button>`;
+    box.querySelectorAll(".inv-line input").forEach((inp) => inp.addEventListener("input", () => { invLines[Number(inp.dataset.i)][inp.dataset.k] = inp.value; invUpdateTotals(); }));
+    box.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => { invLines.splice(Number(b.dataset.del), 1); renderInvoiceForm(); }));
+    document.getElementById("invAddLine").addEventListener("click", () => { invLines.push({ desc: "", qty: 1, rate: "" }); renderInvoiceForm(); });
+    document.getElementById("invTax").addEventListener("input", invUpdateTotals);
+    document.getElementById("invSubmitBtn").addEventListener("click", submitInvoice);
+    invUpdateTotals();
+  }
+  async function buildInvoicePdf(inv) {
+    const JsPDF = await ensureJsPdf();
+    const doc = new JsPDF({ unit: "pt", format: "letter" });
+    const L = 54, R = 558;
+    let y = 66;
+    doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(25); doc.text("INVOICE", L, y);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(90);
+    doc.text(`Invoice #: ${inv.number}`, R, y - 10, { align: "right" });
+    doc.text(`Date: ${inv.date}`, R, y + 4, { align: "right" });
+    y += 36;
+    doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(120);
+    doc.text("FROM", L, y); doc.text("BILL TO", 320, y);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(25);
+    let yy = y + 16;
+    [inv.name, inv.email, inv.taxNo ? `Tax reg. #: ${inv.taxNo}` : ""].filter(Boolean).forEach((t) => { doc.text(String(t), L, yy); yy += 14; });
+    doc.text(inv.company || "", 320, y + 16);
+    y = Math.max(yy, y + 32) + 12;
+    if (inv.period) { doc.setFontSize(10); doc.setTextColor(90); doc.text(`Work period / project: ${inv.period}`, L, y); y += 18; }
+    doc.setDrawColor(200); doc.line(L, y, R, y); y += 16;
+    doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(120);
+    doc.text("DESCRIPTION", L, y); doc.text("QTY", 380, y, { align: "right" }); doc.text("RATE", 460, y, { align: "right" }); doc.text("AMOUNT", R, y, { align: "right" });
+    y += 8; doc.line(L, y, R, y); y += 16;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(25);
+    for (const l of inv.lines) {
+      const wrapped = doc.splitTextToSize(l.desc || "-", 290);
+      if (y + wrapped.length * 14 > 700) { doc.addPage(); y = 66; }
+      doc.text(wrapped, L, y);
+      doc.text(String(l.qty), 380, y, { align: "right" });
+      doc.text(money(l.rate), 460, y, { align: "right" });
+      doc.text(money(l.amount), R, y, { align: "right" });
+      y += wrapped.length * 14 + 6;
+    }
+    y += 4; doc.line(320, y, R, y); y += 18;
+    const row = (k, val, bold) => { doc.setFont("helvetica", bold ? "bold" : "normal"); doc.setFontSize(bold ? 13 : 11); doc.text(k, 330, y); doc.text(val, R, y, { align: "right" }); y += bold ? 20 : 16; };
+    row("Subtotal", money(inv.subtotal));
+    if (inv.taxPct) row(`Tax (${inv.taxPct}%)`, money(inv.tax));
+    row("Total due", money(inv.total), true);
+    if (inv.notes) {
+      y += 12; doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(120); doc.text("NOTES / PAYMENT DETAILS", L, y); y += 14;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(25); doc.text(doc.splitTextToSize(inv.notes, R - L), L, y);
+    }
+    return doc.output("blob");
+  }
+  async function submitInvoice() {
+    const msgEl = document.getElementById("invoicesMsg"), btn = document.getElementById("invSubmitBtn");
+    const number = document.getElementById("invNum").value.trim(), date = document.getElementById("invDate").value;
+    const lines = invLines.filter((l) => (l.desc || "").trim() || Number(l.rate)).map((l) => ({ desc: (l.desc || "").trim(), qty: Number(l.qty) || 0, rate: Number(l.rate) || 0, amount: Math.round((Number(l.qty) || 0) * (Number(l.rate) || 0) * 100) / 100 }));
+    if (!number || !date) { msgEl.innerHTML = `<div class="msg error">Add an invoice number and date.</div>`; return; }
+    if (!lines.length || lines.some((l) => !l.desc || l.qty <= 0 || l.rate <= 0)) { msgEl.innerHTML = `<div class="msg error">Every line needs a description, a quantity and a rate.</div>`; return; }
+    if (myTimesheetRows.some((r) => invoiceOf(r) && invoiceOf(r).number === number && r.status !== "rejected")) { msgEl.innerHTML = `<div class="msg error">You've already submitted invoice ${escHtml(number)}.</div>`; return; }
+    const c = invCalc();
+    btn.disabled = true; msgEl.innerHTML = `<div class="msg">Creating your invoice…</div>`;
+    let path = null;
+    try {
+      const { data: { user } } = await client.auth.getUser();
+      if (!user) throw new Error("You're signed out. Sign in again and retry.");
+      const inv = { number, date, period: document.getElementById("invPeriod").value.trim(), lines, subtotal: c.sub, taxPct: c.taxPct, tax: c.tax, total: c.total,
+        taxNo: document.getElementById("invTaxNo").value.trim(), notes: document.getElementById("invNotes").value.trim(),
+        name: myFullName || user.email, email: user.email, company: (currentCompany && currentCompany.name) || "" };
+      const pdf = await buildInvoicePdf(inv);
+      path = `${user.id}/${Date.now()}-Invoice-${number.replace(/[^\w.-]+/g, "_")}.pdf`;
+      const { error: upErr } = await client.storage.from("timesheets").upload(path, pdf, { contentType: "application/pdf" });
+      if (upErr) throw upErr;
+      const { error: insErr } = await client.from("timesheets").insert({ user_id: user.id, status: "pending", file_path: path, entries: { invoice: inv } });
+      if (insErr) { await client.storage.from("timesheets").remove([path]); throw insErr; }
+      msgEl.innerHTML = `<div class="msg ok">Invoice ${escHtml(number)} submitted (${money(c.total)}).</div>`;
+      invLines = [];
+      ["invNum", "invPeriod", "invNotes"].forEach((id) => { const e = document.getElementById(id); if (e) e.value = ""; });
+      await loadList("timesheets", "timesheets", true);
+      renderInvoiceForm();
+    } catch (err) {
+      msgEl.innerHTML = `<div class="msg error">Couldn't submit: ${escHtml((err && err.message) || String(err))}</div>`;
+    } finally { btn.disabled = false; }
+  }
+
   // ---- Admin: department heads ----
   let deptHeadRows = [];
 
@@ -2887,7 +3061,7 @@
       const who = row.employee_name || row.employee_email || row.user_id;
       const fileName = row.file_path.split("/").pop();
 
-      const detailRows = (row.entries || []).map((en) =>
+      const detailRows = (Array.isArray(row.entries) ? row.entries : []).map((en) =>
         `<tr><td>${escHtml(en.day)}</td><td>${escHtml(en.date)}</td><td>${fmtTime(en.call)}</td><td>${fmtTime(en.wrap)}</td><td>${en.break_minutes ? en.break_minutes + " min" : "-"}</td><td>${fmtHours(en.minutes)}${en.kit ? " (kit)" : ""}</td></tr>`
       ).join("");
       const kitBit = Number(row.kit_days) > 0 ? ` · kit ${row.kit_days} day${row.kit_days === 1 ? "" : "s"} ($${Number(row.kit_total || 0).toFixed(2)})` : "";
@@ -2896,7 +3070,7 @@
       left.className = "info";
       left.innerHTML = `
         <span class="name">${escHtml(who)}</span>
-        <span class="email">${row.week_start ? periodLabel(row.week_start) : escHtml(fileName)} · ${Number(row.total_hours || 0).toFixed(2)} hrs${kitBit} · ${escHtml(row.department)}</span>
+        <span class="email">${invoiceOf(row) ? `Invoice ${escHtml(invoiceOf(row).number)} · ${money(invoiceOf(row).total)} · ${escHtml(invoiceOf(row).date)}` : `${row.week_start ? periodLabel(row.week_start) : escHtml(fileName)} · ${Number(row.total_hours || 0).toFixed(2)} hrs${kitBit}`} · ${escHtml(row.department)}</span>
         ${detailRows ? `<details class="dept-details"><summary>View daily hours</summary><div class="tbl-wrap"><table><thead><tr><th>Day</th><th>Date</th><th>Call</th><th>Wrap</th><th>Break</th><th>Hrs</th></tr></thead><tbody>${detailRows}</tbody></table></div></details>` : ""}`;
 
       const right = document.createElement("span");
@@ -3067,12 +3241,12 @@
 
     const [{ data: docs }, { data: sheets }, { data: stubs }, { data: deals }] = await Promise.all([
       client.from("documents").select("id, status, file_path, created_at, doc_type").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
-      client.from("timesheets").select("id, status, file_path, created_at, week_start, total_hours").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
+      client.from("timesheets").select("id, status, file_path, created_at, week_start, total_hours, entries").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
       client.from("paystubs").select("id, file_path, created_at").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
       client.from("esign_records").select("id, type, status, template_id, employee_signature, employee_signed_at, final_pdf_path").eq("user_id", profile.user_id),
     ]);
 
-    const requested = (invite && invite.requested_documents) || [];
+    const requested = realDocs(invite && invite.requested_documents);
     const submittedTypes = new Set((docs || []).filter((d) => d.status !== "rejected" && d.doc_type).map((d) => d.doc_type));
 
     const checklistHtml = requested.length
@@ -3086,7 +3260,7 @@
     (sheets || []).forEach((s) => { if (sheetCounts[s.status] != null) sheetCounts[s.status]++; });
 
     const sheetsHtml = (sheets || []).length
-      ? `<ul class="file-list">${sheets.map((s) => `<li><span class="info"><span class="name">${s.week_start ? "Week of " + periodLabel(s.week_start) : s.file_path.split("/").pop()}</span><span class="email">${s.week_start ? Number(s.total_hours || 0).toFixed(2) + " hrs · " : ""}${new Date(s.created_at).toLocaleDateString()}</span></span><span class="status-badge status-${s.status}">${s.status}</span></li>`).join("")}</ul>`
+      ? `<ul class="file-list">${sheets.map((s) => `<li><span class="info"><span class="name">${invoiceOf(s) ? "Invoice " + escHtml(invoiceOf(s).number) : s.week_start ? "Week of " + periodLabel(s.week_start) : s.file_path.split("/").pop()}</span><span class="email">${invoiceOf(s) ? money(invoiceOf(s).total) + " · " : s.week_start ? Number(s.total_hours || 0).toFixed(2) + " hrs · " : ""}${new Date(s.created_at).toLocaleDateString()}</span></span><span class="status-badge status-${s.status}">${s.status}</span></li>`).join("")}</ul>`
       : `<p class="empty" style="padding:0;text-align:left;">No timesheets submitted yet.</p>`;
 
     const stubsHtml = (stubs || []).length
@@ -3251,14 +3425,15 @@
         ? deptHeadRows.filter((h) => h.department === row.department)
         : [];
       let deptBit = "";
-      if (bucket === "timesheets" && row.week_start) {
+      if (bucket === "timesheets" && (row.week_start || invoiceOf(row))) {
         const deptLabel = escHtml(row.department || "No department");
         deptBit = deptHeads.length
           ? `<span class="status-badge status-${row.dept_status}">${deptLabel} head: ${row.dept_status}</span>`
           : `<span class="chain-badge">${deptLabel}: no head assigned</span>`;
       }
-      const title = bucket === "timesheets" && row.week_start ? `Week of ${periodLabel(row.week_start)}` : name;
-      const hoursBit = bucket === "timesheets" && row.total_hours != null
+      const invR = bucket === "timesheets" ? invoiceOf(row) : null;
+      const title = invR ? `Invoice ${escHtml(invR.number)}` : bucket === "timesheets" && row.week_start ? `Week of ${periodLabel(row.week_start)}` : name;
+      const hoursBit = invR ? ` · ${money(invR.total)} · ${escHtml(invR.date)}` : bucket === "timesheets" && row.total_hours != null
         ? ` · ${Number(row.total_hours).toFixed(2)} hrs${Number(row.kit_days) > 0 ? ` · kit $${Number(row.kit_total || 0).toFixed(2)} (${row.kit_days} day${row.kit_days === 1 ? "" : "s"})` : ""}`
         : "";
 
@@ -3845,6 +4020,13 @@
     }
   }
 
+  function syncInviteType() {
+    const c = document.getElementById("inviteTypeSelect").value === "contractor";
+    document.getElementById("inviteTsWrap").classList.toggle("hidden", c);
+    document.getElementById("inviteKitRow").classList.toggle("hidden", c);
+  }
+  document.getElementById("inviteTypeSelect").addEventListener("change", syncInviteType);
+
   document.getElementById("sendInviteBtn").addEventListener("click", async () => {
     const msgEl = document.getElementById("inviteMsg");
     const full_name = document.getElementById("inviteNameInput").value.trim();
@@ -3855,7 +4037,7 @@
     const crew_role = document.getElementById("inviteCrewRoleSelect").value;
     const start_date = document.getElementById("inviteStartInput").value;
     const end_date = document.getElementById("inviteEndInput").value;
-    const kit_fee_enabled = document.getElementById("inviteKitToggle").checked;
+    const kit_fee_enabled = document.getElementById("inviteKitToggle").checked && document.getElementById("inviteTypeSelect").value !== "contractor";
     const kit_fee_rate = kit_fee_enabled ? Number(document.getElementById("inviteKitRateInput").value || 0) : null;
     const deal_memo_template_id = document.getElementById("inviteDealMemoSelect").value || null;
     const safety_template_id = document.getElementById("inviteSafetySelect").value || null;
@@ -3866,6 +4048,8 @@
     const otherDocs = document.getElementById("inviteDocsOtherInput").value
       .split(",").map((s) => s.trim()).filter(Boolean);
     const requested_documents = [...checkedDocs, ...otherDocs];
+    const isContractorInvite = document.getElementById("inviteTypeSelect").value === "contractor";
+    if (isContractorInvite) requested_documents.unshift(CONTRACTOR_TAG);
 
     if (!full_name || !email || !phone || !department || !crew_role || !start_date || !end_date) {
       msgEl.innerHTML = `<div class="msg error">Fill in every field before sending this invite.</div>`;
@@ -3884,7 +4068,7 @@
     };
 
     const tsSel = document.getElementById("inviteTimesheetSelect");
-    if (tsSel && (tsSel.value || allTsTemplates.length)) invitePayload.timesheet_template_id = tsSel.value || null;
+    if (tsSel && (tsSel.value || allTsTemplates.length)) invitePayload.timesheet_template_id = isContractorInvite ? null : (tsSel.value || null);
 
     const { data: inserted, error } = await client
       .from("company_invites")
@@ -3908,6 +4092,7 @@
       .forEach((id) => { document.getElementById(id).value = ""; });
     inviteKitToggle.checked = false;
     inviteKitRateWrap.classList.add("hidden");
+    document.getElementById("inviteTypeSelect").value = ""; syncInviteType();
     document.querySelectorAll("#docRequestGrid input[type=checkbox]:checked")
       .forEach((cb) => { cb.checked = false; });
 
@@ -3943,7 +4128,7 @@
         : "";
       const subtitle = `${row.crew_role || row.role}${row.department ? " (" + row.department + ")" : ""}${dates} · ${row.used ? "joined" : "pending"}${kitBit}`;
       const docsBit = (row.requested_documents && row.requested_documents.length)
-        ? `<span style="display:block;margin-top:4px;">${row.requested_documents.map((d) => `<span class="doc-tag">${d}</span>`).join("")}</span>`
+        ? `<span style="display:block;margin-top:4px;">${row.requested_documents.map((d) => `<span class="doc-tag">${d === CONTRACTOR_TAG ? "Solo contractor (invoices)" : d}</span>`).join("")}</span>`
         : "";
 
       left.innerHTML = `<span class="name">${row.full_name || row.email}</span><span class="email">${row.email}${row.phone ? " · " + row.phone : ""}</span><span class="email">${subtitle}</span>${docsBit}`;
@@ -4008,8 +4193,8 @@
 
   async function copyInviteMessage(row, btn) {
     const kitLine = row.kit_fee_enabled ? `Kit fee: $${Number(row.kit_fee_rate || 0).toFixed(2)}/day\n` : "";
-    const docsLine = (row.requested_documents && row.requested_documents.length)
-      ? `\nPlease upload the following before you start:\n` + row.requested_documents.map((d) => `- ${d}`).join("\n") + `\n`
+    const docsLine = (realDocs(row.requested_documents).length)
+      ? `\nPlease upload the following before you start:\n` + realDocs(row.requested_documents).map((d) => `- ${d}`).join("\n") + `\n`
       : "";
     const message =
       `Hi ${row.full_name || ""},\n\n` +
