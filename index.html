@@ -862,6 +862,11 @@
     .btn-secondary { width: 100%; }
   }
 
+
+  .ts-pop { position: fixed; z-index: 2000; display: none; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 28px rgba(0,0,0,.18); padding: 4px; font-variant-numeric: tabular-nums; scrollbar-width: thin; animation: accIn .12s ease-out; contain: content; }
+  .ts-pop-i { padding: 8px 12px; border-radius: 7px; font-size: 14px; cursor: pointer; white-space: nowrap; }
+  .ts-pop-i:hover { background: var(--accent-soft); }
+  .ts-pop-i.on { background: var(--link); color: #fff; }
   /* ---- Smooth scrolling & controls ---- */
   html { scroll-behavior: smooth; scrollbar-gutter: stable; -webkit-text-size-adjust: 100%; }
   body { -webkit-tap-highlight-color: transparent; text-rendering: optimizeLegibility; }
@@ -2079,7 +2084,7 @@
 
   // Time boxes you can just type into ("9", "930", "5p", "17:30") or pick from the list, and nudge with the up/down keys.
   function tsTimeInput(id, aria) {
-    return `<input type="text" class="ts-time" data-for="${id}" list="tsTimes" inputmode="text" autocomplete="off" placeholder="9:00 AM" aria-label="${aria}" /><input type="hidden" id="${id}" />`;
+    return `<input type="text" class="ts-time" data-for="${id}" inputmode="text" autocomplete="off" placeholder="9:00 AM" aria-label="${aria}" /><input type="hidden" id="${id}" />`;
   }
   function tsParseTimeX(t) {
     const m = /^\s*(\d{1,2})(?::?(\d{2}))?\s*([ap])?\.?m?\.?\s*$/i.exec(String(t || ""));
@@ -2110,6 +2115,55 @@
       if (h) { v.value = h.value ? fmtTime(h.value) : ""; v.classList.remove("ts-time-bad"); }
     });
   }
+  // One shared, lightweight time picker (replaces the slow native list)
+  const tsPick = { el: null, input: null, items: [], active: -1 };
+  function tsPickBuild() {
+    if (tsPick.el) return;
+    const el = document.createElement("div");
+    el.className = "ts-pop"; el.setAttribute("role", "listbox");
+    el.innerHTML = Array.from({ length: 96 }, (_, k) => { const m = k * 15; const v = String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); return `<div class="ts-pop-i" role="option" data-v="${v}" data-m="${m}">${fmtTime(v)}</div>`; }).join("");
+    el.addEventListener("mousedown", (e) => e.preventDefault());
+    el.addEventListener("click", (e) => { const it = e.target.closest(".ts-pop-i"); if (it && tsPick.input) tsPickChoose(it.dataset.v); });
+    document.body.appendChild(el);
+    tsPick.el = el; tsPick.items = [...el.children];
+  }
+  function tsPickSet(idx, center) {
+    const it = tsPick.items;
+    if (tsPick.active >= 0 && it[tsPick.active]) it[tsPick.active].classList.remove("on");
+    tsPick.active = Math.max(0, Math.min(it.length - 1, idx));
+    const t = it[tsPick.active]; t.classList.add("on");
+    const box = tsPick.el;
+    if (center) box.scrollTop = t.offsetTop - box.clientHeight / 2 + t.offsetHeight / 2;
+    else if (t.offsetTop < box.scrollTop) box.scrollTop = t.offsetTop;
+    else if (t.offsetTop + t.offsetHeight > box.scrollTop + box.clientHeight) box.scrollTop = t.offsetTop + t.offsetHeight - box.clientHeight;
+  }
+  function tsPickOpen(v) {
+    tsPickBuild();
+    tsPick.input = v; tsPick.t = Date.now();
+    const h = document.getElementById(v.dataset.for);
+    const cur = tsTimeFrom(v.dataset.for, v.value) || (h && h.value) || "";
+    const isCall = /^tsCall|^tsQCall/.test(v.dataset.for);
+    const m = cur ? toMinutes(cur) : (isCall ? 7 * 60 : /Wrap/i.test(v.dataset.for) ? 17 * 60 : 12 * 60);
+    const r = v.getBoundingClientRect(), box = tsPick.el;
+    box.style.display = "block"; box.style.minWidth = Math.max(r.width, 110) + "px";
+    const hh = Math.min(240, box.scrollHeight);
+    const below = window.innerHeight - r.bottom, up = below < hh + 12 && r.top > below;
+    box.style.maxHeight = Math.max(120, Math.min(240, (up ? r.top : below) - 12)) + "px";
+    box.style.left = Math.min(r.left, window.innerWidth - box.offsetWidth - 8) + "px";
+    box.style.top = up ? Math.max(8, r.top - box.offsetHeight - 4) + "px" : r.bottom + 4 + "px";
+    tsPickSet(Math.round(m / 15) % 96, true);
+  }
+  function tsPickClose() { if (tsPick.el) tsPick.el.style.display = "none"; tsPick.input = null; }
+  function tsPickChoose(val) {
+    const v = tsPick.input; if (!v) return;
+    v.value = fmtTime(val); v.classList.remove("ts-time-bad");
+    v.dispatchEvent(new Event("change"));
+    tsPickClose();
+    const all = [...v.closest("#timesheetGrid, .ts-grid, body").querySelectorAll(".ts-time")], k = all.indexOf(v);
+    if (all[k + 1]) all[k + 1].focus();
+  }
+  window.addEventListener("resize", () => tsPickClose());
+  document.addEventListener("scroll", (e) => { if (tsPick.el && e.target !== tsPick.el && Date.now() - tsPick.t > 400) tsPickClose(); }, true);
   function tsWireTimes(grid) {
     grid.querySelectorAll(".ts-time").forEach((v) => {
       const h = document.getElementById(v.dataset.for);
@@ -2121,19 +2175,28 @@
         if (t) v.value = fmtTime(t);
         updateTimesheetTotals();
       };
-      v.addEventListener("focus", () => { try { v.select(); } catch (_) {} });
+      v.addEventListener("focus", () => { try { v.select(); } catch (_) {} tsPickOpen(v); });
+      v.addEventListener("click", () => { if (tsPick.input !== v) tsPickOpen(v); });
+      v.addEventListener("input", () => {
+        const p = tsParseTimeX(v.value); if (!p || tsPick.input !== v) return;
+        let hh = p.h; if (p.suffix === "p" && hh < 12) hh += 12; else if (p.suffix === "a" && hh === 12) hh = 0; else if (!p.suffix && hh >= 1 && hh <= 6) hh += 12;
+        tsPickSet(Math.round((hh * 60 + p.mi) / 15) % 96, true);
+      });
       v.addEventListener("change", commit);
-      v.addEventListener("blur", commit);
+      v.addEventListener("blur", () => { tsPickClose(); commit(); });
       v.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") { e.preventDefault(); commit(); const all = [...grid.querySelectorAll(".ts-time")], k = all.indexOf(v); if (all[k + 1]) all[k + 1].focus(); }
-        else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        if (e.key === "Escape") { tsPickClose(); return; }
+        if (e.key === "Tab") { tsPickClose(); return; }
+        if (e.key === "Enter") {
           e.preventDefault();
-          const cur = tsTimeFrom(v.dataset.for, v.value) || h.value || "";
-          let m = cur ? toMinutes(cur) : (v.dataset.for.includes("Wrap") ? 17 * 60 : 9 * 60);
-          m = (m + (e.key === "ArrowUp" ? 15 : -15) + 1440) % 1440;
-          m = Math.round(m / 15) * 15 % 1440;
-          h.value = String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
-          v.value = fmtTime(h.value); v.classList.remove("ts-time-bad");
+          if (tsPick.input === v && tsPick.active >= 0 && tsPick.el.style.display === "block" && v.value.trim() === "") { tsPickChoose(tsPick.items[tsPick.active].dataset.v); return; }
+          commit(); tsPickClose(); const all = [...grid.querySelectorAll(".ts-time")], k = all.indexOf(v); if (all[k + 1]) all[k + 1].focus();
+        } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+          e.preventDefault();
+          if (tsPick.input !== v) tsPickOpen(v);
+          tsPickSet(tsPick.active + (e.key === "ArrowUp" ? -1 : 1), false);
+          const it = tsPick.items[tsPick.active];
+          v.value = fmtTime(it.dataset.v); h.value = it.dataset.v; v.classList.remove("ts-time-bad");
           updateTimesheetTotals();
         }
       });
@@ -2149,7 +2212,7 @@
     grid.classList.toggle("has-kit", myKitEnabled);
     tsMeals = tsTemplateMeals();
     const tf = (lab, inner) => `<label class="ts-f"><span>${lab}</span>${inner}</label>`;
-    let html = `<datalist id="tsTimes">${Array.from({ length: 96 }, (_, k) => `<option value="${fmtTime(String(Math.floor(k / 4)).padStart(2, "0") + ":" + String((k % 4) * 15).padStart(2, "0"))}"></option>`).join("")}</datalist><div class="ts-quick">
+    let html = `<div class="ts-quick">
       <div class="ts-quick-h"><b>Quick fill</b><span>Same hours most days? Enter them once and apply.</span></div>
       <div class="ts-quick-b">
         ${tf("Call", `${tsTimeInput(`tsQCall`, `Call time for quick fill`)}`)}
