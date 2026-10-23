@@ -4864,7 +4864,7 @@
             const letters = (t) => t.replace(/[^A-Za-z]/g, "").length;
             if (cap) {
               const ct = clean(cap);
-              if ((letters(ct) >= 8 || (letters(ct) >= 5 && left && f.x - left.x1 > 0.04)) && (!lab || (left && f.x - left.x1 > 0.04) || letters(lab) < 6 || /^(to wit|of|and|the)\b/i.test(lab.trim()) && letters(lab) < 8)) lab = ct;
+              if ((letters(ct) >= 8 || (letters(ct) >= 4 && left && f.x - left.x1 > 0.04)) && (!lab || (left && f.x - left.x1 > 0.04) || letters(lab) < 6 || /^(to wit|of|and|the)\b/i.test(lab.trim()) && letters(lab) < 8)) lab = ct;
             }
           }
           if (!lab || lab.replace(/[^A-Za-z]/g, "").length < 5) {
