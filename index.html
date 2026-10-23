@@ -436,6 +436,9 @@
   .pdf-field { position: absolute; box-sizing: border-box; display: flex; align-items: center; line-height: 1; color: #1d2433; }
   .pdf-field.pf-edit { border: 1.5px dashed var(--link); background: rgba(180, 83, 9, .12); cursor: move; touch-action: none; overflow: visible; }
   .pdf-field.pf-edit .pf-label { font-size: 10px; padding: 0 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; color: #5b3200; }
+  #tsTplPages .pf-handle { width: 7px; height: 7px; right: -3px; bottom: -3px; opacity: 0; }
+  #tsTplPages .pdf-field:hover .pf-handle, #tsTplPages .pdf-field.pf-active .pf-handle { opacity: 1; }
+  #tsTplPages .pdf-field.pf-edit .pf-label { font-size: 8px; }
   .pf-handle { position: absolute; right: -5px; bottom: -5px; width: 10px; height: 10px; background: var(--link); border-radius: 2px; cursor: nwse-resize; }
   .pdf-field.pf-signature.pf-edit, .pdf-field.pf-countersignature.pf-edit { background: rgba(37, 99, 235, .12); border-color: #2563eb; }
   .pdf-field input.pf-input { width: 100%; height: 100%; box-sizing: border-box; margin: 0; padding: 0 3px; border: 0; border-bottom: 1.5px solid var(--link); border-radius: 0; background: rgba(255, 244, 214, .85); font: inherit; font-size: inherit; color: #1d2433; outline: none; }
@@ -477,6 +480,12 @@
   .pdf-field.pf-edit.ts-fixed { background: rgba(47, 125, 79, .15); border-color: #2f7d4f; }
   .pdf-field.pf-edit.ts-fixed .pf-label { color: #1c4d30; }
   .pf-fieldlist select { flex: 0 0 210px; min-width: 0; margin-bottom: 0; }
+  .ts-ot { margin: 10px 0 4px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+  .ts-ot summary { cursor: pointer; font-weight: 600; font-size: 13.5px; }
+  .ts-ot .muted { font-weight: 400; color: var(--ink-faint); font-size: 12px; }
+  .ts-ot-grid { display: grid; grid-template-columns: 44px repeat(3, minmax(0, 1fr)); gap: 6px 8px; align-items: center; max-width: 360px; font-size: 12px; color: var(--ink-faint); }
+  .ts-ot-grid input { width: 100%; box-sizing: border-box; padding: 5px 6px; font-size: 13.5px; }
+  .ts-ot-day { color: var(--ink); font-weight: 600; }
   .ts-meals { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 0 6px 64px; align-items: flex-end; }
   .ts-meals label { display: flex; flex-direction: column; font-size: 11.5px; color: var(--ink-faint); gap: 2px; margin: 0; }
   .ts-meals input[type="time"] { width: 112px; }
@@ -2068,6 +2077,10 @@
         html += `<div class="ts-meals"><label>Meal out<input type="time" id="tsM1o${i}" aria-label="Meal out, ${DAY_NAMES[i]}" /></label><label>Meal in<input type="time" id="tsM1i${i}" aria-label="Meal in, ${DAY_NAMES[i]}" /></label>${tsMeals.m2 ? `<label>2nd meal out<input type="time" id="tsM2o${i}" aria-label="Second meal out, ${DAY_NAMES[i]}" /></label><label>2nd meal in<input type="time" id="tsM2i${i}" aria-label="Second meal in, ${DAY_NAMES[i]}" /></label>` : ""}</div>`;
       }
     }
+    html += `<details class="ts-ot" id="tsOt"><summary>Add overtime <span class="muted">(only if you worked any)</span></summary>
+      <p class="ts-note" style="margin:6px 0 8px;">Enter the hours you worked at each overtime rate (for example 2 or 1.5). They are part of that day's hours, not extra on top.</p>
+      <div class="ts-ot-grid"><span></span><span>1.5X</span><span>2X</span><span>3X</span>${[0, 1, 2, 3, 4, 5, 6].map((i) => `<span class="ts-ot-day">${DAY_NAMES[i].slice(0, 3)}</span>${[["15", "1.5X"], ["2", "2X"], ["3", "3X"]].map(([k, lab]) => `<input type="number" min="0" max="20" step="0.25" inputmode="decimal" id="tsOt${k}_${i}" placeholder="0" aria-label="${lab} overtime hours, ${DAY_NAMES[i]}" />`).join("")}`).join("")}</div>
+    </details>`;
     grid.innerHTML = html;
     if (tsMeals.m1) grid.querySelectorAll(".ts-brk input").forEach((inp) => { inp.readOnly = true; inp.tabIndex = -1; inp.placeholder = "auto"; });
     grid.querySelectorAll("input").forEach((inp) => {
@@ -2142,6 +2155,7 @@
       const brkRaw = brkVal ? String(brkVal) : "";
       const kit = !!(document.getElementById(`tsKit${i}`) && document.getElementById(`tsKit${i}`).checked);
       if (!call && !wrap) {
+        if (["15", "2", "3"].some((k) => { const el = document.getElementById(`tsOt${k}_${i}`); return el && parseFloat(el.value) > 0; })) return { error: `${DAY_NAMES[i]} has overtime but no call and wrap time.` };
         if (brkRaw || kit) return { error: `${DAY_NAMES[i]} has a break or kit fee but no call and wrap time.` };
         continue;
       }
@@ -2155,6 +2169,15 @@
       const mins = gross - brk;
       if (mins > 20 * 60) return { error: `${day} is over 20 hours. Check the call and wrap times.` };
       const entry = { date: ymd(addDays(start, i)), day, call, wrap, break_minutes: brk, kit, minutes: mins };
+      {
+        let otTotal = 0;
+        for (const [k, key] of [["15", "ot15"], ["2", "ot2"], ["3", "ot3"]]) {
+          const el = document.getElementById(`tsOt${k}_${i}`);
+          const v = el ? parseFloat(el.value) : 0;
+          if (Number.isFinite(v) && v > 0) { entry[key] = Math.round(v * 100) / 100; otTotal += v; }
+        }
+        if (otTotal * 60 > mins + 0.5) return { error: `${day}'s overtime (${otTotal} h) is more than the hours worked that day (${fmtHours(mins)}).` };
+      }
       if (tsMeals.m1) {
         ["M1o:meal1_out", "M1i:meal1_in", "M2o:meal2_out", "M2i:meal2_in"].forEach((pair) => {
           const [idp, key] = pair.split(":");
@@ -2284,7 +2307,12 @@
       doc.text(entry ? fmtTime(entry.wrap) : "-", cx[3], y);
       doc.text(entry ? (entry.break_minutes ? `${entry.break_minutes} min` : "none") : "-", cx[4], y);
       doc.text(entry ? fmtHours(entry.minutes) + (entry.kit ? "  (kit)" : "") : "-", R, y, { align: "right" });
-      y += 22;
+      if (entry && (entry.ot15 || entry.ot2 || entry.ot3)) {
+        y += 11; doc.setFontSize(8.5); doc.setTextColor(110);
+        doc.text("Overtime: " + [["ot15", "1.5X"], ["ot2", "2X"], ["ot3", "3X"]].filter(([k]) => entry[k]).map(([k, l]) => `${l} ${entry[k]} h`).join(", "), cx[2], y);
+        doc.setFontSize(11); doc.setTextColor(25);
+        y += 11;
+      } else y += 22;
       doc.setDrawColor(228); doc.line(L, y - 15, R, y - 15);
     }
     y += 6;
@@ -3858,7 +3886,7 @@
     entries.forEach((e) => e.target.style.setProperty("--pw", e.contentRect.width + "px"));
   });
 
-  async function renderPdfPages(container, pdf) {
+  async function renderPdfPages(container, pdf, opts) {
     container.innerHTML = "";
     const pages = [];
     for (let n = 1; n <= pdf.numPages; n++) {
@@ -3870,7 +3898,7 @@
       wrap.style.aspectRatio = `${vp.width} / ${vp.height}`;
       const canvas = document.createElement("canvas");
       canvas.width = vp.width; canvas.height = vp.height;
-      await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp, ...(opts && opts.hideFormValues ? { annotationMode: 0 } : {}) }).promise;
       wrap.appendChild(canvas);
       container.appendChild(wrap);
       pageRO.observe(wrap);
@@ -5452,7 +5480,7 @@
   const TS_DAY_COLS = [
     ["date", "date"], ["day", "day name"], ["call", "call"], ["wrap", "wrap"],
     ["meal1_out", "meal 1 out"], ["meal1_in", "meal 1 in"], ["meal2_out", "meal 2 out"], ["meal2_in", "meal 2 in"],
-    ["break", "unpaid break (min)"], ["hours", "hours"], ["kit", "kit fee tick"],
+    ["break", "unpaid break (min)"], ["hours", "hours"], ["ot15", "1.5X overtime hrs"], ["ot2", "2X overtime hrs"], ["ot3", "3X overtime hrs"], ["kit", "kit fee tick"],
   ];
   const TS_BIND_GROUPS = [
     { label: "Employee", items: [["name", "Employee name"], ["email", "Email"], ["position", "Position / classification"], ["department", "Department"], ["company", "Company"]] },
@@ -5681,7 +5709,7 @@
     let doc, form;
     try { doc = await L.PDFDocument.load(bytes, { ignoreEncryption: true }); form = doc.getForm(); } catch (_) { return []; }
     const pages = doc.getPages();
-    const out = [];
+    const out = [], otCols = {};
     for (const field of form.getFields()) {
       const isCheck = field instanceof L.PDFCheckBox, isText = field instanceof L.PDFTextField;
       if (!isCheck && !isText) continue;
@@ -5694,6 +5722,20 @@
       const idx = im ? Number(im[2]) : -1;
       const plain = key.replace(/\./g, "");
       let bind, label;
+      {
+        // the 1.5X / 2X / 3X columns: the first seven boxes from the top are the days (Sunday first), the rest are totals
+        const otc = { "15X": "ot15", "2X": "ot2", "3X": "ot3" }[plain.replace(/(?<=X)\d+$/, "")];
+        if (otc) {
+          for (const w of field.acroField.getWidgets()) {
+            const r = w.getRectangle();
+            let pi = pages.findIndex((pg) => w.P() && pg.ref.toString() === w.P().toString());
+            if (pi < 0) pi = 0;
+            const { width: W, height: H } = pages[pi].getSize();
+            (otCols[otc] = otCols[otc] || []).push({ bind: null, page: pi, x: r.x / W, y: 1 - (r.y + r.height) / H, w: r.width / W, h: r.height / H });
+          }
+          continue;
+        }
+      }
       if (TS_ACRO_SKIP.test(plain) || (im && TS_ACRO_SKIP.test(base.replace(/\./g, "")))) continue;
       if (im && TS_ACRO_DAYCOL[base.replace(/\./g, "")] !== undefined) {
         if (idx > 6) continue;
@@ -5720,6 +5762,9 @@
         out.push(f);
       }
     }
+    Object.entries(otCols).forEach(([col, arr]) => {
+      arr.sort((p, q) => p.page - q.page || p.y - q.y).slice(0, 7).forEach((r, i) => out.push({ ...r, bind: `d${i}.${col}` }));
+    });
     return out;
   }
 
@@ -5794,7 +5839,7 @@
     const pdf = await pdfjs.getDocument({ data: bytes.slice(0) }).promise;
     if (pdf.numPages > 6) throw new Error("A timesheet form shouldn't be more than 6 pages.");
     document.getElementById("tsTplEditorWrap").classList.remove("hidden");
-    const pages = await renderPdfPages(document.getElementById("tsTplPages"), pdf);
+    const pages = await renderPdfPages(document.getElementById("tsTplPages"), pdf, { hideFormValues: true });
     const x = extra || {};
     tsTpl = { bytes, pages, fields: fields || [], editingId: x.editingId || null, pdf };
     if (!fields) tsTpl.fields = await tsDetectFields(pdf, bytes);
@@ -6126,6 +6171,7 @@
       if (col === "break") return e.break_minutes ? { text: String(e.break_minutes) } : {};
       if (col === "hours") return { text: fmtHours(e.minutes) };
       if (col === "kit") return e.kit ? { check: true } : {};
+      if (col === "ot15" || col === "ot2" || col === "ot3") return e[col] ? { text: String(e[col]) } : {};
       return {};
     }
     const fv = d.formValues || {};
