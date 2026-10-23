@@ -454,6 +454,10 @@
   .pf-pop-actions button.pf-pop-rm { margin-left: auto; color: var(--error); border-color: transparent; background: transparent; text-decoration: underline; }
   .pf-pop-x { border: none; background: none; font-size: 18px; line-height: 1; cursor: pointer; color: var(--ink-faint); padding: 0 2px; }
   .pdf-field.pf-active { box-shadow: 0 0 0 2px #2563eb; z-index: 5; }
+  .pdf-field.pf-edit.pf-alt { outline: 2px dashed #7a5af8; outline-offset: 1px; }
+  .pf-altrow { display:flex; gap:10px; align-items:flex-start; justify-content:space-between; padding:8px 10px; border:1px solid var(--line); border-radius:8px; margin-bottom:6px; font-size:12.5px; background: var(--card, #fff); }
+  .pf-altrow .alt-kind { font-weight:600; }
+  .pf-altrow .alt-members { color: var(--ink-soft); margin-top:2px; }
   .pdf-field.pf-edit.pf-opt { background: rgba(120, 120, 120, .08); border-color: var(--ink-faint); }
   .pdf-field.pf-edit.pf-opt .pf-label { color: var(--ink-soft); font-style: italic; }
   .pdf-field input.pf-input.pf-missing { background: rgba(220, 38, 38, .15); border-bottom-color: #dc2626; }
@@ -1324,8 +1328,10 @@
             <button type="button" class="pf-tool" data-tool="countersignature">+ Company signature</button>
             <button type="button" class="btn-secondary" id="pfAutoFind">Find fields automatically</button>
             <button type="button" class="btn-secondary" id="pfRewording" title="Keeps your boxes and names; reads the page around each box and rewrites vague names like &quot;of&quot; or &quot;Blank 3&quot; into clear questions">Improve question wording</button>
+            <button type="button" class="btn-secondary" id="pfAltFind" title="Finds Yes/No sections, &quot;OR&quot; choices, &quot;check one&quot; and &quot;same as above&quot;, then links those boxes so answering one makes the others not needed for the employee">Find either/or answers</button>
             <button type="button" class="remove-link" id="pfClearPdf" style="margin-left:auto;">Remove PDF</button>
           </div>
+          <div id="pfAltList" class="hidden" style="margin:0 0 10px;"></div>
           <p style="font-size:12px;color:var(--ink-faint);margin:0 0 8px;">Pick a field type, then click the page to add a box. Click any box to name it, mark it optional or remove it right there, and press Enter to jump to the next one. Drag a box to move it; drag its corner to resize.</p>
           <div class="pf-pages" id="pdfEditorPages"></div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0;font-size:12.5px;color:var(--ink-soft);">
@@ -3914,6 +3920,52 @@
     }
     btn.disabled = false;
   });
+  // Either/or answers: list each linked group with an Unlink button; "Find either/or answers" scans the PDF for them.
+  function renderAltList() {
+    const box = document.getElementById("pfAltList");
+    if (!box || typeof tplPdf === "undefined" || !tplPdf) return;
+    const groups = new Map();
+    (tplPdf.fields || []).forEach((f) => { if (f.alt && f.alt.g) { if (!groups.has(f.alt.g)) groups.set(f.alt.g, []); groups.get(f.alt.g).push(f); } });
+    if (!groups.size) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+    const kindOf = (g) => /-yn\d/.test(g) ? "Yes / No" : /-or\d/.test(g) ? "A or B" : /-co\d/.test(g) ? "Check one" : /-sa\d/.test(g) ? "Same as above, or a different one" : "Either / or";
+    const brLabel = (b) => ({ yes: "If yes", no: "If no", a: "First choice", b: "Second choice" }[b] || "Choice " + (String(b).replace(/\D/g, "") * 1 + 1));
+    box.classList.remove("hidden");
+    box.innerHTML = `<div style="font-size:12.5px;margin:2px 0 6px;"><b>Either/or answers</b> <span style="color:var(--ink-faint);">The employee only has to answer one side. Boxes outlined in purple are linked.</span></div>` +
+      [...groups.entries()].map(([g, fs]) => {
+        const byB = new Map(); fs.forEach((f) => { const k = f.alt.b; if (!byB.has(k)) byB.set(k, []); byB.get(k).push(f); });
+        const lines = [...byB.entries()].map(([b, arr]) => `${escHtml(brLabel(b))}: ${arr.slice(0, 4).map((f) => escHtml((f.label || "box").slice(0, 38))).join(", ")}${arr.length > 4 ? ` +${arr.length - 4} more` : ""}`).join(" &nbsp;·&nbsp; ");
+        return `<div class="pf-altrow"><div><span class="alt-kind">${kindOf(g)}</span> <span style="color:var(--ink-faint);">· page ${fs[0].page + 1}</span><div class="alt-members">${lines}</div></div><button type="button" class="remove-link" data-unlink="${escHtml(g)}">Unlink</button></div>`;
+      }).join("");
+    box.querySelectorAll("[data-unlink]").forEach((b) => b.addEventListener("click", () => {
+      tplPdf.fields.forEach((f) => { if (f.alt && f.alt.g === b.dataset.unlink) delete f.alt; });
+      drawEditorFields();
+    }));
+  }
+  document.getElementById("pfAltFind").addEventListener("click", async () => {
+    const btn = document.getElementById("pfAltFind"), msg = document.getElementById("templateMsg");
+    btn.disabled = true;
+    msg.innerHTML = `<div class="msg ok">Looking for either/or sections (Yes/No, "OR", "check one")…</div>`;
+    try {
+      const pdfjs = await ensurePdfJs();
+      const pdf = await pdfjs.getDocument({ data: tplPdf.bytes.slice(0) }).promise;
+      const found = await dmDetectFields(pdf, tplPdf.bytes);
+      const before = new Set(tplPdf.fields.filter((f) => f.alt && f.alt.g).map((f) => f.id));
+      tplPdf.fields.forEach((f) => {
+        const c = found.find((g) => g.page === f.page && g.alt && g.type === f.type && Math.abs((g.x + g.w / 2) - (f.x + f.w / 2)) < 0.04 && Math.abs((g.y + g.h / 2) - (f.y + f.h / 2)) < 0.025);
+        if (c) f.alt = { ...c.alt };
+      });
+      const linked = tplPdf.fields.filter((f) => f.alt && f.alt.g);
+      const groups = new Set(linked.map((f) => f.alt.g)).size;
+      drawEditorFields();
+      msg.innerHTML = groups
+        ? `<div class="msg ok">Found ${groups} either/or section${groups === 1 ? "" : "s"} (${linked.length} boxes). The employee only has to answer one side, and the other side disappears or becomes optional. Check the list below the buttons and Unlink any that are wrong, then save the template.</div>`
+        : `<div class="msg ok">No either/or sections found. If a form has one (for example a Yes/No with follow-up boxes), tick Optional on the boxes that aren't always needed.</div>`;
+      void before;
+    } catch (err) {
+      msg.innerHTML = `<div class="msg error">Couldn't scan the PDF (${escHtml(err.message || "unknown error")}).</div>`;
+    }
+    btn.disabled = false;
+  });
   document.getElementById("pfAutoFind").addEventListener("click", async () => {
     const btn = document.getElementById("pfAutoFind");
     btn.disabled = true;
@@ -4165,6 +4217,7 @@
       const el = baseFieldEl(f, page);
       el.classList.add("pf-edit");
       if (f.optional) el.classList.add("pf-opt");
+      if (f.alt && f.alt.g) el.classList.add("pf-alt");
       el.innerHTML = `<span class="pf-label"></span><span class="pf-handle"></span>`;
       el.querySelector(".pf-label").textContent = f.type === "checkbox" ? "" : f.label + (f.optional ? " (optional)" : "");
       el.title = f.label;
@@ -4178,6 +4231,7 @@
       page.el.appendChild(el);
     });
     renderFieldList();
+    renderAltList();
     if (pfActive && tplPdf.fields.some((x) => x.id === pfActive)) openFieldPop(pfActive, false, true); else { pfActive = null; closeFieldPop(); }
   }
 
