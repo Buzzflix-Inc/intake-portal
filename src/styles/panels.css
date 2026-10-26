@@ -19,14 +19,13 @@
 .pv-link.active { background: var(--accent-soft); color: var(--link); font-weight: 600; }
 .pv-link:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
 .pv-nav-many .pv-link { flex: none; }
-.pv-group { display: none; margin: 12px 12px 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
-.pv-group:first-child { margin-top: 6px; }
+.pv-group { display: none; margin: 10px 12px 2px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; font-weight: 600; color: var(--ink-faint); }
+.pv-group:first-child { margin-top: 2px; padding-top: 4px; border-top: none; }
 @media (max-width: 480px) { .pv-link { padding: 9px 6px; font-size: 13.5px; } .pv-nav-many .pv-link { padding: 9px 12px; } .pv-link svg { display: none; } }
 @media (min-width: 860px) {
   #appView .has-side { grid-template-columns: 210px minmax(0, 1fr); }
   .pv-nav { flex-direction: column; gap: 2px; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; }
   .pv-link { flex: none; justify-content: flex-start; }
-  .pv-nav-many .pv-link { padding: 7px 12px; font-size: 13.5px; }
   .pv-group { display: block; }
 }
 
