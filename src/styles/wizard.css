@@ -1,0 +1,30 @@
+/* ---- Guided one-question-at-a-time details ---- */
+.q-hint { display: block; font-size: 11.5px; font-weight: 400; color: var(--ink-faint); line-height: 1.35; }
+.qwiz { margin: 6px 0 4px; }
+.qwiz-bar { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.qwiz-bar i { display: block; height: 100%; width: 0; background: var(--link); border-radius: 99px; transition: width .35s cubic-bezier(.3,.7,.2,1); }
+.qwiz-meta { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 8px 0 4px; font-size: 12.5px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.qwiz-link { background: none; border: none; padding: 0; color: var(--link); font: inherit; cursor: pointer; text-decoration: underline; }
+.qwiz-msg { min-height: 18px; font-size: 12.5px; color: var(--error, #dc2626); }
+.qwiz-nav { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+.qwiz-nav .qwiz-next { margin-left: auto; padding: 11px 22px; border: none; border-radius: 9px; background: var(--link); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.qwiz-nav .qwiz-next.final { background: var(--ink); }
+.qwiz-nav .qwiz-skip { background: none; border: none; color: var(--ink-soft); font: inherit; cursor: pointer; padding: 8px 6px; }
+.qwiz-nav button:disabled { opacity: .4; cursor: default; }
+.qwiz-on .qgroup { display: none; }
+.qwiz-on .qgroup.cur { display: block; }
+.qwiz-on .qgroup h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); margin: 12px 0 6px; }
+.qwiz-on .qgrid { display: block; }
+.qwiz-on .qgrid label { display: none; max-width: none; }
+.qwiz-on .qgrid label.cur { display: flex; gap: 8px; animation: qIn .28s cubic-bezier(.3,.7,.2,1); }
+.qwiz-on .qgrid label.cur.bwd { animation-name: qInBack; }
+.qwiz-on .qgrid label.cur.shake { animation: qShake .35s; }
+.qwiz-on .qgrid label .q { font-size: 19px; line-height: 1.3; }
+.qwiz-on .qgrid label input { font-size: 17px; padding: 13px 14px; border-radius: 10px; }
+.qwiz-on .qactions { display: none; }
+@keyframes qIn { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: none; } }
+@keyframes qInBack { from { opacity: 0; transform: translateX(-22px); } to { opacity: 1; transform: none; } }
+@keyframes qShake { 0%,100% { transform: none; } 20% { transform: translateX(-7px); } 40% { transform: translateX(7px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(4px); } }
+.sign-status.rejected-note { color: var(--error, #b91c1c); background: rgba(220, 38, 38, .08); border: 1px solid rgba(220, 38, 38, .25); border-radius: 8px; padding: 8px 12px; }
+.invite-more { margin: 14px 0 16px; border: 1px solid var(--line); border-radius: 10px; padding: 4px 14px 14px; }
+.invite-more > summary { cursor: pointer; font-weight: 600; font-size: 13.5px; padding: 10px 0; }

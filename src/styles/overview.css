@@ -1,0 +1,75 @@
+/* Requested-items checklist (employee "My Portal" + admin overview) */
+.checklist { list-style: none; margin: 0 0 18px; padding: 0; }
+.checklist li {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 0; font-size: 13.5px;
+}
+.checklist .mark {
+  width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+}
+.checklist li.got .mark { background: var(--ok-soft); color: var(--ok); }
+.checklist li.missing .mark { background: var(--warn-soft); color: var(--warn); }
+.checklist li.missing .label { color: var(--ink); font-weight: 500; }
+.checklist li.got .label { color: var(--ink-soft); }
+
+/* Employee overview modal (admin) */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(30, 26, 20, 0.45);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 40px 16px; overflow-y: auto; z-index: 50;
+}
+.modal-card {
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow); max-width: 620px; width: 100%;
+  padding: 28px 30px; position: relative;
+}
+.modal-close {
+  position: absolute; top: 18px; right: 20px;
+  background: none; border: none; font-size: 20px; line-height: 1;
+  color: var(--ink-faint); cursor: pointer;
+}
+.modal-close:hover { color: var(--ink); }
+.modal-card h2 { margin: 0 0 2px; font-size: 17px; }
+.modal-card .modal-sub { color: var(--ink-soft); font-size: 13px; margin: 0 0 20px; }
+.modal-card h3 {
+  font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--ink-faint); margin: 22px 0 8px; font-weight: 700;
+}
+.modal-card h3:first-of-type { margin-top: 0; }
+.summary-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.summary-chip {
+  font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px;
+  background: var(--page); border: 1px solid var(--line); color: var(--ink-soft);
+}
+
+.employee-row { cursor: pointer; }
+.employee-row:hover .name { text-decoration: underline; }
+
+/* Portal background settings */
+.bg-section { margin-top: 20px; padding-top: 18px; border-top: 1px dashed var(--line); }
+.bg-preview-wrap { margin: 8px 0 16px; }
+.bg-preview {
+  position: relative;
+  width: 100%;
+  height: 150px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-color: var(--page);
+  overflow: hidden;
+}
+.bg-preview .bg-preview-overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--page);
+  opacity: 0.6;
+}
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+  margin: 4px 0 2px;
+}
+

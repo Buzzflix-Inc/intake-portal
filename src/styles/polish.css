@@ -1,0 +1,42 @@
+/* ---- Smooth scrolling & controls ---- */
+html { scroll-behavior: smooth; scrollbar-gutter: stable; -webkit-text-size-adjust: 100%; }
+body { -webkit-tap-highlight-color: transparent; text-rendering: optimizeLegibility; }
+.modal-overlay, #mfaGate, .pf-pages, .preview-content, #pagePreviewOverlay .ppv-scroll, .adm-nav .adm-pills, .tbl-wrap, .file-list {
+  overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scroll-behavior: smooth;
+}
+.pf-pages { scroll-behavior: auto; contain: content; }
+.pf-pages canvas, .pf-pages img { will-change: auto; }
+.adm-nav .adm-pills { scroll-snap-type: x proximity; }
+.adm-pill { scroll-snap-align: center; }
+/* dropdowns: custom chevron that turns, soft focus */
+select {
+  -webkit-appearance: none; appearance: none; cursor: pointer; padding-right: 30px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%), linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
+  background-position: calc(100% - 17px) 55%, calc(100% - 12px) 55%;
+  background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+select:hover { border-color: var(--ink-faint); }
+select:focus-visible, input:focus-visible, textarea:focus-visible { outline: none; border-color: var(--link); box-shadow: 0 0 0 3px var(--accent-soft); }
+input, textarea, button { transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease, transform .1s ease; }
+button:active:not(:disabled) { transform: scale(.98); }
+/* accordions / details open smoothly */
+section.panel.acc.open > .acc-body { animation: accIn .22s ease-out; }
+@keyframes accIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+details > summary { list-style: none; transition: color .15s ease; }
+details > summary::-webkit-details-marker { display: none; }
+details > summary::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 9px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform .18s ease; vertical-align: 2px; }
+details[open] > summary::before { transform: rotate(45deg); }
+details[open] > :not(summary) { animation: accIn .2s ease-out; }
+@supports (interpolate-size: allow-keywords) {
+  details { interpolate-size: allow-keywords; }
+  details::details-content { block-size: 0; overflow: clip; transition: block-size .22s ease, content-visibility .22s allow-discrete; }
+  details[open]::details-content { block-size: auto; }
+  details[open] > :not(summary) { animation: none; }
+}
+/* long lists render lazily */
+.ts-card, .deal-fold, .file-list > * { content-visibility: auto; contain-intrinsic-size: auto 120px; }
+.modal-card, .modal-overlay { will-change: opacity; }
+@media (prefers-reduced-motion: reduce) {
+  html, * { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
