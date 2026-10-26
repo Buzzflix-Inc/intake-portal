@@ -47,4 +47,4 @@ Sign up in the portal, then in the Supabase SQL editor:
 insert into public.superadmins (user_id)
 select id from auth.users where email = 'you@example.com';
 ```
-The Super Admin tab then lets you create companies and invite their admins.
+The All Companies tab then lets you create companies and invite their admins.

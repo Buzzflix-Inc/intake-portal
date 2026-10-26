@@ -1,5 +1,5 @@
 // ---- Side menus: one section at a time, picked from a menu on the left ----
-// My Portal's menu is in the markup; Admin Review and Super Admin build theirs here
+// My Portal's menu is in the markup; Manage Crew and All Companies build theirs here
 // from the section headings, grouped as below.
 (function () {
   function wire(tab, key, fallback) {
