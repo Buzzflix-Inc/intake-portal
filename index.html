@@ -64,6 +64,10 @@
         </div>
         <div class="top-actions">
           <select id="companySwitcher" class="hidden" aria-label="Switch company"></select>
+          <button type="button" id="inviteCrewBtn" class="btn-invite hidden" data-invite-open>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1M19 8v6M16 11h6"/></svg>
+            <span>Invite crew</span>
+          </button>
           <span id="whoAmI" class="who-am-i" title=""></span>
           <button id="signOutBtn">Sign out</button>
         </div>
@@ -287,101 +291,10 @@
       </section>
 
       <section class="panel span-2">
-        <h2>Invite crew</h2>
-        <p class="desc">Just the basics. They'll fill in their own details (phone, address, ID…) the first time they sign in, and it auto-fills their forms.</p>
-
-        <div class="invite-grid">
-          <div>
-            <label for="inviteNameInput">Full name</label>
-            <input type="text" id="inviteNameInput" placeholder="Jordan Lee" />
-          </div>
-          <div>
-            <label for="inviteEmailInput">Email</label>
-            <input type="email" id="inviteEmailInput" placeholder="employee@company.com" />
-          </div>
-          <div>
-            <label for="inviteDeptSelect">Department</label>
-            <select id="inviteDeptSelect"></select>
-          </div>
-          <div>
-            <label for="inviteCrewRoleSelect">Crew role</label>
-            <select id="inviteCrewRoleSelect"></select>
-          </div>
-          <div>
-            <label for="inviteDealMemoSelect">Deal memo</label>
-            <select id="inviteDealMemoSelect"><option value="">None</option></select>
-          </div>
-          <div>
-            <label for="inviteTypeSelect">Worker type</label>
-            <select id="inviteTypeSelect"><option value="">Employee (timesheets)</option><option value="contractor">Solo contractor (invoices)</option></select>
-          </div>
-        </div>
-
-        <details class="invite-more">
-          <summary>More options <span class="muted">(dates, kit fee, safety form, requested documents…)</span></summary>
-          <div class="invite-grid" style="margin-top:12px;">
-          <div>
-            <label for="inviteAccessSelect">Portal access</label>
-            <select id="inviteAccessSelect">
-              <option value="employee" selected>Employee</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-          <div>
-            <label for="invitePhoneInput">Phone</label>
-            <input type="tel" id="invitePhoneInput" placeholder="(555) 555-5555" />
-          </div>
-          <div>
-            <label for="inviteStartInput">Start date</label>
-            <input type="date" id="inviteStartInput" />
-          </div>
-          <div>
-            <label for="inviteEndInput">End date</label>
-            <input type="date" id="inviteEndInput" />
-          </div>
-          <div>
-            <label for="inviteSafetySelect">Safety acknowledgment</label>
-            <select id="inviteSafetySelect"><option value="">None</option></select>
-          </div>
-          <div id="inviteTsWrap">
-            <label for="inviteTimesheetSelect">Timesheet form</label>
-            <select id="inviteTimesheetSelect"><option value="">Standard portal timesheet</option></select>
-          </div>
-          </div>
-        <div class="kit-toggle-row" id="inviteKitRow">
-          <label class="checkbox-label" for="inviteKitToggle">
-            <input type="checkbox" id="inviteKitToggle" />
-            Crew member supplies own kit
-          </label>
-          <div id="inviteKitRateWrap" class="hidden">
-            <label for="inviteKitRateInput">Kit fee (per day)</label>
-            <input type="number" id="inviteKitRateInput" min="0" step="0.01" placeholder="0.00" />
-          </div>
-        </div>
-
-        <div class="doc-request-block">
-          <label class="block-label">Documents &amp; certifications to request</label>
-          <p class="desc" style="margin-bottom:10px;">Checked items show up on their portal as outstanding requests, in addition to the general Documents upload.</p>
-          <div class="doc-request-grid" id="docRequestGrid">
-            <label class="checkbox-label"><input type="checkbox" value="Government-issued ID" /> Government-issued ID</label>
-            <label class="checkbox-label"><input type="checkbox" value="Void cheque / direct deposit form" /> Void cheque / direct deposit form</label>
-            <label class="checkbox-label"><input type="checkbox" value="SIN documentation" /> SIN documentation</label>
-            <label class="checkbox-label"><input type="checkbox" value="Work permit / visa" /> Work permit / visa</label>
-            <label class="checkbox-label"><input type="checkbox" value="WCB clearance" /> WCB clearance</label>
-            <label class="checkbox-label"><input type="checkbox" value="OFTTC declaration of residency" /> OFTTC declaration of residency</label>
-            <label class="checkbox-label"><input type="checkbox" value="Union membership card" /> Union membership card</label>
-            <label class="checkbox-label"><input type="checkbox" value="First aid / CPR certification" /> First aid / CPR certification</label>
-            <label class="checkbox-label"><input type="checkbox" value="Stunt certification" /> Stunt certification</label>
-            <label class="checkbox-label"><input type="checkbox" value="Driver's license / abstract" /> Driver's license / abstract</label>
-          </div>
-          <label for="inviteDocsOtherInput" style="margin-top:12px;">Other requests</label>
-          <input type="text" id="inviteDocsOtherInput" placeholder="Comma-separated, e.g. Equipment insurance proof, Portfolio" />
-        </div>
-
-        </details>
-
-        <button class="btn-secondary" id="sendInviteBtn">Send Invite</button>
-        <div id="inviteMsg"></div>
+        <h2>Invites</h2>
+        <p class="desc">Everyone you've invited. Pending invites can be emailed again, copied as a message, or cancelled.</p>
+        <button type="button" class="btn-secondary invite-open" data-invite-open>Invite crew</button>
+        <div id="invitesListMsg"></div>
         <ul class="file-list" id="pendingInvitesList"></ul>
         <p class="empty hidden" id="pendingInvitesEmpty">No pending invites.</p>
       </section>
@@ -644,6 +557,106 @@
   </div>
 </div>
 
+<div id="inviteModalOverlay" class="modal-overlay hidden">
+  <div class="modal-card invite-card" role="dialog" aria-modal="true" aria-labelledby="inviteModalTitle">
+    <button class="modal-close" id="inviteModalClose" aria-label="Close">&times;</button>
+    <h2 id="inviteModalTitle">Invite crew</h2>
+    <p class="modal-sub">Just the basics. They'll fill in their own details (phone, address, ID…) the first time they sign in, and it auto-fills their forms.</p>
+        <div class="invite-grid">
+          <div>
+            <label for="inviteNameInput">Full name</label>
+            <input type="text" id="inviteNameInput" placeholder="Jordan Lee" />
+          </div>
+          <div>
+            <label for="inviteEmailInput">Email</label>
+            <input type="email" id="inviteEmailInput" placeholder="employee@company.com" />
+          </div>
+          <div>
+            <label for="inviteDeptSelect">Department</label>
+            <select id="inviteDeptSelect"></select>
+          </div>
+          <div>
+            <label for="inviteCrewRoleSelect">Crew role</label>
+            <select id="inviteCrewRoleSelect"></select>
+          </div>
+          <div>
+            <label for="inviteDealMemoSelect">Deal memo</label>
+            <select id="inviteDealMemoSelect"><option value="">None</option></select>
+          </div>
+          <div>
+            <label for="inviteTypeSelect">Worker type</label>
+            <select id="inviteTypeSelect"><option value="">Employee (timesheets)</option><option value="contractor">Solo contractor (invoices)</option></select>
+          </div>
+        </div>
+
+        <details class="invite-more">
+          <summary>More options <span class="muted">(dates, kit fee, safety form, requested documents…)</span></summary>
+          <div class="invite-grid" style="margin-top:12px;">
+          <div>
+            <label for="inviteAccessSelect">Portal access</label>
+            <select id="inviteAccessSelect">
+              <option value="employee" selected>Employee</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div>
+            <label for="invitePhoneInput">Phone</label>
+            <input type="tel" id="invitePhoneInput" placeholder="(555) 555-5555" />
+          </div>
+          <div>
+            <label for="inviteStartInput">Start date</label>
+            <input type="date" id="inviteStartInput" />
+          </div>
+          <div>
+            <label for="inviteEndInput">End date</label>
+            <input type="date" id="inviteEndInput" />
+          </div>
+          <div>
+            <label for="inviteSafetySelect">Safety acknowledgment</label>
+            <select id="inviteSafetySelect"><option value="">None</option></select>
+          </div>
+          <div id="inviteTsWrap">
+            <label for="inviteTimesheetSelect">Timesheet form</label>
+            <select id="inviteTimesheetSelect"><option value="">Standard portal timesheet</option></select>
+          </div>
+          </div>
+        <div class="kit-toggle-row" id="inviteKitRow">
+          <label class="checkbox-label" for="inviteKitToggle">
+            <input type="checkbox" id="inviteKitToggle" />
+            Crew member supplies own kit
+          </label>
+          <div id="inviteKitRateWrap" class="hidden">
+            <label for="inviteKitRateInput">Kit fee (per day)</label>
+            <input type="number" id="inviteKitRateInput" min="0" step="0.01" placeholder="0.00" />
+          </div>
+        </div>
+
+        <div class="doc-request-block">
+          <label class="block-label">Documents &amp; certifications to request</label>
+          <p class="desc" style="margin-bottom:10px;">Checked items show up on their portal as outstanding requests, in addition to the general Documents upload.</p>
+          <div class="doc-request-grid" id="docRequestGrid">
+            <label class="checkbox-label"><input type="checkbox" value="Government-issued ID" /> Government-issued ID</label>
+            <label class="checkbox-label"><input type="checkbox" value="Void cheque / direct deposit form" /> Void cheque / direct deposit form</label>
+            <label class="checkbox-label"><input type="checkbox" value="SIN documentation" /> SIN documentation</label>
+            <label class="checkbox-label"><input type="checkbox" value="Work permit / visa" /> Work permit / visa</label>
+            <label class="checkbox-label"><input type="checkbox" value="WCB clearance" /> WCB clearance</label>
+            <label class="checkbox-label"><input type="checkbox" value="OFTTC declaration of residency" /> OFTTC declaration of residency</label>
+            <label class="checkbox-label"><input type="checkbox" value="Union membership card" /> Union membership card</label>
+            <label class="checkbox-label"><input type="checkbox" value="First aid / CPR certification" /> First aid / CPR certification</label>
+            <label class="checkbox-label"><input type="checkbox" value="Stunt certification" /> Stunt certification</label>
+            <label class="checkbox-label"><input type="checkbox" value="Driver's license / abstract" /> Driver's license / abstract</label>
+          </div>
+          <label for="inviteDocsOtherInput" style="margin-top:12px;">Other requests</label>
+          <input type="text" id="inviteDocsOtherInput" placeholder="Comma-separated, e.g. Equipment insurance proof, Portfolio" />
+        </div>
+
+        </details>
+
+        <div id="inviteMsg"></div>
+        <div class="invite-actions"><button type="button" class="btn-secondary" id="inviteCancelBtn">Close</button><button class="btn-primary" id="sendInviteBtn">Send invite</button></div>
+  </div>
+</div>
+
 <div id="employeeModalOverlay" class="modal-overlay hidden">
   <div class="modal-card">
     <button class="modal-close" id="employeeModalClose" aria-label="Close">&times;</button>
@@ -690,6 +703,7 @@
 <script src="src/js/core/company-switcher.js"></script>
 <script src="src/js/admin/payroll-export.js"></script>
 <script src="src/js/ui/side-nav.js"></script>
+<script src="src/js/ui/invite-modal.js"></script>
 <script src="src/js/auth/mfa.js"></script>
 <script src="src/js/main.js"></script>
 

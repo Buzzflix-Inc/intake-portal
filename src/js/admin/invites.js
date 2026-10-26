@@ -105,8 +105,8 @@ document.getElementById("sendInviteBtn").addEventListener("click", async () => {
   const dispatch = await dispatchInviteEmail(inserted || invitePayload).catch(() => ({ sent: false }));
 
   msgEl.innerHTML = dispatch.sent
-    ? `<div class="msg ok">Invite emailed to ${email}.</div>`
-    : `<div class="msg ok">Invite created for ${email}${dispatch.error ? `, but the email didn't send (${escHtml(dispatch.error)})` : ""}. Use "Copy Invite" below to send it manually.</div>`;
+    ? `<div class="msg ok">Invite emailed to ${escHtml(email)}. You can invite someone else now.</div>`
+    : `<div class="msg ok">Invite created for ${escHtml(email)}${dispatch.error ? `, but the email didn't send (${escHtml(dispatch.error)})` : ""}. Use "Copy Invite" in <button type="button" class="preview-link" data-show-invites>Invites</button> to send it yourself.</div>`;
 
   ["inviteNameInput", "inviteEmailInput", "invitePhoneInput", "inviteKitRateInput", "inviteDocsOtherInput"]
     .forEach((id) => { document.getElementById(id).value = ""; });
@@ -165,7 +165,7 @@ async function loadPendingInvites() {
         const r = await dispatchInviteEmail(row);
         emailBtn.disabled = false;
         emailBtn.textContent = r.sent ? "Sent" : "Email Invite";
-        document.getElementById("inviteMsg").innerHTML = r.sent
+        document.getElementById("invitesListMsg").innerHTML = r.sent
           ? `<div class="msg ok">Invite emailed to ${escHtml(row.email)}.</div>`
           : `<div class="msg error">Couldn't email ${escHtml(row.email)}${r.error ? ": " + escHtml(r.error) : ""}. Use Copy Invite instead.</div>`;
       });
@@ -188,7 +188,7 @@ async function loadPendingInvites() {
       rmBtn.textContent = "Remove access";
       rmBtn.addEventListener("click", async () => {
         const { data: prof } = await client.from("profiles").select("user_id").eq("email", row.email).maybeSingle();
-        const msgEl = document.getElementById("inviteMsg");
+        const msgEl = document.getElementById("invitesListMsg");
         if (!prof) {
           // Account is already gone: just clear the stale invite.
           if (window.confirm(`${row.email} has no active account. Remove this entry from the list?`)) {
@@ -197,7 +197,7 @@ async function loadPendingInvites() {
           }
           return;
         }
-        removeMsgTarget = "inviteMsg";
+        removeMsgTarget = "invitesListMsg";
         try { await removeEmployee(prof.user_id, row.email); } finally { removeMsgTarget = null; }
         loadPendingInvites();
       });
