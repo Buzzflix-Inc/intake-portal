@@ -15,6 +15,8 @@ function switchTab(which) {
       btn.classList.toggle("active", key === which);
       panel.classList.toggle("hidden", key !== which);
     });
+  const bar = document.getElementById("tabs"), on = bar.querySelector(".tab-btn.active");
+  if (on && bar.scrollWidth > bar.clientWidth) bar.scrollLeft = on.offsetLeft - bar.offsetLeft - 12;
 }
 tabPortalBtn.addEventListener("click", () => switchTab("portal"));
 tabAdminBtn.addEventListener("click", () => switchTab("admin"));
