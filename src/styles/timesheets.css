@@ -1,11 +1,7 @@
 /* Weekly timesheet entry */
-/* Employee tab layout: timesheets get the wide column, documents + paystubs stack beside it */
-.stack { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
-@media (min-width: 860px) {
-  #portalTab .ts-panel { grid-column: 2; grid-row: 2; }
-  #portalTab .stack { grid-column: 1; grid-row: 2; }
-}
 ul.file-list:empty { display: none; }
+.ts-sub { margin: 22px 0 6px; font-size: 14px; }
+.ts-sub:has(+ ul.file-list:empty) { display: none; }
 input[type="file"]::file-selector-button {
   background: var(--accent-soft); color: var(--link); border: none; border-radius: 7px;
   padding: 8px 14px; margin-right: 10px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
@@ -55,4 +51,21 @@ input[type="file"]::file-selector-button:hover { background: var(--accent-soft-h
 }
 .ts-total-row strong { font-size: 16px; color: var(--ink); font-variant-numeric: tabular-nums; }
 .ts-note { font-size: 12px; color: var(--ink-faint); margin: 0 0 10px; }
+
+/* Wide screens: one row per day, field labels only on the first row */
+@media (min-width: 1000px) {
+  #tsPeriodSelect { max-width: 420px; }
+  .ts-grid { gap: 6px; }
+  .ts-quick { margin-bottom: 6px; }
+  .ts-card { display: grid; grid-template-columns: 150px minmax(0, 1fr) 64px 132px; align-items: end; gap: 14px; padding: 8px 14px; }
+  .ts-card-h { display: contents; }
+  .ts-day { order: 1; flex-direction: column; gap: 0; align-self: center; }
+  .ts-card-b { order: 2; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+  .ts-hrs { order: 3; align-self: center; }
+  .ts-copy { order: 4; align-self: center; }
+  .ts-card:not(#tsCard0) .ts-f > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .ts-card:not(#tsCard0) .ts-kit input { margin-top: 0; }
+  .ts-kit { align-items: center; }
+  #tsSubmitBtn { max-width: 320px; }
+}
 

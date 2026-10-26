@@ -5,6 +5,8 @@ function applyWorkerType() {
   if (!p || !t) return;
   p.classList.toggle("hidden", !myIsContractor);
   t.classList.toggle("hidden", myIsContractor);
+  const lab = document.getElementById("pvTimeLabel");
+  if (lab) lab.textContent = myIsContractor ? "Invoices" : "Timesheets";
   if (myIsContractor) { renderInvoiceForm(); if (!applyWorkerType.done) { applyWorkerType.done = true; loadList("timesheets", "timesheets", true); } }
 }
 function invCalc() {

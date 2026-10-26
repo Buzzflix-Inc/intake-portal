@@ -35,7 +35,7 @@ details[open] > :not(summary) { animation: accIn .2s ease-out; }
   details[open] > :not(summary) { animation: none; }
 }
 /* long lists render lazily */
-.ts-card, .deal-fold, .file-list > * { content-visibility: auto; contain-intrinsic-size: auto 120px; }
+.deal-fold, .file-list > * { content-visibility: auto; contain-intrinsic-size: auto 120px; }
 .modal-card, .modal-overlay { will-change: opacity; }
 @media (prefers-reduced-motion: reduce) {
   html, * { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
