@@ -3,10 +3,12 @@ const dealCtx = {};
 // Red "!" on the front page (tab and heading) while a deal memo is waiting for a signature.
 function setDealsBadge(n) {
   const bang = (txt) => (n ? ` <span class="deal-bang" title="${n} waiting for your signature">${txt}</span>` : "");
-  const h = document.querySelector("#portalTab > section.panel:first-child > h2");
+  const h = document.querySelector("#myDealsPanel > h2");
   if (h) h.innerHTML = "My deals" + bang("!");
   const tb = document.getElementById("tabPortalBtn");
   if (tb) tb.innerHTML = "My Portal" + bang("!");
+  const side = document.querySelector('#portalNav .pv-link[data-view="deals"] .pv-label');
+  if (side) side.innerHTML = "Deal Memos" + bang("!");
 }
 
 async function loadMyDetails(user) {
