@@ -921,6 +921,8 @@
   @keyframes qInBack { from { opacity: 0; transform: translateX(-22px); } to { opacity: 1; transform: none; } }
   @keyframes qShake { 0%,100% { transform: none; } 20% { transform: translateX(-7px); } 40% { transform: translateX(7px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(4px); } }
   .sign-status.rejected-note { color: var(--error, #b91c1c); background: rgba(220, 38, 38, .08); border: 1px solid rgba(220, 38, 38, .25); border-radius: 8px; padding: 8px 12px; }
+  .invite-more { margin: 14px 0 16px; border: 1px solid var(--line); border-radius: 10px; padding: 4px 14px 14px; }
+  .invite-more > summary { cursor: pointer; font-weight: 600; font-size: 13.5px; padding: 10px 0; }
   /* ---- Smooth scrolling & controls ---- */
   html { scroll-behavior: smooth; scrollbar-gutter: stable; -webkit-text-size-adjust: 100%; }
   body { -webkit-tap-highlight-color: transparent; text-rendering: optimizeLegibility; }
@@ -1210,7 +1212,7 @@
 
       <section class="panel span-2">
         <h2>Invite crew</h2>
-        <p class="desc">They'll only be able to sign up once invited. Add production details so the invite carries everything they need.</p>
+        <p class="desc">Just the basics. They'll fill in their own details (phone, address, ID…) the first time they sign in, and it auto-fills their forms.</p>
 
         <div class="invite-grid">
           <div>
@@ -1222,9 +1224,26 @@
             <input type="email" id="inviteEmailInput" placeholder="employee@company.com" />
           </div>
           <div>
-            <label for="invitePhoneInput">Phone</label>
-            <input type="tel" id="invitePhoneInput" placeholder="(555) 555-5555" />
+            <label for="inviteDeptSelect">Department</label>
+            <select id="inviteDeptSelect"></select>
           </div>
+          <div>
+            <label for="inviteCrewRoleSelect">Crew role</label>
+            <select id="inviteCrewRoleSelect"></select>
+          </div>
+          <div>
+            <label for="inviteDealMemoSelect">Deal memo</label>
+            <select id="inviteDealMemoSelect"><option value="">None</option></select>
+          </div>
+          <div>
+            <label for="inviteTypeSelect">Worker type</label>
+            <select id="inviteTypeSelect"><option value="">Employee (timesheets)</option><option value="contractor">Solo contractor (invoices)</option></select>
+          </div>
+        </div>
+
+        <details class="invite-more">
+          <summary>More options <span class="muted">(dates, kit fee, safety form, requested documents…)</span></summary>
+          <div class="invite-grid" style="margin-top:12px;">
           <div>
             <label for="inviteAccessSelect">Portal access</label>
             <select id="inviteAccessSelect">
@@ -1233,12 +1252,8 @@
             </select>
           </div>
           <div>
-            <label for="inviteDeptSelect">Department</label>
-            <select id="inviteDeptSelect"></select>
-          </div>
-          <div>
-            <label for="inviteCrewRoleSelect">Crew role</label>
-            <select id="inviteCrewRoleSelect"></select>
+            <label for="invitePhoneInput">Phone</label>
+            <input type="tel" id="invitePhoneInput" placeholder="(555) 555-5555" />
           </div>
           <div>
             <label for="inviteStartInput">Start date</label>
@@ -1249,23 +1264,14 @@
             <input type="date" id="inviteEndInput" />
           </div>
           <div>
-            <label for="inviteDealMemoSelect">Deal memo</label>
-            <select id="inviteDealMemoSelect"><option value="">None</option></select>
-          </div>
-          <div>
             <label for="inviteSafetySelect">Safety acknowledgment</label>
             <select id="inviteSafetySelect"><option value="">None</option></select>
-          </div>
-          <div>
-            <label for="inviteTypeSelect">Worker type</label>
-            <select id="inviteTypeSelect"><option value="">Employee (timesheets)</option><option value="contractor">Solo contractor (invoices)</option></select>
           </div>
           <div id="inviteTsWrap">
             <label for="inviteTimesheetSelect">Timesheet form</label>
             <select id="inviteTimesheetSelect"><option value="">Standard portal timesheet</option></select>
           </div>
-        </div>
-
+          </div>
         <div class="kit-toggle-row" id="inviteKitRow">
           <label class="checkbox-label" for="inviteKitToggle">
             <input type="checkbox" id="inviteKitToggle" />
@@ -1295,6 +1301,8 @@
           <label for="inviteDocsOtherInput" style="margin-top:12px;">Other requests</label>
           <input type="text" id="inviteDocsOtherInput" placeholder="Comma-separated, e.g. Equipment insurance proof, Portfolio" />
         </div>
+
+        </details>
 
         <button class="btn-secondary" id="sendInviteBtn">Send Invite</button>
         <div id="inviteMsg"></div>
@@ -4117,6 +4125,15 @@
     }
   }
 
+  // Dates default to today through one year; change them under "More options" if needed.
+  function inviteDefaultDates(force) {
+    const st = document.getElementById("inviteStartInput"), en = document.getElementById("inviteEndInput");
+    const t = new Date(); const y = new Date(t.getFullYear() + 1, t.getMonth(), t.getDate());
+    if (force || !st.value) st.value = ymd(t);
+    if (force || !en.value) en.value = ymd(y);
+  }
+  inviteDefaultDates(false);
+
   function syncInviteType() {
     const c = document.getElementById("inviteTypeSelect").value === "contractor";
     document.getElementById("inviteTsWrap").classList.toggle("hidden", c);
@@ -4148,8 +4165,8 @@
     const isContractorInvite = document.getElementById("inviteTypeSelect").value === "contractor";
     if (isContractorInvite) requested_documents.unshift(CONTRACTOR_TAG);
 
-    if (!full_name || !email || !phone || !department || !crew_role || !start_date || !end_date) {
-      msgEl.innerHTML = `<div class="msg error">Fill in every field before sending this invite.</div>`;
+    if (!full_name || !email || !department || !crew_role || !start_date || !end_date) {
+      msgEl.innerHTML = `<div class="msg error">Add their name, email, department and crew role first.</div>`;
       return;
     }
     if (end_date < start_date) {
@@ -4185,8 +4202,9 @@
       ? `<div class="msg ok">Invite emailed to ${email}.</div>`
       : `<div class="msg ok">Invite created for ${email}${dispatch.error ? `, but the email didn't send (${escHtml(dispatch.error)})` : ""}. Use "Copy Invite" below to send it manually.</div>`;
 
-    ["inviteNameInput", "inviteEmailInput", "invitePhoneInput", "inviteStartInput", "inviteEndInput", "inviteKitRateInput", "inviteDocsOtherInput"]
+    ["inviteNameInput", "inviteEmailInput", "invitePhoneInput", "inviteKitRateInput", "inviteDocsOtherInput"]
       .forEach((id) => { document.getElementById(id).value = ""; });
+    inviteDefaultDates(true);
     inviteKitToggle.checked = false;
     inviteKitRateWrap.classList.add("hidden");
     document.getElementById("inviteTypeSelect").value = ""; syncInviteType();
