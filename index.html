@@ -1697,6 +1697,18 @@
     authMsg.innerHTML = "";
   });
 
+  // Invite links (?signup=1&email=...) open straight on "Create account" with the email filled in.
+  (function () {
+    try {
+      const q = new URLSearchParams(location.search);
+      if (!q.has("signup")) return;
+      if (mode === "signin") toggleModeBtn.click();
+      const em = q.get("email");
+      if (em) { const f = document.getElementById("email"); if (f) f.value = em; }
+      history.replaceState(null, "", location.pathname + location.hash);
+    } catch (_) {}
+  })();
+
   authForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const email = document.getElementById("email").value.trim();
@@ -4275,6 +4287,7 @@
   }
 
   const PORTAL_URL = "https://ethanheinze.github.io/intake-portal/";
+  const inviteLink = (email) => `${PORTAL_URL}?signup=1&email=${encodeURIComponent(email)}`;
 
   async function copyInviteMessage(row, btn) {
     const kitLine = row.kit_fee_enabled ? `Kit fee: $${Number(row.kit_fee_rate || 0).toFixed(2)}/day\n` : "";
@@ -4286,8 +4299,8 @@
       `You've been invited to the Buzzflix HR Intake Portal as ${row.crew_role} (${row.department}).\n\n` +
       `Dates: ${row.start_date} – ${row.end_date}\n` +
       kitLine + docsLine + `\n` +
-      `Create your account at ${PORTAL_URL} using this email address: ${row.email}\n\n` +
-      `Click "Create one" on the sign-in screen to get started.`;
+      `Create your account here (use this email address, ${row.email}):\n${inviteLink(row.email)}\n\n` +
+      `Then confirm your email to get started.`;
 
     try {
       await navigator.clipboard.writeText(message);
@@ -7550,8 +7563,8 @@
   function copyAdminInvite(companyName, email, btn) {
     const message =
       `You've been invited to administer ${companyName} on the HR Intake Portal.\n\n` +
-      `Create your account at ${PORTAL_URL} using this email address: ${email}\n\n` +
-      `Click "Create one" on the sign-in screen to get started.`;
+      `Create your account here (use this email address, ${email}):\n${inviteLink(email)}\n\n` +
+      `Then confirm your email to get started.`;
     const done = () => { const t = btn.textContent; btn.textContent = "Copied"; setTimeout(() => { btn.textContent = t; }, 1600); };
     try { navigator.clipboard.writeText(message).then(done, () => window.prompt("Copy this invite:", message)); }
     catch (e) { window.prompt("Copy this invite:", message); }
