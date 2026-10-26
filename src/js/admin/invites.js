@@ -5,23 +5,10 @@ inviteKitToggle.addEventListener("change", () => {
   if (!inviteKitToggle.checked) document.getElementById("inviteKitRateInput").value = "";
 });
 
-// ---- Email automation hook ----
-// Not wired up yet — invites currently go out via the "Copy Link" /
-// manual-share flow below. When you're ready to automate sending,
-// replace the body of this function with a call to your email
-// provider or a Supabase Edge Function, e.g.:
-//
-//   const { error } = await client.functions.invoke("send-invite-email", {
-//     body: invite,
-//   });
-//   return { sent: !error };
-//
-// `invite` is exactly the row that was just inserted into
-// company_invites (see the shape built in sendInviteBtn below), so no
-// other code needs to change — this is the only function to fill in.
-// The Supabase function was created with the slug "smart-handler" (its display
-// name is send-invite-email); the slug is what the URL and invoke() use.
-const INVITE_EMAIL_FUNCTION = "smart-handler";
+// ---- Invite emails ----
+// Sent by the send-invite-email Edge Function (supabase/functions/send-invite-email).
+// Until its Resend secrets are set it replies sent:false, and admins use "Copy Invite" instead.
+const INVITE_EMAIL_FUNCTION = "send-invite-email";
 async function dispatchInviteEmail(invite) {
   // Calls the "send-invite-email" Edge Function (Resend). If it isn't
   // deployed or configured yet, this just reports sent:false and the
@@ -223,7 +210,7 @@ async function loadPendingInvites() {
   }
 }
 
-const PORTAL_URL = "https://ethanheinze.github.io/intake-portal/";
+const PORTAL_URL = APP_CONFIG.portalUrl || location.origin + location.pathname;
 const inviteLink = (email) => `${PORTAL_URL}?signup=1&email=${encodeURIComponent(email)}`;
 
 async function copyInviteMessage(row, btn) {
