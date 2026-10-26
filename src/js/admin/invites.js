@@ -223,8 +223,8 @@ async function copyInviteMessage(row, btn) {
     `You've been invited to the Buzzflix HR Intake Portal as ${row.crew_role} (${row.department}).\n\n` +
     `Dates: ${row.start_date} – ${row.end_date}\n` +
     kitLine + docsLine + `\n` +
-    `Create your account here (use this email address, ${row.email}):\n${inviteLink(row.email)}\n\n` +
-    `Then confirm your email to get started.`;
+    `Sign in here with this email address (${row.email}):\n${inviteLink(row.email)}\n\n` +
+    `We'll email you a 6-digit code to sign in. No password needed.`;
 
   try {
     await navigator.clipboard.writeText(message);

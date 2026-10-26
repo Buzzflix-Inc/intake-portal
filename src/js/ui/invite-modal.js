@@ -1,7 +1,13 @@
 // ---- Invite crew pop-up, opened from the header (admins) or the Invites section ----
 const inviteModal = document.getElementById("inviteModalOverlay");
 let inviteModalReturn = null;
-function openInviteModal() {
+// { welcome: true } right after someone sets up a production: same form, friendlier heading.
+function openInviteModal(opts) {
+  const welcome = !!(opts && opts.welcome);
+  document.getElementById("inviteModalTitle").textContent = welcome ? "Invite your crew" : "Invite crew";
+  document.getElementById("inviteModalSub").textContent = welcome
+    ? "Your production is ready. Invite people now, or later from the Invite crew button at the top. They'll get a sign-in link and fill in their own details."
+    : "Just the basics. They'll fill in their own details (phone, address, ID…) the first time they sign in, and it auto-fills their forms.";
   inviteModalReturn = document.activeElement;
   document.getElementById("inviteMsg").innerHTML = "";
   inviteModal.classList.remove("hidden");
@@ -21,7 +27,7 @@ function showInvitesList() {
   switchTab("admin");
   expandPanelOf(document.getElementById("pendingInvitesList"));
 }
-document.querySelectorAll("[data-invite-open]").forEach((b) => b.addEventListener("click", openInviteModal));
+document.querySelectorAll("[data-invite-open]").forEach((b) => b.addEventListener("click", () => openInviteModal()));
 document.getElementById("inviteModalClose").addEventListener("click", closeInviteModal);
 document.getElementById("inviteCancelBtn").addEventListener("click", closeInviteModal);
 inviteModal.addEventListener("click", (e) => {

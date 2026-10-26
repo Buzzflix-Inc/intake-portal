@@ -1,0 +1,93 @@
+/* ---- Sign-in extras: passkey, code entry, legal line ---- */
+.auth-or { display: flex; align-items: center; gap: 12px; margin: 18px 0 14px; color: var(--ink-faint); font-size: 12px; }
+.auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.auth-passkey { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; }
+.auth-passkey svg, .ob-choice svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.auth-passkey.hidden, .auth-or.hidden { display: none; }
+input.auth-code { border: 1px solid var(--line); border-radius: 7px; background: var(--page); color: var(--ink); font-family: inherit; }
+input.auth-code { width: 100%; font-size: 22px; letter-spacing: 0.35em; text-align: center; padding: 10px 12px; margin-bottom: 17px; font-variant-numeric: tabular-nums; }
+.auth-card .toggle-row { display: flex; justify-content: space-between; gap: 12px; }
+.auth-card .toggle-row button:disabled { color: var(--ink-faint); cursor: default; text-decoration: none; }
+.auth-legal { max-width: 380px; text-align: center; font-size: 12px; color: var(--ink-faint); margin: 16px 0 0; }
+.auth-legal a, .ob-card a { color: var(--link); }
+
+/* ---- Onboarding cards ---- */
+.ob-wrap { display: flex; flex-direction: column; align-items: center; margin-top: 56px; }
+.ob-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 32px 34px; width: 100%; max-width: 460px; }
+.ob-card.ob-wide { max-width: 640px; }
+.ob-card h2 { font-size: 19px; margin: 0 0 6px; font-weight: 600; letter-spacing: -0.01em; }
+.ob-card h2 .muted { font-size: 14px; font-weight: 400; color: var(--ink-faint); }
+.ob-card p.sub { color: var(--ink-soft); font-size: 13.5px; margin: 0 0 22px; }
+.ob-card input[type="text"], .ob-card input[type="date"], .ob-card select { width: 100%; margin-bottom: 16px; }
+.ob-card label .muted { font-weight: 400; color: var(--ink-faint); }
+.ob-who { font-size: 12.5px; color: var(--ink-faint); margin: 16px 0 0; }
+.ob-link { background: none; border: none; padding: 0; color: var(--link); font: inherit; font-weight: 600; cursor: pointer; }
+.ob-link:hover { text-decoration: underline; }
+.ob-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px; }
+.ob-actions .btn-primary { width: auto; padding-left: 22px; padding-right: 22px; }
+.ob-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+.ob-points { margin: 0 0 20px; padding-left: 18px; color: var(--ink-soft); font-size: 13.5px; }
+.ob-points li { margin-bottom: 6px; }
+.ob-check { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; color: var(--ink); margin-bottom: 18px; }
+.ob-check input { margin-top: 3px; }
+.ob-eyebrow { font-size: 12px; font-weight: 600; color: var(--link); margin: 0 0 10px; }
+
+/* Create or join */
+.ob-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.ob-choice { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; font: inherit; color: var(--ink); cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease, transform .1s ease; }
+.ob-choice svg { width: 26px; height: 26px; color: var(--link); margin-bottom: 4px; }
+.ob-choice b { font-size: 15px; }
+.ob-choice span { font-size: 13px; color: var(--ink-soft); line-height: 1.45; }
+.ob-choice:hover { border-color: var(--link); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* Join: email to share, waiting indicator */
+.ob-email { display: flex; gap: 10px; align-items: center; margin-bottom: 18px; }
+.ob-email code { flex: 1; min-width: 0; overflow-wrap: anywhere; background: var(--page); border: 1px solid var(--line); border-radius: 7px; padding: 9px 12px; font-size: 14px; }
+.ob-wait { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-soft); margin-bottom: 14px; }
+.ob-pulse { width: 9px; height: 9px; border-radius: 50%; background: var(--link); flex: none; animation: obPulse 1.6s ease-in-out infinite; }
+@keyframes obPulse { 0%, 100% { opacity: .35; transform: scale(.85); } 50% { opacity: 1; transform: scale(1); } }
+
+/* Setup steps */
+.ob-steps { display: flex; gap: 6px; list-style: none; padding: 0; margin: 0 0 24px; }
+.ob-steps li { flex: 1; display: flex; flex-direction: column; gap: 6px; font-size: 11.5px; color: var(--ink-faint); }
+.ob-steps li span { height: 4px; border-radius: 99px; background: var(--line); font-size: 0; }
+.ob-steps li.done span, .ob-steps li.cur span { background: var(--link); }
+.ob-steps li.cur { color: var(--ink); font-weight: 600; }
+
+/* Theme presets */
+.ob-themes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
+.ob-theme { display: flex; flex-direction: column; gap: 8px; align-items: stretch; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px; font: inherit; font-size: 13px; font-weight: 600; color: var(--ink); cursor: pointer; text-align: left; }
+.ob-theme.on { border-color: var(--link); box-shadow: 0 0 0 3px var(--accent-soft); }
+.ob-theme-prev { display: grid; grid-template-rows: 10px 1fr; gap: 6px; height: 64px; padding: 6px; border-radius: 8px; background: #fbf8f0; border: 1px solid #ece4cf; }
+.ob-theme-prev i { border-radius: 4px; background: var(--p); }
+.ob-theme-prev b { border-radius: 4px; background: #fff; border: 1px solid #ece4cf; position: relative; }
+.ob-theme-prev em { position: relative; top: -22px; left: 8px; width: 40%; height: 12px; border-radius: 4px; background: var(--a); }
+
+@media (max-width: 560px) {
+  .ob-wrap { margin-top: 24px; }
+  .ob-card { padding: 24px 20px; }
+  .ob-choices, .ob-row { grid-template-columns: 1fr; }
+  .ob-themes { grid-template-columns: repeat(2, 1fr); }
+  .ob-steps li { font-size: 0; gap: 0; }
+}
+
+/* ---- Backup codes (two-step sign-in) ---- */
+#mfaGate .mfa-codes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; padding: 0 0 0 22px; margin: 6px 0 16px; }
+#mfaGate .mfa-codes code { display: inline; padding: 2px 6px; margin: 0; font-size: 14px; letter-spacing: .04em; background: var(--page); }
+#mfaGate .mfa-save { justify-content: flex-start; margin-bottom: 14px; }
+#mfaGate .mfa-ack { display: flex; gap: 8px; align-items: center; font-size: 13.5px; color: var(--ink); margin-bottom: 14px; }
+#mfaGate .mfa-ack input { width: auto; margin: 0; font-size: inherit; letter-spacing: normal; }
+#mfaGate .mfa-alt { margin: 14px 0 0; font-size: 13px; }
+#mfaGate #mfaRecovery { letter-spacing: .12em; text-transform: uppercase; font-size: 18px; }
+
+/* ---- Getting-started checklist (admins, My Portal) ---- */
+.gs-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.gs-head .desc { margin-bottom: 10px !important; }
+.gs-bar { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; margin-bottom: 12px; }
+.gs-bar i { display: block; height: 100%; background: var(--link); border-radius: 99px; }
+.gs-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px; }
+.gs-list button { width: 100%; display: flex; align-items: center; gap: 10px; background: none; border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; font: inherit; font-size: 13.5px; color: var(--ink); text-align: left; cursor: pointer; }
+.gs-list button:hover:not(:disabled) { border-color: var(--link); background: var(--accent-soft); }
+.gs-list li.done button { color: var(--ink-faint); text-decoration: line-through; cursor: default; }
+.gs-tick { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line); flex: none; }
+.gs-list li.done .gs-tick { background: var(--ok); border-color: var(--ok); box-shadow: inset 0 0 0 2px var(--surface); }

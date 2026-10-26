@@ -1,0 +1,9 @@
+<!-- Paste into Supabase › Authentication › Emails for BOTH "Magic link or OTP" and "Confirm sign up".
+     Subject for both: Your HR Intake Portal code: {{ .Token }} -->
+<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#1a1a1a;">
+  <h2 style="font-size:20px;margin:0 0 12px;">Your sign-in code</h2>
+  <p style="color:#5c5648;margin:0 0 16px;">Enter this code in the HR Intake Portal to sign in:</p>
+  <p style="font-size:32px;font-weight:700;letter-spacing:8px;margin:0 0 20px;font-family:Menlo,Consolas,monospace;">{{ .Token }}</p>
+  <p style="color:#5c5648;margin:0 0 20px;">Or, on the device where you asked for it, <a href="{{ .ConfirmationURL }}" style="color:#b4550b;font-weight:600;">click here to sign in</a>.</p>
+  <p style="color:#9a927e;font-size:13px;margin:0;">The code expires soon and works once. If you didn't ask for it, you can ignore this email.</p>
+</div>

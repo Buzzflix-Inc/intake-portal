@@ -19,6 +19,7 @@
 <link rel="stylesheet" href="src/styles/timesheets.css">
 <link rel="stylesheet" href="src/styles/admin.css">
 <link rel="stylesheet" href="src/styles/wizard.css">
+<link rel="stylesheet" href="src/styles/onboarding.css">
 <link rel="stylesheet" href="src/styles/polish.css">
 </head>
 <body>
@@ -27,28 +28,47 @@
 
 <div class="shell">
 
-  <!-- ===== Auth view ===== -->
+  <!-- ===== Auth view: email code or passkey, no passwords ===== -->
   <div id="authView">
     <div class="auth-wrap">
       <div class="auth-mark">HR</div>
       <div class="auth-card">
-        <h2 id="authTitle">Sign in</h2>
-        <p class="sub" id="authSub">Access your documents, timesheets and paystubs.</p>
-        <div id="authMsg"></div>
-        <form id="authForm">
-          <label for="email">Email</label>
-          <input type="email" id="email" required autocomplete="email" />
-          <label for="password">Password</label>
-          <input type="password" id="password" required autocomplete="current-password" />
-          <button type="submit" class="btn-primary" id="authSubmitBtn">Sign in</button>
-        </form>
-        <div class="toggle-row">
-          <span id="toggleLabel">Don't have an account?</span>
-          <button type="button" id="toggleModeBtn">Create one</button>
+        <div id="authStepEmail">
+          <h2>Sign in or get started</h2>
+          <p class="sub">Enter your email and we'll send you a 6-digit code. No password needed.</p>
+          <div id="authMsg"></div>
+          <form id="authForm">
+            <label for="email">Email</label>
+            <input type="email" id="email" required autocomplete="username webauthn" placeholder="you@example.com" />
+            <button type="submit" class="btn-primary" id="authSubmitBtn">Email me a code</button>
+          </form>
+          <div class="auth-or hidden" id="passkeyOr"><span>or</span></div>
+          <button type="button" class="btn-secondary auth-passkey hidden" id="passkeySignInBtn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="4"/><path d="M2 21v-1a6 6 0 0 1 9-5.2M15 13a3 3 0 1 1 3 3v5l-1.5-1.5L15 21v-5.2A3 3 0 0 1 15 13z"/></svg>
+            Sign in with a passkey
+          </button>
+        </div>
+        <div id="authStepCode" class="hidden">
+          <h2>Check your email</h2>
+          <p class="sub">We sent a code to <b id="authSentTo"></b>. Enter it below, or open the link in that email on this device.</p>
+          <div id="authCodeMsg"></div>
+          <form id="authCodeForm">
+            <label for="authCode">6-digit code</label>
+            <input id="authCode" class="auth-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="000000" />
+            <button type="submit" class="btn-primary" id="authCodeBtn">Sign in</button>
+          </form>
+          <div class="toggle-row">
+            <button type="button" id="authResendBtn">Resend code</button>
+            <button type="button" id="authBackBtn">Use a different email</button>
+          </div>
         </div>
       </div>
+      <p class="auth-legal">By continuing you agree to the <a href="terms.html" target="_blank" rel="noopener">Terms of Service</a> and <a href="privacy.html" target="_blank" rel="noopener">Privacy Notice</a>.</p>
     </div>
   </div>
+
+  <!-- ===== Onboarding: terms, create or join, production setup ===== -->
+  <div id="onboardView" class="hidden"></div>
 
   <!-- ===== App view ===== -->
   <div id="appView" class="hidden">
@@ -561,7 +581,7 @@
   <div class="modal-card invite-card" role="dialog" aria-modal="true" aria-labelledby="inviteModalTitle">
     <button class="modal-close" id="inviteModalClose" aria-label="Close">&times;</button>
     <h2 id="inviteModalTitle">Invite crew</h2>
-    <p class="modal-sub">Just the basics. They'll fill in their own details (phone, address, ID…) the first time they sign in, and it auto-fills their forms.</p>
+    <p class="modal-sub" id="inviteModalSub">Just the basics. They'll fill in their own details (phone, address, ID…) the first time they sign in, and it auto-fills their forms.</p>
         <div class="invite-grid">
           <div>
             <label for="inviteNameInput">Full name</label>
@@ -704,6 +724,8 @@
 <script src="src/js/admin/payroll-export.js"></script>
 <script src="src/js/ui/side-nav.js"></script>
 <script src="src/js/ui/invite-modal.js"></script>
+<script src="src/js/auth/passkeys.js"></script>
+<script src="src/js/auth/onboarding.js"></script>
 <script src="src/js/auth/mfa.js"></script>
 <script src="src/js/main.js"></script>
 

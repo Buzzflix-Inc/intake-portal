@@ -25,6 +25,34 @@ Everything the database needs is in `supabase/`:
 | `supabase/migrations/` | Tables, row-level security, app functions, storage buckets, audit log. Apply in order. |
 | `supabase/functions/delete-user/` | Deletes auth accounts (needs the service-role key, so it runs server-side). |
 | `supabase/functions/send-invite-email/` | Emails invites through Resend. |
+| `supabase/functions/passkey/` | Registers passkeys and signs people in with them. Deployed without JWT verification (it checks callers itself). |
+| `supabase/templates/sign-in-code.html` | Email template with the 6-digit sign-in code (see below). |
+
+## Sign-in: emailed codes and passkeys (no passwords)
+
+People sign in with a 6-digit code (or the link in the same email), or a passkey. New emails
+get an account automatically, accept the Terms and Privacy Notice, then either create a
+production (and are walked through setting it up) or wait for an invite.
+
+One-time setup in the Supabase dashboard:
+
+1. **Authentication > Emails:** paste `supabase/templates/sign-in-code.html` into both the
+   **Magic link or OTP** and **Confirm sign up** templates, with the subject
+   `Your HR Intake Portal code: {{ .Token }}`. Without this the emails only contain a link.
+2. **Authentication > Providers > Email:** set **Email OTP length** to 6.
+3. **Authentication > URL Configuration:** the Site URL and redirect URLs must include where
+   the portal runs (e.g. `http://localhost:5173`).
+4. Before launch, set up custom SMTP (e.g. Resend) under **Authentication > Emails > SMTP**.
+   Supabase's built-in sender only allows a few emails an hour.
+5. Passkeys work on `localhost:5173`/`5174` and on `PORTAL_URL`. For other sites, set the
+   `PASSKEY_ORIGINS` Edge Function secret (comma-separated origins).
+
+Production admins must also use an authenticator app, and get 10 backup codes (copy or PDF).
+A backup code removes a lost authenticator so a new one can be set up.
+
+The Terms of Service and Privacy Notice are `terms.html` and `privacy.html`. They're drafts:
+have them reviewed and fill in the bracketed details. When you change them, bump
+`TERMS_VERSION` in `src/js/auth/onboarding.js` so everyone is asked to accept the new version.
 
 ## Secrets: where each one lives
 
@@ -42,7 +70,7 @@ repository root. Add the site's URL to Supabase under Authentication > URL Confi
 
 ## First super admin
 
-Sign up in the portal, then in the Supabase SQL editor:
+Sign in to the portal once, then in the Supabase SQL editor:
 ```sql
 insert into public.superadmins (user_id)
 select id from auth.users where email = 'you@example.com';

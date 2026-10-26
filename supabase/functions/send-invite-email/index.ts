@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
       <p>Hi ${esc(invite.full_name ?? "")},</p>
       <p>You've been invited to ${asAdmin ? `administer ${esc(company)}` : `join ${esc(company)}`} on the HR Intake Portal.</p>
       ${details}
-      <p><a href="${esc(link)}">Create your account</a> using this email address (${esc(invite.email)}), then confirm your email to get started.</p>`;
+      <p><a href="${esc(link)}">Sign in to the portal</a> with this email address (${esc(invite.email)}). We'll email you a 6-digit code. No password needed.</p>`;
 
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
