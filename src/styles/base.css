@@ -108,7 +108,8 @@ button.is-busy::after { content: ""; display: inline-block; width: 11px; height:
 #signOutBtn:hover { color: var(--ink); border-color: var(--ink-faint); background: var(--surface); }
 
 /* Tabs */
-.tabs { display: flex; gap: 4px; margin-bottom: 22px; border-bottom: 1px solid var(--line); }
+.tabs { display: flex; gap: 4px; margin-bottom: 22px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
 .tab-btn {
   background: none; border: none; border-bottom: 2px solid transparent;
   color: var(--ink-faint); font-size: 14px; font-weight: 600;
@@ -117,6 +118,7 @@ button.is-busy::after { content: ""; display: inline-block; width: 11px; height:
 }
 .tab-btn:hover { color: var(--ink-soft); }
 .tab-btn.active { color: var(--link); border-bottom-color: var(--link); }
+@media (max-width: 560px) { .tab-btn { margin-right: 14px; font-size: 13.5px; white-space: nowrap; flex-shrink: 0; } }
 
 /* Auth card */
 .auth-wrap { display: flex; flex-direction: column; align-items: center; margin-top: 72px; }

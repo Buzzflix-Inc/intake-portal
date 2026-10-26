@@ -5,27 +5,29 @@
   gap: 20px;
   align-items: start;
 }
-@media (min-width: 860px) {
-  #adminTab { grid-template-columns: 1fr 1fr; }
-}
 .span-2 { grid-column: 1 / -1; }
 
-/* My Portal: side menu + one section at a time, on a wider page */
-.shell:has(#appView:not(.hidden) #portalTab:not(.hidden)) { max-width: 1360px; }
-#portalTab { grid-template-columns: 1fr; }
+/* Side menu + one section at a time (My Portal, Admin Review, Super Admin), on a wider page */
+.shell:has(#appView:not(.hidden)) { max-width: 1360px; }
 .pv-main, .pv-view { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 .pv-view.hidden { display: none; }
-.pv-nav { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 6px; overflow-x: auto; }
+.pv-nav { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 6px; overflow-x: auto; scrollbar-width: none; }
+.pv-nav::-webkit-scrollbar { display: none; }
 .pv-link { display: flex; align-items: center; justify-content: center; gap: 10px; flex: 1 1 0; min-width: 0; background: none; border: none; border-radius: 8px; padding: 9px 12px; font: inherit; font-size: 14px; font-weight: 500; color: var(--ink-soft); cursor: pointer; text-align: left; white-space: nowrap; transition: background .15s ease, color .15s ease; }
 .pv-link svg { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .pv-link:hover { background: var(--accent-soft); color: var(--ink); }
 .pv-link.active { background: var(--accent-soft); color: var(--link); font-weight: 600; }
 .pv-link:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
-@media (max-width: 480px) { .pv-link { padding: 9px 6px; font-size: 13.5px; } .pv-link svg { display: none; } }
+.pv-nav-many .pv-link { flex: none; }
+.pv-group { display: none; margin: 12px 12px 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
+.pv-group:first-child { margin-top: 6px; }
+@media (max-width: 480px) { .pv-link { padding: 9px 6px; font-size: 13.5px; } .pv-nav-many .pv-link { padding: 9px 12px; } .pv-link svg { display: none; } }
 @media (min-width: 860px) {
-  #portalTab { grid-template-columns: 210px minmax(0, 1fr); }
-  .pv-nav { flex-direction: column; position: sticky; top: 16px; overflow: visible; }
+  #appView .has-side { grid-template-columns: 210px minmax(0, 1fr); }
+  .pv-nav { flex-direction: column; gap: 2px; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; }
   .pv-link { flex: none; justify-content: flex-start; }
+  .pv-nav-many .pv-link { padding: 7px 12px; font-size: 13.5px; }
+  .pv-group { display: block; }
 }
 
 section.panel {
@@ -46,36 +48,6 @@ section.panel h2 { font-size: 15.5px; margin: 0 0 4px; font-weight: 600; letter-
 #mfaGate code { display: block; word-break: break-all; font-size: 12px; background: var(--page); border: 1px solid var(--line); border-radius: 6px; padding: 8px; margin-bottom: 14px; user-select: all; }
 #mfaGate input { width: 100%; box-sizing: border-box; font-size: 20px; letter-spacing: 0.3em; text-align: center; margin-bottom: 12px; }
 #mfaGate .mfa-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
-/* Admin tab: grouped sub-navigation */
-.adm-nav { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; position: sticky; top: 8px; z-index: 30; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 5px 14px 5px 5px; margin: 0; }
-.adm-nav .adm-pills { display: flex; gap: 2px; overflow-x: auto; flex: 1; min-width: 0; scrollbar-width: none; }
-.adm-nav .adm-pills::-webkit-scrollbar { display: none; }
-.adm-pill { font: inherit; font-size: 13px; font-weight: 500; letter-spacing: -0.005em; white-space: nowrap; padding: 7px 15px; border-radius: 12px; border: none; background: transparent; color: var(--ink-soft); cursor: pointer; transition: background .15s, color .15s; }
-.adm-pill:hover { color: var(--ink); background: var(--page); }
-.adm-pill.active { background: var(--accent-soft); color: var(--link); font-weight: 600; }
-.adm-bulk { display: flex; gap: 12px; font-size: 12px; white-space: nowrap; }
-.adm-bulk button { background: none; border: none; color: var(--ink-faint); cursor: pointer; font: inherit; padding: 0; }
-.adm-bulk button:hover { color: var(--ink); }
-@media (max-width: 520px) { .adm-bulk { display: none; } .adm-nav { padding-right: 5px; } }
-section.panel.acc.adm-off { display: none; }
-section.panel.acc > h2.acc-h .acc-sub { display: block; font-size: 12px; font-weight: 400; color: var(--ink-faint); margin-top: 1px; }
-/* Collapsible admin sections */
-#adminTab section.panel.acc, #superTab section.panel.acc, #deptTab section.panel.acc { padding: 0; }
-section.panel.acc > h2.acc-h {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  margin: 0; padding: 16px 24px; cursor: pointer; user-select: none; border-radius: var(--radius);
-}
-section.panel.acc > h2.acc-h:hover { background: var(--accent-soft); }
-section.panel.acc > h2.acc-h::after {
-  content: ""; width: 8px; height: 8px; flex: none; margin-right: 4px;
-  border-right: 2px solid var(--ink-soft); border-bottom: 2px solid var(--ink-soft);
-  transform: rotate(45deg); transition: transform .15s;
-}
-section.panel.acc.open > h2.acc-h::after { transform: rotate(-135deg); }
-section.panel.acc > .acc-body { display: none; padding: 4px 24px 22px; }
-section.panel.acc.open > .acc-body { display: block; }
-section.panel.acc { grid-column: 1 / -1; }
-@media (max-width: 640px) { section.panel.acc > h2.acc-h { padding: 14px 20px; } section.panel.acc > .acc-body { padding: 4px 20px 20px; } }
 section.panel p.desc { color: var(--ink-soft); font-size: 13px; margin: 0 0 16px; }
 .upload-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 input[type="file"] {
