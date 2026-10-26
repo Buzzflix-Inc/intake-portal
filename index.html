@@ -3289,7 +3289,7 @@
       client.from("documents").select("id, status, file_path, created_at, doc_type").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
       client.from("timesheets").select("id, status, file_path, created_at, week_start, total_hours, entries").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
       client.from("paystubs").select("id, file_path, created_at").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
-      client.from("esign_records").select("id, type, status, template_id, employee_signature, employee_signed_at, final_pdf_path").eq("user_id", profile.user_id),
+      client.from("esign_records").select("id, type, status, template_id, employee_signature, employee_signed_at, final_pdf_path, revoke_reason").eq("user_id", profile.user_id),
     ]);
 
     const requested = realDocs(invite && invite.requested_documents);
@@ -3317,9 +3317,9 @@
       ? `<ul class="file-list">${deals.map((d) => {
           const t = allTemplates.find((tpl) => tpl.id === d.template_id);
           const kind = t ? t.name : (d.type === "deal_memo" ? "Deal memo" : "Safety acknowledgment");
-          const statusLabel = d.status === "countersigned" ? "countersigned" : d.status === "awaiting_countersignature" ? "awaiting countersignature" : "not yet signed";
-          const statusClass = d.status === "countersigned" ? "approved" : d.status === "awaiting_countersignature" ? "pending" : "rejected";
-          return `<li><span class="info"><span class="name">${kind}</span><span class="email">${d.employee_signature ? `signed <span class="signature-rendered" style="font-size:15px;">${d.employee_signature}</span>` : "no signature yet"}</span></span><span class="actions">${d.final_pdf_path ? `<button class="remove-link" data-final-path="${escHtml(d.final_pdf_path)}">Signed PDF</button>` : ""}<span class="status-badge status-${statusClass}">${statusLabel}</span></span></li>`;
+          const statusLabel = d.status === "revoked" ? "revoked" : d.status === "countersigned" ? "countersigned" : d.status === "awaiting_countersignature" ? "awaiting countersignature" : "not yet signed";
+          const statusClass = d.status === "revoked" ? "rejected" : d.status === "countersigned" ? "approved" : d.status === "awaiting_countersignature" ? "pending" : "rejected";
+          return `<li><span class="info"><span class="name">${kind}</span><span class="email">${d.employee_signature ? `signed <span class="signature-rendered" style="font-size:15px;">${d.employee_signature}</span>` : "no signature yet"}</span>${d.status === "revoked" && d.revoke_reason ? ` · <em>${escHtml(d.revoke_reason)}</em>` : ""}</span></span><span class="actions">${d.final_pdf_path ? `<button class="remove-link" data-final-path="${escHtml(d.final_pdf_path)}">Signed PDF</button>` : ""}${d.status !== "revoked" ? `<button class="remove-link" data-revoke="${d.id}" data-reissue="0">Revoke</button><button class="remove-link" data-revoke="${d.id}" data-reissue="1">Revoke &amp; reissue</button>` : ""}<span class="status-badge status-${statusClass}">${statusLabel}</span></span></li>`;
         }).join("")}</ul>`
       : `<p class="empty" style="padding:0;text-align:left;">No deal memo or safety acknowledgment assigned.</p>`;
 
@@ -3357,6 +3357,30 @@
   }
 
   document.getElementById("employeeModalBody").addEventListener("click", async (e) => {
+    const rv = e.target.closest("[data-revoke]");
+    if (rv) {
+      const ctx = employeeModalCtx; if (!ctx) return;
+      const reissue = rv.dataset.reissue === "1";
+      const reason = window.prompt(reissue ? "Why is this being revoked? A fresh copy will be sent to them to sign:" : "Why is this being revoked? They will no longer be asked to sign it:");
+      if (reason === null) return;
+      if (!reason.trim()) { window.alert("Please give a short reason (kept for the record)."); return; }
+      rv.disabled = true;
+      const { data: tid, error } = await client.rpc("admin_revoke_deal", { p_id: rv.dataset.revoke, p_reason: reason.trim() });
+      if (error) {
+        rv.disabled = false;
+        window.alert(/admin_revoke_deal|function/i.test(error.message) ? "Revoking isn't set up yet. Run add-revoke-deals.sql in Supabase, then try again." : "Couldn't revoke: " + error.message);
+        return;
+      }
+      let note = "Revoked.";
+      if (reissue && tid) {
+        const r2 = await client.rpc("admin_send_deal", { p_user: ctx.profile.user_id, p_template: tid });
+        note = r2.error ? "Revoked, but the new copy couldn't be sent: " + r2.error.message : "Revoked. A new copy was sent to them.";
+      }
+      await openEmployeeModal(ctx.profile, ctx.accessRole, ctx.invite);
+      const m3 = document.getElementById("sendDealMsg"); if (m3) m3.innerHTML = `<div class="msg ok">${escHtml(note)}</div>`;
+      loadPendingCountersignatures();
+      return;
+    }
     const btn = e.target.closest("#sendDealBtn");
     if (!btn) return;
     const sel = document.getElementById("sendDealSelect"), msg = document.getElementById("sendDealMsg");
@@ -7223,12 +7247,14 @@
     let waiting = 0;
     const pdfJobs = [];
     for (const template of templates || []) {
-      let { data: record } = await client
+      const { data: recList } = await client
         .from("esign_records")
         .select("*")
         .eq("user_id", user.id)
         .eq("template_id", template.id)
-        .maybeSingle();
+        .order("created_at", { ascending: false });
+      let record = (recList || []).find((r) => r.status !== "revoked") || null;
+      if (!record && (recList || []).length) continue;   // revoked by an admin; nothing to sign unless they issue a new one
 
       if (!record) {
         const { data: inserted } = await client
