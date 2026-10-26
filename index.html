@@ -920,6 +920,7 @@
   @keyframes qIn { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: none; } }
   @keyframes qInBack { from { opacity: 0; transform: translateX(-22px); } to { opacity: 1; transform: none; } }
   @keyframes qShake { 0%,100% { transform: none; } 20% { transform: translateX(-7px); } 40% { transform: translateX(7px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(4px); } }
+  .sign-status.rejected-note { color: var(--error, #b91c1c); background: rgba(220, 38, 38, .08); border: 1px solid rgba(220, 38, 38, .25); border-radius: 8px; padding: 8px 12px; }
   /* ---- Smooth scrolling & controls ---- */
   html { scroll-behavior: smooth; scrollbar-gutter: stable; -webkit-text-size-adjust: 100%; }
   body { -webkit-tap-highlight-color: transparent; text-rendering: optimizeLegibility; }
@@ -7255,7 +7256,7 @@
       } else if (record.status === "awaiting_countersignature") {
         signBoxHtml = `<p class="sign-status waiting">You signed <span class="signature-rendered">${record.employee_signature}</span> on ${new Date(record.employee_signed_at).toLocaleDateString()} — awaiting company countersignature.</p>`;
       } else {
-        signBoxHtml = `
+        signBoxHtml = (record.reject_reason ? `<p class="sign-status rejected-note">↩ Sent back for changes: ${escHtml(record.reject_reason)}</p>` : "") + `
           <div class="sign-box">
             <input type="text" id="sign-${record.id}" placeholder="Type your full legal name to sign" />
             <button class="btn-secondary" data-sign-id="${record.id}">Sign</button>
@@ -7374,9 +7375,28 @@
       btn.textContent = "Countersign";
       btn.addEventListener("click", () => countersignDeal(row.id));
       right.appendChild(btn);
+      const rej = document.createElement("button");
+      rej.className = "btn-reject"; rej.style.marginLeft = "8px"; rej.textContent = "Reject";
+      rej.addEventListener("click", () => rejectCountersign(row.id));
+      right.appendChild(rej);
       li.appendChild(left); li.appendChild(right);
       listEl.appendChild(li);
     }
+  }
+
+  // Sends a signed memo back to the employee (signature cleared) with the reason shown to them.
+  async function rejectCountersign(recordId) {
+    const reason = window.prompt("Why is this being sent back? The employee will see this and be asked to sign again:");
+    if (reason === null) return;
+    if (!reason.trim()) { window.alert("Please give a short reason so the employee knows what to fix."); return; }
+    const { error } = await client.rpc("admin_reject_countersign", { p_id: recordId, p_reason: reason.trim() });
+    if (error) {
+      window.alert(/admin_reject_countersign|function/i.test(error.message)
+        ? "Rejecting isn't set up yet. Run add-reject-countersign.sql in Supabase, then try again."
+        : "Couldn't reject: " + error.message);
+      return;
+    }
+    loadPendingCountersignatures();
   }
 
   async function countersignDeal(recordId) {
