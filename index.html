@@ -259,16 +259,10 @@
         <input type="text" id="companyNameInput" />
         <label for="companyTaglineInput">Tagline</label>
         <input type="text" id="companyTaglineInput" />
-        <div class="color-row">
-          <div>
-            <label for="companyPrimaryColorInput">Primary color</label>
-            <input type="color" id="companyPrimaryColorInput" />
-          </div>
-          <div>
-            <label for="companyAccentColorInput">Accent color</label>
-            <input type="color" id="companyAccentColorInput" />
-          </div>
-        </div>
+        <label class="block-label">Theme</label>
+        <p class="desc" style="margin-bottom:10px;">Colours everyone at your production sees. Click one to preview it, then Save.</p>
+        <p class="theme-custom-note hidden" id="themeCustomNote">You're using custom colours from before themes existed. Pick a theme to replace them.</p>
+        <div id="companyThemePicker" class="theme-picker"></div>
         <button class="btn-secondary" id="saveCompanySettingsBtn">Save</button>
         <div id="companySettingsMsg"></div>
 
@@ -688,6 +682,7 @@
 <script src="src/js/config.js"></script>
 <script src="src/js/core/supabase.js"></script>
 <script src="src/js/core/state.js"></script>
+<script src="src/js/ui/themes.js"></script>
 <script src="src/js/ui/busy-guard.js"></script>
 <script src="src/js/lib/utils.js"></script>
 <script src="src/js/data/departments.js"></script>

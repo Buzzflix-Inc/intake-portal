@@ -137,5 +137,6 @@ async function signOutEverywhere() {
     reviewChannel = null;
   }
   await client.auth.signOut();
+  forgetTheme();
   location.reload();
 }

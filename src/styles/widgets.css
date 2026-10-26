@@ -130,8 +130,6 @@
 }
 .preview-link:hover { color: var(--link-hover); text-decoration: underline; }
 
-.color-row { display: flex; gap: 24px; margin-bottom: 4px; }
-.color-row > div { flex: 1; }
 .invite-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

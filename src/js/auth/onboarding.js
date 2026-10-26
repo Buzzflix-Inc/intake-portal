@@ -95,14 +95,6 @@ function showJoinWaiting() {
 }
 
 // ---------- Production setup wizard ----------
-const THEME_PRESETS = [
-  { id: "classic", name: "Classic", primary: "#1a1a1a", accent: "#b4550b" },
-  { id: "midnight", name: "Midnight", primary: "#111827", accent: "#4f46e5" },
-  { id: "forest", name: "Forest", primary: "#14321f", accent: "#2f7d4a" },
-  { id: "ocean", name: "Ocean", primary: "#0b2a3c", accent: "#0e7490" },
-  { id: "crimson", name: "Crimson", primary: "#2a0f12", accent: "#b42332" },
-  { id: "plum", name: "Plum", primary: "#2b1630", accent: "#8b3fa8" },
-];
 const PRODUCTION_TYPES = ["Feature film", "Series / episodic", "Commercial", "Music video", "Documentary", "Short film", "Other"];
 const PROVINCES = ["Alberta", "British Columbia", "Manitoba", "New Brunswick", "Newfoundland and Labrador", "Northwest Territories", "Nova Scotia", "Nunavut", "Ontario", "Prince Edward Island", "Quebec", "Saskatchewan", "Yukon", "Outside Canada"];
 const SETUP_STEPS = [
@@ -115,12 +107,6 @@ const SETUP_STEPS = [
 ];
 const setupKey = (cid) => "intake_setup_step_" + cid;
 let obCompanyId = null;
-
-function applyThemePreview(t) {
-  const r = document.documentElement.style;
-  r.setProperty("--accent", t.primary); r.setProperty("--accent-hover", darken(t.primary, -25));
-  r.setProperty("--link", t.accent); r.setProperty("--link-hover", darken(t.accent, -25));
-}
 
 function setupFrame(stepId, inner) {
   const i = SETUP_STEPS.findIndex((s) => s.id === stepId);
@@ -202,26 +188,23 @@ function setupPasskey() {
 }
 
 function setupTheme() {
-  let chosen = THEME_PRESETS[0];
-  const cards = THEME_PRESETS.map((t, i) => `<button type="button" class="ob-theme${i === 0 ? " on" : ""}" data-theme="${t.id}" aria-pressed="${i === 0}">
-      <span class="ob-theme-prev" style="--p:${t.primary};--a:${t.accent}"><i></i><b></b><em></em></span>${t.name}</button>`).join("");
+  let chosen = { themeId: "classic", dark: false };
   setupFrame("theme", `<h2>Pick a theme</h2>
-    <p class="sub">Sets the colours your crew sees. Add a logo and background photo any time under Manage Crew › Company settings.</p>
-    <div class="ob-themes">${cards}</div>
+    <p class="sub">Sets the colours your crew sees, in light or dark. Change it, or add a logo and background photo, any time under Manage Crew › Company settings.</p>
+    <div id="obThemePicker" class="theme-picker"></div>
     <div id="obMsg"></div>
     <div class="ob-actions"><button type="button" class="ob-link" id="obBack">Back</button><button class="btn-primary" id="obNext" data-nobusy>Continue</button></div>`);
-  applyThemePreview(chosen);
-  onboardView.querySelectorAll(".ob-theme").forEach((b) => b.addEventListener("click", () => {
-    chosen = THEME_PRESETS.find((t) => t.id === b.dataset.theme);
-    onboardView.querySelectorAll(".ob-theme").forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-pressed", String(x === b)); });
-    applyThemePreview(chosen);
-  }));
+  applyTheme(chosen.themeId, chosen.dark);
+  renderThemePicker(onboardView.querySelector("#obThemePicker"), chosen, (st) => { chosen = st; applyTheme(st.themeId, st.dark); });
   onboardView.querySelector("#obBack").addEventListener("click", () => goSetupStep("passkey"));
   const next = onboardView.querySelector("#obNext");
   next.addEventListener("click", async () => {
     next.disabled = true;
-    const { error } = await client.from("companies").update({ primary_color: chosen.primary, accent_color: chosen.accent }).eq("id", obCompanyId);
+    const t = THEME_PRESETS.find((x) => x.id === chosen.themeId);
+    const { error } = await client.from("companies")
+      .update({ theme: t.id, dark_mode: chosen.dark, primary_color: t.primary, accent_color: t.accent }).eq("id", obCompanyId);
     if (error) { next.disabled = false; obMsg(error.message); return; }
+    applyTheme(t.id, chosen.dark, null, true);
     goSetupStep("role");
   });
 }

@@ -7,7 +7,7 @@
 .qwiz-link { background: none; border: none; padding: 0; color: var(--link); font: inherit; cursor: pointer; text-decoration: underline; }
 .qwiz-msg { min-height: 18px; font-size: 12.5px; color: var(--error, #dc2626); }
 .qwiz-nav { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
-.qwiz-nav .qwiz-next { margin-left: auto; padding: 11px 22px; border: none; border-radius: 9px; background: var(--link); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.qwiz-nav .qwiz-next { margin-left: auto; padding: 11px 22px; border: none; border-radius: 9px; background: var(--link); color: var(--on-link); font: inherit; font-weight: 600; cursor: pointer; }
 .qwiz-nav .qwiz-next.final { background: var(--ink); }
 .qwiz-nav .qwiz-skip { background: none; border: none; color: var(--ink-soft); font: inherit; cursor: pointer; padding: 8px 6px; }
 .qwiz-nav button:disabled { opacity: .4; cursor: default; }

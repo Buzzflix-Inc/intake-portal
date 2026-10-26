@@ -75,7 +75,7 @@ input[type="range"] {
 
 
 /* Invite crew: header button + pop-up */
-.btn-invite { display: inline-flex; align-items: center; gap: 7px; background: var(--link); color: #fff; border: none; border-radius: 7px; padding: 7px 14px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: filter .15s ease; }
+.btn-invite { display: inline-flex; align-items: center; gap: 7px; background: var(--link); color: var(--on-link); border: none; border-radius: 7px; padding: 7px 14px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: filter .15s ease; }
 .btn-invite:hover { filter: brightness(0.93); }
 .btn-invite svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .btn-invite.hidden { display: none; }
