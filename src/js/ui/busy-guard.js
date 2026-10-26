@@ -8,7 +8,7 @@
     return realFetch.apply(null, arguments).then((r) => { done(); return r; }, (e) => { done(); throw e; });
   };
   const ACTION = "button.btn-primary, button.btn-secondary, button.secondary, button.remove-link, button.preview-link, button[data-sign-id], button[data-final-path]";
-  const SKIP = "[data-tool], [data-bulk], [data-g], .pv-link, .tab-btn, .pf-tool, .pf-pop, #pdfFieldList, #pfAllRequired, #pfAllOptional, #pfClearPdf, #tsTplCancel, #toggleModeBtn, #signOutBtn, [data-so], #previewCloseBtn, .modal-close, .acc-head";
+  const SKIP = "[data-tool], [data-invite-open], [data-show-invites], #inviteCancelBtn, [data-bulk], [data-g], .pv-link, .tab-btn, .pf-tool, .pf-pop, #pdfFieldList, #pfAllRequired, #pfAllOptional, #pfClearPdf, #tsTplCancel, #toggleModeBtn, #signOutBtn, [data-so], #previewCloseBtn, .modal-close, .acc-head";
   document.addEventListener("click", (e) => {
     const b = e.target.closest && e.target.closest(ACTION);
     if (!b || b.matches(SKIP) || b.closest(SKIP) || b.disabled) return;

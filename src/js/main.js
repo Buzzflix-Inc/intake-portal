@@ -26,6 +26,7 @@ async function showApp() {
 
   if (isAdmin) {
     tabAdminBtn.classList.remove("hidden");
+    document.getElementById("inviteCrewBtn").classList.remove("hidden");
     await loadProfileMap();
     populateEmployeeSelect();
     populateDeptHeadForm();
