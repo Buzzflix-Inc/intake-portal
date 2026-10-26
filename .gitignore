@@ -1,0 +1,12 @@
+# Local settings and secrets: never commit these.
+src/js/config.js
+.env
+.env.*
+!.env.example
+supabase/.env
+supabase/functions/.env
+supabase/.temp/
+supabase/.branches/
+
+# OS / editor
+.DS_Store
