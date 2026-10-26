@@ -73,3 +73,23 @@ input[type="range"] {
   margin: 4px 0 2px;
 }
 
+
+/* Invite crew: header button + pop-up */
+.btn-invite { display: inline-flex; align-items: center; gap: 7px; background: var(--link); color: var(--on-link); border: none; border-radius: 7px; padding: 7px 14px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: filter .15s ease; }
+.btn-invite:hover { filter: brightness(0.93); }
+.btn-invite svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.btn-invite.hidden { display: none; }
+body.modal-open { overflow: hidden; }
+.modal-card.invite-card { max-width: 760px; }
+.invite-card .invite-more { margin-bottom: 0; }
+.invite-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.invite-actions .btn-primary { width: auto; padding-left: 22px; padding-right: 22px; }
+.invite-open { margin-bottom: 12px; }
+@media (max-width: 560px) {
+  .btn-invite span { display: none; }
+  .btn-invite { padding: 7px 10px; }
+  #inviteModalOverlay { padding: 0; }
+  .modal-card.invite-card { min-height: 100%; border-radius: 0; padding: 22px 18px 0; }
+  .invite-actions { position: sticky; bottom: 0; background: var(--surface); margin: 18px -18px 0; padding: 12px 18px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+  .invite-actions button { flex: 1; }
+}

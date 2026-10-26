@@ -8,6 +8,9 @@ function darken(hex, amt) {
   return "#" + (0x1000000 + r * 0x10000 + g * 0x100 + b).toString(16).slice(1);
 }
 
+// Theme picked in Company Settings, saved with the Save button.
+let themeChoice = { themeId: "classic", dark: false, touched: false };
+
 async function loadCompanyBranding() {
   // Scoped to the signed-in user's own company (via their profile),
   // rather than blindly grabbing "the" companies row — required once
@@ -38,15 +41,8 @@ async function loadCompanyBranding() {
   }
   currentCompany = company;
 
-  // Unset colours keep the stylesheet's defaults.
-  if (company.primary_color) {
-    document.documentElement.style.setProperty("--accent", company.primary_color);
-    document.documentElement.style.setProperty("--accent-hover", darken(company.primary_color, -25));
-  }
-  if (company.accent_color) {
-    document.documentElement.style.setProperty("--link", company.accent_color);
-    document.documentElement.style.setProperty("--link-hover", darken(company.accent_color, -25));
-  }
+  // Every colour token, from the company's theme preset and light/dark choice (themes.js).
+  applyCompanyTheme(company);
 
   document.getElementById("brandEyebrow").textContent = company.name || "";
   document.getElementById("brandTagline").textContent = company.tagline || "";
@@ -67,8 +63,14 @@ async function loadCompanyBranding() {
   if (isAdmin) {
     document.getElementById("companyNameInput").value = company.name || "";
     document.getElementById("companyTaglineInput").value = company.tagline || "";
-    document.getElementById("companyPrimaryColorInput").value = company.primary_color || "#1a1a1a";
-    document.getElementById("companyAccentColorInput").value = company.accent_color || "#b4550b";
+    const savedTheme = themeForCompany(company);
+    document.getElementById("themeCustomNote").classList.toggle("hidden", !!savedTheme);
+    themeChoice = { themeId: savedTheme || "classic", dark: !!company.dark_mode, touched: false };
+    renderThemePicker(document.getElementById("companyThemePicker"), themeChoice, (st) => {
+      themeChoice = { ...st, touched: true };
+      document.getElementById("themeCustomNote").classList.add("hidden");
+      applyTheme(st.themeId, st.dark);  // preview only; Save keeps it
+    });
 
     const opacityPct = company.background_opacity != null ? Math.round(Number(company.background_opacity) * 100) : 40;
     const posX = company.background_pos_x != null ? Number(company.background_pos_x) : 50;
@@ -233,12 +235,16 @@ document.getElementById("saveCompanySettingsBtn").addEventListener("click", asyn
   const msgEl = document.getElementById("companySettingsMsg");
   const name = document.getElementById("companyNameInput").value.trim();
   const tagline = document.getElementById("companyTaglineInput").value.trim();
-  const primary_color = document.getElementById("companyPrimaryColorInput").value;
-  const accent_color = document.getElementById("companyAccentColorInput").value;
+  const patch = { name, tagline };
+  // Untouched custom colours (from before themes) stay as they are.
+  if (themeChoice.touched || themeForCompany(currentCompany)) {
+    const t = THEME_PRESETS.find((x) => x.id === themeChoice.themeId);
+    Object.assign(patch, { theme: t.id, dark_mode: themeChoice.dark, primary_color: t.primary, accent_color: t.accent });
+  }
 
   const { error } = await client
     .from("companies")
-    .update({ name, tagline, primary_color, accent_color })
+    .update(patch)
     .eq("id", currentCompany.id);
 
   if (error) {

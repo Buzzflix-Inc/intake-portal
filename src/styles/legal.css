@@ -1,0 +1,24 @@
+/* Terms of Service and Privacy Notice pages */
+:root {
+  --ink: #1a1a1a; --ink-soft: #5c5648; --ink-faint: #9a927e; --line: #ece4cf;
+  --surface: #ffffff; --page: #fbf8f0; --link: #b4550b; --brand-yellow: #ffd23f;
+  --warn: #a8681b; --warn-soft: #fbf1e2;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font-family: "Inter", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.65; -webkit-font-smoothing: antialiased; }
+body::before { content: ""; display: block; height: 5px; background: var(--brand-yellow); }
+main { max-width: 760px; margin: 0 auto; padding: 40px 16px 72px; }
+article { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 36px 40px; }
+h1 { font-size: 26px; letter-spacing: -0.02em; margin: 0 0 4px; }
+.updated { color: var(--ink-faint); font-size: 13px; margin: 0 0 24px; }
+h2 { font-size: 17px; margin: 32px 0 8px; letter-spacing: -0.01em; }
+h3 { font-size: 15px; margin: 20px 0 6px; }
+p, li { color: var(--ink-soft); }
+li { margin-bottom: 6px; }
+a { color: var(--link); }
+.back { display: inline-block; margin-bottom: 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; }
+.draft { background: var(--warn-soft); color: var(--warn); border-radius: 8px; padding: 10px 14px; font-size: 13px; font-weight: 500; margin-bottom: 24px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 8px 0 16px; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); color: var(--ink-soft); }
+th { color: var(--ink); font-weight: 600; }
+@media (max-width: 640px) { article { padding: 24px 18px; } h1 { font-size: 22px; } table { font-size: 13px; } }

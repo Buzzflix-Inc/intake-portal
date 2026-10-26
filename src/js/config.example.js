@@ -9,4 +9,7 @@ window.APP_CONFIG = {
   supabasePublishableKey: "sb_publishable_...",
   // Where people open the portal; used in invite links. Defaults to the current page.
   portalUrl: "",
+  // Local testing only: lets @example.com addresses sign in without email (see README, "Test mode").
+  // Leave empty on any hosted site.
+  testLoginKey: "",
 };
