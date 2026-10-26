@@ -3319,7 +3319,7 @@
           const kind = t ? t.name : (d.type === "deal_memo" ? "Deal memo" : "Safety acknowledgment");
           const statusLabel = d.status === "revoked" ? "revoked" : d.status === "countersigned" ? "countersigned" : d.status === "awaiting_countersignature" ? "awaiting countersignature" : "not yet signed";
           const statusClass = d.status === "revoked" ? "rejected" : d.status === "countersigned" ? "approved" : d.status === "awaiting_countersignature" ? "pending" : "rejected";
-          return `<li><span class="info"><span class="name">${kind}</span><span class="email">${d.employee_signature ? `signed <span class="signature-rendered" style="font-size:15px;">${d.employee_signature}</span>` : "no signature yet"}</span>${d.status === "revoked" && d.revoke_reason ? ` · <em>${escHtml(d.revoke_reason)}</em>` : ""}</span></span><span class="actions">${d.final_pdf_path ? `<button class="remove-link" data-final-path="${escHtml(d.final_pdf_path)}">Signed PDF</button>` : ""}${d.status !== "revoked" ? `<button class="remove-link" data-revoke="${d.id}" data-reissue="0">Revoke</button><button class="remove-link" data-revoke="${d.id}" data-reissue="1">Revoke &amp; reissue</button>` : ""}<span class="status-badge status-${statusClass}">${statusLabel}</span></span></li>`;
+          return `<li><span class="info"><span class="name">${kind}</span><span class="email">${d.employee_signature ? `signed <span class="signature-rendered" style="font-size:15px;">${d.employee_signature}</span>` : "no signature yet"}${d.status === "revoked" && d.revoke_reason ? ` · reason: ${escHtml(d.revoke_reason)}` : ""}</span></span><span class="actions">${d.final_pdf_path ? `<button class="remove-link" data-final-path="${escHtml(d.final_pdf_path)}">Signed PDF</button>` : ""}${d.status === "revoked" ? `<button class="remove-link" data-rmrevoked="${d.id}">Remove</button>` : ""}${d.status !== "revoked" ? `<button class="remove-link" data-revoke="${d.id}" data-reissue="0">Revoke</button><button class="remove-link" data-revoke="${d.id}" data-reissue="1">Revoke &amp; reissue</button>` : ""}<span class="status-badge status-${statusClass}">${statusLabel}</span></span></li>`;
         }).join("")}</ul>`
       : `<p class="empty" style="padding:0;text-align:left;">No deal memo or safety acknowledgment assigned.</p>`;
 
@@ -3357,6 +3357,21 @@
   }
 
   document.getElementById("employeeModalBody").addEventListener("click", async (e) => {
+    const rm = e.target.closest("[data-rmrevoked]");
+    if (rm) {
+      const ctx = employeeModalCtx; if (!ctx) return;
+      if (!window.confirm("Remove this revoked memo from their record for good? This can't be undone.")) return;
+      rm.disabled = true;
+      const { data: path, error } = await client.rpc("admin_delete_revoked_deal", { p_id: rm.dataset.rmrevoked });
+      if (error) {
+        rm.disabled = false;
+        window.alert(/admin_delete_revoked_deal|function/i.test(error.message) ? "Removing isn't set up yet. Run add-revoke-deals.sql in Supabase again (it was updated), then try again." : "Couldn't remove: " + error.message);
+        return;
+      }
+      if (path) { try { await client.storage.from(DEAL_BUCKET).remove([path]); } catch (_) {} }
+      await openEmployeeModal(ctx.profile, ctx.accessRole, ctx.invite);
+      return;
+    }
     const rv = e.target.closest("[data-revoke]");
     if (rv) {
       const ctx = employeeModalCtx; if (!ctx) return;
