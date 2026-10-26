@@ -8,6 +8,8 @@ input.auth-code { border: 1px solid var(--line); border-radius: 7px; background:
 input.auth-code { width: 100%; font-size: 22px; letter-spacing: 0.35em; text-align: center; padding: 10px 12px; margin-bottom: 17px; font-variant-numeric: tabular-nums; }
 .auth-card .toggle-row { display: flex; justify-content: space-between; gap: 12px; }
 .auth-card .toggle-row button:disabled { color: var(--ink-faint); cursor: default; text-decoration: none; }
+.auth-test-note { margin: 4px 0 0; padding: 9px 12px; border-radius: 7px; background: var(--warn-soft); color: var(--warn); font-size: 12.5px; line-height: 1.45; }
+.auth-test-note code { font-size: 12px; }
 .auth-legal { max-width: 380px; text-align: center; font-size: 12px; color: var(--ink-faint); margin: 16px 0 0; }
 .auth-legal a, .ob-card a { color: var(--link); }
 

@@ -26,6 +26,7 @@ Everything the database needs is in `supabase/`:
 | `supabase/functions/delete-user/` | Deletes auth accounts (needs the service-role key, so it runs server-side). |
 | `supabase/functions/send-invite-email/` | Emails invites through Resend. |
 | `supabase/functions/passkey/` | Registers passkeys and signs people in with them. Deployed without JWT verification (it checks callers itself). |
+| `supabase/functions/test-login/` | Local test mode: signs in `@example.com` addresses without email (see "Test mode"). |
 | `supabase/templates/sign-in-code.html` | Email template with the 6-digit sign-in code (see below). |
 
 ## Sign-in: emailed codes and passkeys (no passwords)
@@ -53,6 +54,22 @@ A backup code removes a lost authenticator so a new one can be set up.
 The Terms of Service and Privacy Notice are `terms.html` and `privacy.html`. They're drafts:
 have them reviewed and fill in the bracketed details. When you change them, bump
 `TERMS_VERSION` in `src/js/auth/onboarding.js` so everyone is asked to accept the new version.
+
+## Test mode (local only, remove before production)
+
+While email can only reach your own inbox, any address ending in `@example.com` (or `.org`/`.net`)
+can sign in on your local copy instantly, without email: `crew1@example.com`, `producer@example.com`...
+New addresses get a fresh account, so you can try creating and joining productions as many people.
+
+How it's locked down: the `test-login` Edge Function only works while
+`public.test_login_settings.enabled` is true, only for those reserved domains (nobody can own a
+real account there), and only with the key in your gitignored `src/js/config.js` (`testLoginKey`),
+whose SHA-256 hash is in that table. Real addresses always go through email.
+
+- Turn it off: `update public.test_login_settings set enabled = false;`
+- New key: put a random string in `testLoginKey`, then
+  `update public.test_login_settings set key_hash = encode(extensions.digest('<key>', 'sha256'), 'hex'), enabled = true;`
+- Before production: delete the `test-login` function and drop `public.test_login_settings`.
 
 ## Secrets: where each one lives
 

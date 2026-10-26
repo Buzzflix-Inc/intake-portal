@@ -45,12 +45,39 @@ async function sendAuthCode(email) {
   } catch (_) {}
 })();
 
+// Test mode (local development only): with testLoginKey in config.js, @example.com addresses
+// sign in straight away through the test-login Edge Function, without sending email.
+const TEST_LOGIN_KEY = APP_CONFIG.testLoginKey || "";
+const isTestEmail = (email) => /^[a-z0-9._%+-]+@example\.(com|org|net)$/.test(email);
+if (TEST_LOGIN_KEY) {
+  const note = document.createElement("p");
+  note.className = "auth-test-note";
+  note.innerHTML = "<b>Test mode:</b> any address ending in <code>@example.com</code> signs in instantly, without email. For example, crew1@example.com.";
+  authForm.after(note);
+}
+async function testLogin(email) {
+  const { data, error } = await client.functions.invoke("test-login", { body: { email, key: TEST_LOGIN_KEY } });
+  if (error) {
+    let msg = error.message;
+    try { const b = await error.context.json(); if (b && b.error) msg = b.error; } catch (_) {}
+    return { error: { message: msg } };
+  }
+  return client.auth.verifyOtp({ token_hash: data.tokenHash, type: "email" });
+}
+
 authForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const email = document.getElementById("email").value.trim().toLowerCase();
   if (!email) return;
   authSubmitBtn.disabled = true;
   authMsg.innerHTML = "";
+  if (TEST_LOGIN_KEY && isTestEmail(email)) {
+    const { error: te } = await testLogin(email);
+    authSubmitBtn.disabled = false;
+    if (te) { authMsg.innerHTML = `<div class="msg error">${escHtml(te.message)}</div>`; return; }
+    await showApp();
+    return;
+  }
   const { error } = await sendAuthCode(email);
   authSubmitBtn.disabled = false;
   if (error) {
