@@ -892,6 +892,34 @@
     .inv-line input[data-k="desc"] { grid-column: 1 / -1; }
     .inv-line .inv-amt { grid-column: 3; }
   }
+
+  /* ---- Guided one-question-at-a-time details ---- */
+  .q-hint { display: block; font-size: 11.5px; font-weight: 400; color: var(--ink-faint); line-height: 1.35; }
+  .qwiz { margin: 6px 0 4px; }
+  .qwiz-bar { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+  .qwiz-bar i { display: block; height: 100%; width: 0; background: var(--link); border-radius: 99px; transition: width .35s cubic-bezier(.3,.7,.2,1); }
+  .qwiz-meta { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 8px 0 4px; font-size: 12.5px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+  .qwiz-link { background: none; border: none; padding: 0; color: var(--link); font: inherit; cursor: pointer; text-decoration: underline; }
+  .qwiz-msg { min-height: 18px; font-size: 12.5px; color: var(--error, #dc2626); }
+  .qwiz-nav { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+  .qwiz-nav .qwiz-next { margin-left: auto; padding: 11px 22px; border: none; border-radius: 9px; background: var(--link); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  .qwiz-nav .qwiz-next.final { background: var(--ink); }
+  .qwiz-nav .qwiz-skip { background: none; border: none; color: var(--ink-soft); font: inherit; cursor: pointer; padding: 8px 6px; }
+  .qwiz-nav button:disabled { opacity: .4; cursor: default; }
+  .qwiz-on .qgroup { display: none; }
+  .qwiz-on .qgroup.cur { display: block; }
+  .qwiz-on .qgroup h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); margin: 12px 0 6px; }
+  .qwiz-on .qgrid { display: block; }
+  .qwiz-on .qgrid label { display: none; max-width: none; }
+  .qwiz-on .qgrid label.cur { display: flex; gap: 8px; animation: qIn .28s cubic-bezier(.3,.7,.2,1); }
+  .qwiz-on .qgrid label.cur.bwd { animation-name: qInBack; }
+  .qwiz-on .qgrid label.cur.shake { animation: qShake .35s; }
+  .qwiz-on .qgrid label .q { font-size: 19px; line-height: 1.3; }
+  .qwiz-on .qgrid label input { font-size: 17px; padding: 13px 14px; border-radius: 10px; }
+  .qwiz-on .qactions { display: none; }
+  @keyframes qIn { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: none; } }
+  @keyframes qInBack { from { opacity: 0; transform: translateX(-22px); } to { opacity: 1; transform: none; } }
+  @keyframes qShake { 0%,100% { transform: none; } 20% { transform: translateX(-7px); } 40% { transform: translateX(7px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(4px); } }
   /* ---- Smooth scrolling & controls ---- */
   html { scroll-behavior: smooth; scrollbar-gutter: stable; -webkit-text-size-adjust: 100%; }
   body { -webkit-tap-highlight-color: transparent; text-rendering: optimizeLegibility; }
@@ -6933,10 +6961,23 @@
     { id: "other", en: "A few other details these forms ask for", fr: "Autres renseignements demandés", keys: null },
   ];
   const DM_UI = {
-    en: { step: "Step 1: tell us a bit about you (asked once, fills every form)", yours: "Your details (used to fill forms)", save: "Save and fill my forms", change: "Save changes", opt: "(optional)", langShort: "Language", onfile: "Already on file:", lang: "Which language would you like to answer in?", cont: "Continue", wait: "Your forms will appear here, filled in, as soon as you save this." },
-    fr: { step: "Étape 1 : quelques renseignements sur vous (demandés une seule fois)", yours: "Vos renseignements (utilisés pour remplir les formulaires)", save: "Enregistrer et remplir mes formulaires", change: "Enregistrer", opt: "(facultatif)", langShort: "Langue", onfile: "Déjà au dossier :", lang: "Dans quelle langue souhaitez-vous répondre ?", cont: "Continuer", wait: "Vos formulaires apparaîtront ici, remplis, dès que vous aurez enregistré." },
-    es: { step: "Paso 1: cuéntenos un poco sobre usted (se pregunta una sola vez)", yours: "Sus datos (se usan para completar los formularios)", save: "Guardar y completar mis formularios", change: "Guardar cambios", opt: "(opcional)", langShort: "Idioma", onfile: "Ya registrado:", lang: "¿En qué idioma desea responder?", cont: "Continuar", wait: "Sus formularios aparecerán aquí, completados, en cuanto guarde esto." },
+    en: { step: "Step 1: tell us a bit about you (asked once, fills every form)", yours: "Your details (used to fill forms)", save: "Save and fill my forms", change: "Save changes", opt: "(optional)", langShort: "Language", onfile: "Already on file:", lang: "Which language would you like to answer in?", cont: "Continue", next: "Next", back: "Back", skip: "Skip", of: "of", need: "Please answer this one to continue.", list: "Show all questions as a list", one: "Go one at a time", wait: "Your forms will appear here, filled in, as soon as you save this." },
+    fr: { step: "Étape 1 : quelques renseignements sur vous (demandés une seule fois)", yours: "Vos renseignements (utilisés pour remplir les formulaires)", save: "Enregistrer et remplir mes formulaires", change: "Enregistrer", opt: "(facultatif)", langShort: "Langue", onfile: "Déjà au dossier :", lang: "Dans quelle langue souhaitez-vous répondre ?", cont: "Continuer", next: "Suivant", back: "Retour", skip: "Passer", of: "sur", need: "Veuillez répondre pour continuer.", list: "Tout afficher en liste", one: "Une question à la fois", wait: "Vos formulaires apparaîtront ici, remplis, dès que vous aurez enregistré." },
+    es: { step: "Paso 1: cuéntenos un poco sobre usted (se pregunta una sola vez)", yours: "Sus datos (se usan para completar los formularios)", save: "Guardar y completar mis formularios", change: "Guardar cambios", opt: "(opcional)", langShort: "Idioma", onfile: "Ya registrado:", lang: "¿En qué idioma desea responder?", cont: "Continuar", next: "Siguiente", back: "Atrás", skip: "Omitir", of: "de", need: "Responda para continuar.", list: "Mostrar todo en lista", one: "Una pregunta a la vez", wait: "Sus formularios aparecerán aquí, completados, en cuanto guarde esto." },
   };
+
+  // Shorter, plainer wording for the question shown big; the full wording stays as a small hint.
+  function dmShortLabel(label) {
+    let t = String(label || "").trim().replace(/\s+/g, " ");
+    t = t.replace(/[:.\s]+$/, "");
+    t = t.replace(/^(please\s+)?(enter|provide|print|type|write|indicate|state)\s+(in\s+)?(your|the)?\s*/i, "");
+    t = t.replace(/\s*[\(\[]([^)\]]{18,})[\)\]]/g, "");   // long bracketed explanations become the hint
+    t = t.replace(/\s+(as (shown|it appears|appearing|stated)[^,.;]*|if applicable)$/i, "");
+    t = t.trim();
+    if (t.length > 64) t = t.slice(0, 61).replace(/\s+\S*$/, "") + "…";
+    return t ? t.charAt(0).toUpperCase() + t.slice(1) : String(label || "");
+  }
+  const DM_AUTOC = { full_name: "name", first_name: "given-name", last_name: "family-name", dob: "bday", phone: "tel", email: "email", address: "street-address", city: "address-level2", province: "address-level1", postal_code: "postal-code" };
 
   function myDetailsCardHtml(templates) {
     const langs = dmLanguages(templates);
@@ -6960,7 +7001,7 @@
     const unanswered = qs.filter((q) => !q.optional && !known(q) && !altDone(q));
     const onFile = qs.filter((q) => q.bind && !DM_IDENTITY.includes(q.bind) && bindValue(q.bind));
     const stored = qs.filter((q) => !onFile.includes(q));
-    const input = (q) => `<label class="${q.prev ? "q-wide" : ""}"${q.alt ? ` data-altg="${escHtml(q.alt.g)}" data-altb="${escHtml(q.alt.b)}"` : ""}><span class="q">${escHtml(q.label)}${q.optional ? ` <span class="muted">${ui.opt}</span>` : ""}</span>${q.prev ? `<span class="q-prev" data-prev="${escHtml(JSON.stringify(q.prev))}">…</span>` : ""}<input data-det="${escHtml(q.key)}" type="${q.type === "date" ? "date" : "text"}" value="${escHtml(String(known(q) || "").slice(0, q.type === "date" ? 10 : 200))}" /></label>`;
+    const input = (q) => `<label class="${q.prev ? "q-wide" : ""}"${q.alt ? ` data-altg="${escHtml(q.alt.g)}" data-altb="${escHtml(q.alt.b)}"` : ""}><span class="q">${escHtml(dmShortLabel(q.label))}${q.optional ? ` <span class="muted">${ui.opt}</span>` : ""}</span>${dmShortLabel(q.label) !== q.label && q.label.length <= 160 ? `<span class="q-hint">${escHtml(q.label)}</span>` : ""}${q.prev ? `<span class="q-prev" data-prev="${escHtml(JSON.stringify(q.prev))}">…</span>` : ""}<input data-det="${escHtml(q.key)}" type="${q.type === "date" ? "date" : "text"}"${DM_AUTOC[q.key] ? ` autocomplete="${DM_AUTOC[q.key]}"` : ""}${q.key === "phone" ? ` inputmode="tel"` : q.key === "email" ? ` inputmode="email"` : q.key === "postal_code" ? ` autocapitalize="characters"` : ""} value="${escHtml(String(known(q) || "").slice(0, q.type === "date" ? 10 : 200))}" /></label>`;
     const blocking = unanswered.length > 0;
     const langPick = langs.length > 1 ? `<div class="qlang"><label><span class="q">${escHtml(ui.langShort)}</span><select data-det="lang">${langs.map((l) => `<option value="${l}"${l === lang ? " selected" : ""}>${DM_LANG_NAMES[l]}</option>`).join("")}</select></label></div>` : "";
     // Standard order: about you, address, status, work, ID, then anything specific to these forms in page order.
@@ -7036,6 +7077,76 @@
         el.textContent = ""; el.appendChild(out); el.appendChild(cap);
       } catch (_) { el.remove(); }
     }
+  }
+
+
+  // One question at a time, with progress and slide animations. Falls back to the full list on request.
+  function dmWizard(root) {
+    const card = root.querySelector("details.my-details");
+    if (!card || !card.open) return;
+    const labels = [...card.querySelectorAll(".qgrid label")];
+    if (labels.length < 3 || card.querySelector(".qwiz")) return;
+    const lang = dmChosenLang() || "en", ui = DM_UI[lang] || DM_UI.en;
+    const inp = (l) => l.querySelector("[data-det]");
+    const filled = (l) => !!inp(l).value.trim();
+    const isOpt = (l) => /\((optional|facultatif|opcional)\)/.test(l.querySelector(".q").textContent);
+    const skipped = (l) => l.classList.contains("q-na");
+    let i = Math.max(0, labels.findIndex((l) => !filled(l) && !isOpt(l) && !skipped(l)));
+    let dir = 1;
+    const wiz = document.createElement("div");
+    wiz.className = "qwiz";
+    wiz.innerHTML = `<div class="qwiz-bar"><i></i></div><div class="qwiz-meta"><span class="qwiz-count"></span><button type="button" class="qwiz-link">${escHtml(ui.list)}</button></div>
+      <div class="qwiz-msg" role="alert"></div>
+      <div class="qwiz-nav"><button type="button" class="secondary qwiz-back">${escHtml(ui.back)}</button><button type="button" class="qwiz-skip">${escHtml(ui.skip)}</button><button type="button" class="qwiz-next">${escHtml(ui.next)}</button></div>`;
+    const firstGroup = card.querySelector(".qgroup");
+    firstGroup.parentNode.insertBefore(wiz, firstGroup);
+    card.classList.add("qwiz-on");
+    const bar = wiz.querySelector(".qwiz-bar i"), count = wiz.querySelector(".qwiz-count"), msg = wiz.querySelector(".qwiz-msg");
+    const next = wiz.querySelector(".qwiz-next"), back = wiz.querySelector(".qwiz-back"), skip = wiz.querySelector(".qwiz-skip");
+    const live = () => labels.filter((l) => !skipped(l));
+    function show(focus) {
+      labels.forEach((l) => { l.classList.remove("cur", "fwd", "bwd"); });
+      card.querySelectorAll(".qgroup").forEach((g) => g.classList.remove("cur"));
+      const l = labels[i];
+      l.classList.add("cur", dir > 0 ? "fwd" : "bwd");
+      l.closest(".qgroup").classList.add("cur");
+      const seq = live(), pos = Math.max(0, seq.indexOf(l)) + 1;
+      count.textContent = `${pos} ${ui.of} ${seq.length}`;
+      bar.style.width = (pos / seq.length * 100) + "%";
+      const last = pos === seq.length;
+      next.textContent = last ? (card.querySelector("#saveMyDetails") ? card.querySelector("#saveMyDetails").textContent : ui.next) : ui.next;
+      next.classList.toggle("final", last);
+      back.disabled = pos === 1;
+      skip.classList.toggle("hidden", !isOpt(l) || filled(l));
+      msg.textContent = "";
+      if (focus) setTimeout(() => { try { inp(l).focus({ preventScroll: true }); } catch (_) {} }, 60);
+    }
+    function move(d) {
+      dir = d; let k = i + d;
+      while (k >= 0 && k < labels.length && skipped(labels[k])) k += d;
+      if (k < 0 || k >= labels.length) return false;
+      i = k; show(true); return true;
+    }
+    function advance(isSkip) {
+      const l = labels[i];
+      if (!isSkip && !filled(l) && !isOpt(l)) {
+        msg.textContent = ui.need; l.classList.remove("shake"); void l.offsetWidth; l.classList.add("shake"); inp(l).focus(); return;
+      }
+      if (!move(1)) { const b = card.querySelector("#saveMyDetails"); if (b) b.click(); }
+    }
+    next.addEventListener("click", () => advance(false));
+    skip.addEventListener("click", () => advance(true));
+    back.addEventListener("click", () => move(-1));
+    card.addEventListener("keydown", (e) => { if (e.key === "Enter" && card.classList.contains("qwiz-on") && e.target.matches && e.target.matches(".qgrid [data-det]")) { e.preventDefault(); advance(false); } });
+    card.addEventListener("input", (e) => { if (e.target.matches && e.target.matches(".qgrid [data-det]")) { msg.textContent = ""; skip.classList.toggle("hidden", !isOpt(labels[i]) || filled(labels[i])); const l = e.target.closest("label"); if (skipped(l) && labels[i] === l) {} } });
+    const toggle = wiz.querySelector(".qwiz-link");
+    toggle.addEventListener("click", () => {
+      const on = card.classList.toggle("qwiz-on");
+      toggle.textContent = on ? ui.list : ui.one;
+      wiz.querySelectorAll(".qwiz-nav,.qwiz-bar,.qwiz-count,.qwiz-msg").forEach((n) => n.classList.toggle("hidden", !on));
+      if (on) show(false);
+    });
+    show(false);
   }
 
   // Either/or questions on the details card: answering one dims and clears the other.
@@ -7176,6 +7287,7 @@
     body.innerHTML = cardsHtml ? det.html + (det.blocking ? `<p class="muted">${escHtml(det.wait || "Your forms will appear here, filled in, as soon as you save this.")}</p>` : cardsHtml) : `<p class="empty">Nothing to sign right now.</p>`;
     const sd = document.getElementById("saveMyDetails"); if (sd) sd.addEventListener("click", saveMyDetails);
     dmCardAlt(body);
+    dmWizard(body);
     renderQuestionPreviews(body, new Map((templates || []).map((t) => [t.id, t]))).catch(() => {});
     setDealsBadge(waiting);
     pdfJobs.forEach(({ template, record }) => {
