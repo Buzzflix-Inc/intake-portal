@@ -38,10 +38,15 @@ async function loadCompanyBranding() {
   }
   currentCompany = company;
 
-  document.documentElement.style.setProperty("--accent", company.primary_color);
-  document.documentElement.style.setProperty("--accent-hover", darken(company.primary_color, -25));
-  document.documentElement.style.setProperty("--link", company.accent_color);
-  document.documentElement.style.setProperty("--link-hover", darken(company.accent_color, -25));
+  // Unset colours keep the stylesheet's defaults.
+  if (company.primary_color) {
+    document.documentElement.style.setProperty("--accent", company.primary_color);
+    document.documentElement.style.setProperty("--accent-hover", darken(company.primary_color, -25));
+  }
+  if (company.accent_color) {
+    document.documentElement.style.setProperty("--link", company.accent_color);
+    document.documentElement.style.setProperty("--link-hover", darken(company.accent_color, -25));
+  }
 
   document.getElementById("brandEyebrow").textContent = company.name || "";
   document.getElementById("brandTagline").textContent = company.tagline || "";
