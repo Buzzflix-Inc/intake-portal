@@ -1,0 +1,299 @@
+// ---- Admin: profile map (user_id -> email) ----
+async function loadProfileMap() {
+  const { data: rows } = await client.from("profiles").select("user_id, email");
+  profileMap = new Map((rows || []).map((r) => [r.user_id, r.email]));
+}
+
+// ---- Admin: employees (onboarded accounts) ----
+// Fully deletes the person's Supabase Auth account via a server-side
+// Edge Function named "delete-user" — see the deployment instructions
+// for that function's code. The function itself re-checks that the
+// caller is an admin in the same company before it will act, so this
+// isn't relying on the client alone for that safety check.
+async function deleteAuthAccount(userId, purge) {
+  try {
+    const { data, error } = await client.functions.invoke("delete-user", {
+      body: { userId, purge: !!purge },
+    });
+    if (error) {
+      // client.functions.invoke() only gives a generic message by default
+      // ("Edge Function returned a non-2xx status code") — the function's
+      // actual JSON error body is on error.context, so pull the real
+      // reason out of there when it's available.
+      let detail = error.message;
+      if (error.context && typeof error.context.json === "function") {
+        try {
+          const body = await error.context.json();
+          if (body && body.error) detail = body.error;
+        } catch (parseErr) {
+          // response wasn't JSON — stick with the generic message
+        }
+      }
+      return { deleted: false, error: detail };
+    }
+    if (data && data.error) return { deleted: false, error: data.error };
+    return { deleted: true };
+  } catch (e) {
+    return { deleted: false, error: String(e) };
+  }
+}
+
+async function loadEmployees() {
+  const listEl = document.getElementById("employeesList");
+  const emptyEl = document.getElementById("employeesEmpty");
+  listEl.innerHTML = "";
+
+  const [{ data: profiles }, { data: roles }, { data: invites }] = await Promise.all([
+    client.from("profiles").select("user_id, email"),
+    client.from("user_roles").select("user_id, role"),
+    client.from("company_invites").select("email, crew_role, department, start_date, end_date, kit_fee_enabled, kit_fee_rate").eq("used", true),
+  ]);
+
+  if (!profiles || profiles.length === 0) {
+    emptyEl.classList.remove("hidden");
+    return;
+  }
+  emptyEl.classList.add("hidden");
+
+  const roleMap = new Map((roles || []).map((r) => [r.user_id, r.role]));
+  const inviteMap = new Map((invites || []).map((i) => [i.email, i]));
+
+  for (const p of profiles) {
+    const li = document.createElement("li");
+    li.className = "employee-row";
+    const left = document.createElement("span");
+    left.className = "info";
+
+    const accessRole = roleMap.get(p.user_id) || "employee";
+    const invite = inviteMap.get(p.email);
+    let subtitle = accessRole;
+    if (invite) {
+      const kitBit = invite.kit_fee_enabled ? ` · <span class="kit-tag">$${Number(invite.kit_fee_rate || 0).toFixed(2)}/day kit</span>` : "";
+      const dates = invite.start_date ? ` · ${invite.start_date}${invite.end_date ? " – " + invite.end_date : ""}` : "";
+      subtitle = `${invite.crew_role || accessRole}${invite.department ? " (" + invite.department + ")" : ""}${dates}${kitBit}`;
+    }
+
+    left.innerHTML = `<span class="name">${p.email}</span><span class="email">${subtitle}</span>`;
+    left.addEventListener("click", () => openEmployeeModal(p, accessRole, invite));
+
+    const right = document.createElement("span");
+    right.className = "actions";
+
+    const viewBtn = document.createElement("button");
+    viewBtn.className = "remove-link";
+    viewBtn.textContent = "View";
+    viewBtn.addEventListener("click", () => openEmployeeModal(p, accessRole, invite));
+    right.appendChild(viewBtn);
+
+    if (p.user_id === currentUserId) {
+      const tag = document.createElement("span");
+      tag.className = "status-badge status-approved";
+      tag.textContent = "you";
+      right.appendChild(tag);
+    } else {
+      const removeBtn = document.createElement("button");
+      removeBtn.className = "remove-link";
+      removeBtn.textContent = "Remove access";
+      removeBtn.addEventListener("click", () => removeEmployee(p.user_id, p.email));
+      right.appendChild(removeBtn);
+    }
+
+    li.appendChild(left);
+    li.appendChild(right);
+    listEl.appendChild(li);
+  }
+}
+
+// ---- Admin: employee overview modal ----
+let employeeModalCtx = null;
+async function openEmployeeModal(profile, accessRole, invite) {
+  employeeModalCtx = { profile, accessRole, invite };
+  const overlay = document.getElementById("employeeModalOverlay");
+  const body = document.getElementById("employeeModalBody");
+  body.innerHTML = `<p class="empty">Loading…</p>`;
+  overlay.classList.remove("hidden");
+
+  const [{ data: docs }, { data: sheets }, { data: stubs }, { data: deals }] = await Promise.all([
+    client.from("documents").select("id, status, file_path, created_at, doc_type").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
+    client.from("timesheets").select("id, status, file_path, created_at, week_start, total_hours, entries").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
+    client.from("paystubs").select("id, file_path, created_at").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
+    client.from("esign_records").select("id, type, status, template_id, employee_signature, employee_signed_at, final_pdf_path, revoke_reason").eq("user_id", profile.user_id),
+  ]);
+
+  const requested = realDocs(invite && invite.requested_documents);
+  const submittedTypes = new Set((docs || []).filter((d) => d.status !== "rejected" && d.doc_type).map((d) => d.doc_type));
+
+  const checklistHtml = requested.length
+    ? `<ul class="checklist">${requested.map((item) => {
+        const got = submittedTypes.has(item);
+        return `<li class="${got ? "got" : "missing"}"><span class="mark">${got ? "✓" : "!"}</span><span class="label">${item}</span></li>`;
+      }).join("")}</ul>`
+    : `<p class="empty" style="padding:0 0 16px;text-align:left;">No specific documents were requested on their invite.</p>`;
+
+  const sheetCounts = { pending: 0, approved: 0, rejected: 0 };
+  (sheets || []).forEach((s) => { if (sheetCounts[s.status] != null) sheetCounts[s.status]++; });
+
+  const sheetsHtml = (sheets || []).length
+    ? `<ul class="file-list">${sheets.map((s) => `<li><span class="info"><span class="name">${invoiceOf(s) ? "Invoice " + escHtml(invoiceOf(s).number) : s.week_start ? "Week of " + periodLabel(s.week_start) : s.file_path.split("/").pop()}</span><span class="email">${invoiceOf(s) ? money(invoiceOf(s).total) + " · " : s.week_start ? Number(s.total_hours || 0).toFixed(2) + " hrs · " : ""}${new Date(s.created_at).toLocaleDateString()}</span></span><span class="status-badge status-${s.status}">${s.status}</span></li>`).join("")}</ul>`
+    : `<p class="empty" style="padding:0;text-align:left;">No timesheets submitted yet.</p>`;
+
+  const stubsHtml = (stubs || []).length
+    ? `<ul class="file-list">${stubs.map((s) => `<li><span class="info"><span class="name">${s.file_path.split("/").pop()}</span><span class="email">${new Date(s.created_at).toLocaleDateString()}</span></span></li>`).join("")}</ul>`
+    : `<p class="empty" style="padding:0;text-align:left;">No paystubs issued yet.</p>`;
+
+  const dealsHtml = (deals || []).length
+    ? `<ul class="file-list">${deals.map((d) => {
+        const t = allTemplates.find((tpl) => tpl.id === d.template_id);
+        const kind = t ? t.name : (d.type === "deal_memo" ? "Deal memo" : "Safety acknowledgment");
+        const statusLabel = d.status === "revoked" ? "revoked" : d.status === "countersigned" ? "countersigned" : d.status === "awaiting_countersignature" ? "awaiting countersignature" : "not yet signed";
+        const statusClass = d.status === "revoked" ? "rejected" : d.status === "countersigned" ? "approved" : d.status === "awaiting_countersignature" ? "pending" : "rejected";
+        return `<li><span class="info"><span class="name">${kind}</span><span class="email">${d.employee_signature ? `signed <span class="signature-rendered" style="font-size:15px;">${d.employee_signature}</span>` : "no signature yet"}${d.status === "revoked" && d.revoke_reason ? ` · reason: ${escHtml(d.revoke_reason)}` : ""}</span></span><span class="actions">${d.final_pdf_path ? `<button class="remove-link" data-final-path="${escHtml(d.final_pdf_path)}">Signed PDF</button>` : ""}${d.status === "revoked" ? `<button class="remove-link" data-rmrevoked="${d.id}">Remove</button>` : ""}${d.status !== "revoked" ? `<button class="remove-link" data-revoke="${d.id}" data-reissue="0">Revoke</button><button class="remove-link" data-revoke="${d.id}" data-reissue="1">Revoke &amp; reissue</button>` : ""}<span class="status-badge status-${statusClass}">${statusLabel}</span></span></li>`;
+      }).join("")}</ul>`
+    : `<p class="empty" style="padding:0;text-align:left;">No deal memo or safety acknowledgment assigned.</p>`;
+
+  const kitBit = invite && invite.kit_fee_enabled ? ` · $${Number(invite.kit_fee_rate || 0).toFixed(2)}/day kit` : "";
+  const dates = invite && invite.start_date ? `${invite.start_date} – ${invite.end_date || "?"}` : null;
+
+  body.innerHTML = `
+    <h2>${profile.email}</h2>
+    <p class="modal-sub">${invite ? `${invite.crew_role || accessRole}${invite.department ? " (" + invite.department + ")" : ""}` : accessRole}${kitBit}</p>
+    <div class="summary-row">
+      <span class="summary-chip">${accessRole}</span>
+      ${dates ? `<span class="summary-chip">${dates}</span>` : ""}
+      <span class="summary-chip">${sheetCounts.pending} timesheet${sheetCounts.pending === 1 ? "" : "s"} pending</span>
+      <span class="summary-chip">${(stubs || []).length} paystub${(stubs || []).length === 1 ? "" : "s"} issued</span>
+    </div>
+
+    <h3>Requested documents</h3>
+    ${checklistHtml}
+
+    <h3>Deals</h3>
+    ${dealsHtml}
+    <div class="dept-filters" style="margin:10px 0 18px;align-items:flex-end;">
+      <div style="flex:1;min-width:180px;"><label for="sendDealSelect">Send a deal memo or form</label>
+        <select id="sendDealSelect">${allTemplates.map((t) => `<option value="${t.id}">${escHtml(t.name)}</option>`).join("") || `<option value="">No templates yet</option>`}</select></div>
+      <button type="button" class="btn-secondary" id="sendDealBtn"${allTemplates.length ? "" : " disabled"}>Send</button>
+    </div>
+    <div id="sendDealMsg"></div>
+
+    <h3>Timesheets</h3>
+    ${sheetsHtml}
+
+    <h3>Paystubs</h3>
+    ${stubsHtml}
+  `;
+}
+
+document.getElementById("employeeModalBody").addEventListener("click", async (e) => {
+  const rm = e.target.closest("[data-rmrevoked]");
+  if (rm) {
+    const ctx = employeeModalCtx; if (!ctx) return;
+    if (!window.confirm("Remove this revoked memo from their record for good? This can't be undone.")) return;
+    rm.disabled = true;
+    const { data: path, error } = await client.rpc("admin_delete_revoked_deal", { p_id: rm.dataset.rmrevoked });
+    if (error) {
+      rm.disabled = false;
+      window.alert(/admin_delete_revoked_deal|function/i.test(error.message) ? "Removing isn't set up yet. Run add-revoke-deals.sql in Supabase again (it was updated), then try again." : "Couldn't remove: " + error.message);
+      return;
+    }
+    if (path) { try { await client.storage.from(DEAL_BUCKET).remove([path]); } catch (_) {} }
+    await openEmployeeModal(ctx.profile, ctx.accessRole, ctx.invite);
+    return;
+  }
+  const rv = e.target.closest("[data-revoke]");
+  if (rv) {
+    const ctx = employeeModalCtx; if (!ctx) return;
+    const reissue = rv.dataset.reissue === "1";
+    const reason = window.prompt(reissue ? "Why is this being revoked? A fresh copy will be sent to them to sign:" : "Why is this being revoked? They will no longer be asked to sign it:");
+    if (reason === null) return;
+    if (!reason.trim()) { window.alert("Please give a short reason (kept for the record)."); return; }
+    rv.disabled = true;
+    const { data: tid, error } = await client.rpc("admin_revoke_deal", { p_id: rv.dataset.revoke, p_reason: reason.trim() });
+    if (error) {
+      rv.disabled = false;
+      window.alert(/admin_revoke_deal|function/i.test(error.message) ? "Revoking isn't set up yet. Run add-revoke-deals.sql in Supabase, then try again." : "Couldn't revoke: " + error.message);
+      return;
+    }
+    let note = "Revoked.";
+    if (reissue && tid) {
+      const r2 = await client.rpc("admin_send_deal", { p_user: ctx.profile.user_id, p_template: tid });
+      note = r2.error ? "Revoked, but the new copy couldn't be sent: " + r2.error.message : "Revoked. A new copy was sent to them.";
+    }
+    await openEmployeeModal(ctx.profile, ctx.accessRole, ctx.invite);
+    const m3 = document.getElementById("sendDealMsg"); if (m3) m3.innerHTML = `<div class="msg ok">${escHtml(note)}</div>`;
+    loadPendingCountersignatures();
+    return;
+  }
+  const btn = e.target.closest("#sendDealBtn");
+  if (!btn) return;
+  const sel = document.getElementById("sendDealSelect"), msg = document.getElementById("sendDealMsg");
+  const ctx = employeeModalCtx;
+  if (!sel.value || !ctx) return;
+  btn.disabled = true;
+  const { data: res, error } = await client.rpc("admin_send_deal", { p_user: ctx.profile.user_id, p_template: sel.value });
+  if (error) { btn.disabled = false; msg.innerHTML = `<div class="msg error">${escHtml(error.message)}</div>`; return; }
+  await openEmployeeModal(ctx.profile, ctx.accessRole, ctx.invite);
+  const m2 = document.getElementById("sendDealMsg");
+  if (m2) m2.innerHTML = `<div class="msg ok">${res === "already_signed" ? "They've already signed that one." : res === "resent" ? "They already had it unsigned. It's flagged again on their front page." : "Sent. It appears on their front page with a red !."}</div>`;
+});
+
+function closeEmployeeModal() {
+  document.getElementById("employeeModalOverlay").classList.add("hidden");
+}
+document.getElementById("employeeModalClose").addEventListener("click", closeEmployeeModal);
+document.getElementById("employeeModalOverlay").addEventListener("click", (e) => {
+  if (e.target.id === "employeeModalOverlay") closeEmployeeModal();
+});
+
+let removeMsgTarget = null;
+async function removeEmployee(userId, email) {
+  const msgEl = document.getElementById(removeMsgTarget || "employeesMsg");
+  if (!window.confirm(`Remove ${email}'s portal access? If this is their only company, this deletes their account entirely — they will no longer be able to sign in at all. Their submitted documents, timesheets and paystubs are kept on file.`)) {
+    return;
+  }
+
+  // Someone who belongs to several companies is only removed from this
+  // one. Only their last company deletes the whole account.
+  const { data: removal, error: removalErr } = await client.rpc("remove_from_company", { p_user: userId });
+  if (removalErr) {
+    msgEl.innerHTML = `<div class="msg error">Couldn't remove access: ${escHtml(removalErr.message)}</div>`;
+    return;
+  }
+  if (removal === "removed") {
+    msgEl.innerHTML = `<div class="msg ok">${escHtml(email)} was removed from this company. Their account stays active for their other companies.</div>`;
+    loadProfileMap().then(populateEmployeeSelect);
+    loadEmployees();
+    return;
+  }
+
+  // The Edge Function handles everything: it verifies you're an admin
+  // in the same company, deletes their profile/role rows (so nothing
+  // blocks the account deletion), then deletes the auth account itself.
+  let dispatch = await deleteAuthAccount(userId);
+  if (!dispatch.deleted && /database error deleting user/i.test(dispatch.error || "")) {
+    // The account still owns records (documents, timesheets, deal memos...). Ask before wiping them.
+    if (window.confirm(`${email} still has records on file (documents, timesheets, paystubs or deal memos), which block deleting the account.\n\nDelete the account AND all of those records and files? This can't be undone.`)) {
+      msgEl.innerHTML = `<div class="msg ok">Deleting the account and its records…</div>`;
+      dispatch = await deleteAuthAccount(userId, true);
+    }
+  }
+  if (!dispatch.deleted) {
+    msgEl.innerHTML = `<div class="msg error">Couldn't delete the account${dispatch.error ? ": " + dispatch.error : ""}. Nothing was changed.</div>`;
+    return;
+  }
+
+  msgEl.innerHTML = `<div class="msg ok">${email}'s account has been fully deleted.</div>`;
+  loadProfileMap().then(populateEmployeeSelect);
+  loadEmployees();
+}
+
+function populateEmployeeSelect() {
+  const select = document.getElementById("paystubEmployeeSelect");
+  select.innerHTML = "";
+  for (const [userId, email] of profileMap.entries()) {
+    const opt = document.createElement("option");
+    opt.value = userId;
+    opt.textContent = email;
+    select.appendChild(opt);
+  }
+}
