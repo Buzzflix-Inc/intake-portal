@@ -35,7 +35,7 @@ type Person = {
 const PEOPLE: Person[] = [
   { key: "admin", email: ADMIN_EMAIL, name: "Jordan Avery", dept: "Production", role: "Production Manager", admin: true, stage: "Production admin" },
   { key: "maya", email: `maya.chen@${DOMAIN}`, name: "Maya Chen", dept: "Camera", role: "Director of Photography", stage: "Fully onboarded · Camera head, reviews timesheets" },
-  { key: "liam", email: `liam.oconnor@${DOMAIN}`, name: "Liam O'Connor", dept: "Camera", role: "1st Assistant Camera (Focus Puller)", kit: 50, stage: "Deal memo waiting for countersignature · SIN missing" },
+  { key: "liam", email: `liam.oconnor@${DOMAIN}`, name: "Liam O'Connor", dept: "Camera", role: "1st Assistant Camera (Focus Puller)", kit: 50, stage: "Last steps: approve 2 documents, countersign the deal memo" },
   { key: "priya", email: `priya.patel@${DOMAIN}`, name: "Priya Patel", dept: "Grip & Electric", role: "Gaffer", kit: 75, stage: "Just joined · deal memo and safety form to sign" },
   { key: "noah", email: `noah.williams@${DOMAIN}`, name: "Noah Williams", dept: "Sound", role: "Boom Operator", stage: "ID rejected · deal memo sent back to re-sign" },
   { key: "ethan", email: `ethan.brooks@${DOMAIN}`, name: "Ethan Brooks", dept: "Art Department", role: "Set Dresser", stage: "Timesheet ready for final approval" },
@@ -213,7 +213,7 @@ async function reset(admin: SupabaseClient, termsVersion: string) {
     ["maya", ID, "approved", 27], ["maya", CHEQUE, "approved", 27], ["maya", SIN, "approved", 27],
     ["grace", ID, "approved", 26], ["grace", CHEQUE, "approved", 26], ["grace", SIN, "approved", 26],
     ["ethan", ID, "approved", 20], ["ethan", CHEQUE, "approved", 20], ["ethan", SIN, "approved", 19],
-    ["liam", ID, "approved", 12], ["liam", CHEQUE, "pending", 2],
+    ["liam", ID, "approved", 12], ["liam", CHEQUE, "pending", 2], ["liam", SIN, "pending", 1],
     ["noah", ID, "rejected", 6], ["noah", CHEQUE, "approved", 6], ["noah", SIN, "pending", 1],
     ["sofia", CHEQUE, "approved", 15], ["sofia", ID, "pending", 3],
   ];
@@ -342,6 +342,10 @@ async function reset(admin: SupabaseClient, termsVersion: string) {
     user_id: adminId, company_id: COMPANY_ID, kind: "deal_signed", title: "Ready to countersign",
     body: "Liam O'Connor signed their deal memo.", view: "admin:countersign", created_at: ago(1, 9),
   }), "Notifying the admin");
+
+  // Finishing onboarding notified the admin as the records went in; date those to when it happened.
+  must(await admin.from("notifications").update({ created_at: ago(18, 15), read_at: ago(17) })
+    .eq("company_id", COMPANY_ID).eq("kind", "onboarded"), "Dating onboarding notifications");
 
   must(await admin.from("demo_settings").update({ last_reset_at: new Date().toISOString() }).eq("id", 1), "Recording the reset");
 }

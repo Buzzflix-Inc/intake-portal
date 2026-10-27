@@ -38,15 +38,29 @@ async function deleteAuthAccount(userId, purge) {
   }
 }
 
+// Progress bar for someone's onboarding steps (from crew_onboarding / onboarding_steps).
+function onboardingBarHtml(steps) {
+  const real = (steps || []).length > 1;
+  if (!real) return `<span class="ob-progress none">No onboarding steps</span>`;
+  const done = steps.filter((s) => s.done).length;
+  const full = done === steps.length;
+  return `<span class="ob-progress${full ? " full" : ""}" title="${escHtml(steps.map((s) => (s.done ? "✓ " : "○ ") + s.label).join("\n"))}">
+    <span class="ob-segs">${steps.map((s) => `<i class="${s.done ? "on" : ""}"></i>`).join("")}</span>
+    <span class="ob-progress-label">${full ? "Fully onboarded" : `${done} of ${steps.length} steps · next: ${escHtml(steps.find((s) => !s.done).label.toLowerCase())}`}</span>
+  </span>`;
+}
+
+let employeeOnboarding = new Map();
 async function loadEmployees() {
   const listEl = document.getElementById("employeesList");
   const emptyEl = document.getElementById("employeesEmpty");
   listEl.innerHTML = "";
 
-  const [{ data: profiles }, { data: roles }, { data: invites }] = await Promise.all([
+  const [{ data: profiles }, { data: roles }, { data: invites }, { data: progress }] = await Promise.all([
     client.from("profiles").select("user_id, email"),
     client.from("user_roles").select("user_id, role"),
-    client.from("company_invites").select("email, crew_role, department, start_date, end_date, kit_fee_enabled, kit_fee_rate").eq("used", true),
+    client.from("company_invites").select("email, full_name, crew_role, department, start_date, end_date, kit_fee_enabled, kit_fee_rate, requested_documents").eq("used", true),
+    client.rpc("crew_onboarding"),
   ]);
 
   if (!profiles || profiles.length === 0) {
@@ -57,6 +71,18 @@ async function loadEmployees() {
 
   const roleMap = new Map((roles || []).map((r) => [r.user_id, r.role]));
   const inviteMap = new Map((invites || []).map((i) => [i.email, i]));
+  employeeOnboarding = new Map((progress || []).map((r) => [r.user_id, r]));
+
+  // People still onboarding first (least far along at the top), then everyone who's finished,
+  // then people with nothing to do; by name within each.
+  const nameOf = (p) => (inviteMap.get(p.email) && inviteMap.get(p.email).full_name) || p.email;
+  const rank = (p) => {
+    const st = (employeeOnboarding.get(p.user_id) || {}).steps || [];
+    if (st.length < 2) return 2;
+    const done = st.filter((s) => s.done).length;
+    return done === st.length ? 1 : done / st.length;
+  };
+  profiles.sort((a, b) => rank(a) - rank(b) || nameOf(a).localeCompare(nameOf(b)));
 
   for (const p of profiles) {
     const li = document.createElement("li");
@@ -66,14 +92,13 @@ async function loadEmployees() {
 
     const accessRole = roleMap.get(p.user_id) || "employee";
     const invite = inviteMap.get(p.email);
-    let subtitle = accessRole;
+    let subtitle = escHtml(p.email);
     if (invite) {
       const kitBit = invite.kit_fee_enabled ? ` · <span class="kit-tag">$${Number(invite.kit_fee_rate || 0).toFixed(2)}/day kit</span>` : "";
-      const dates = invite.start_date ? ` · ${invite.start_date}${invite.end_date ? " – " + invite.end_date : ""}` : "";
-      subtitle = `${invite.crew_role || accessRole}${invite.department ? " (" + invite.department + ")" : ""}${dates}${kitBit}`;
+      subtitle = `${escHtml(invite.crew_role || accessRole)}${invite.department ? " (" + escHtml(invite.department) + ")" : ""}${accessRole === "admin" ? " · admin" : ""}${kitBit}`;
     }
 
-    left.innerHTML = `<span class="name">${p.email}</span><span class="email">${subtitle}</span>`;
+    left.innerHTML = `<span class="name">${escHtml(nameOf(p))}</span><span class="email">${subtitle}</span>${onboardingBarHtml((employeeOnboarding.get(p.user_id) || {}).steps)}`;
     left.addEventListener("click", () => openEmployeeModal(p, accessRole, invite));
 
     const right = document.createElement("span");
@@ -109,6 +134,7 @@ async function loadEmployees() {
     li.appendChild(right);
     listEl.appendChild(li);
   }
+  setupAllFilesBar();
 }
 
 async function setMemberRole(userId, email, role) {
@@ -137,6 +163,7 @@ async function openEmployeeModal(profile, accessRole, invite) {
     client.from("timesheets").select("id, status, file_path, created_at, week_start, total_hours, entries").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
     client.from("paystubs").select("id, file_path, created_at").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
     client.from("esign_records").select("id, type, status, template_id, employee_signature, employee_signed_at, final_pdf_path, revoke_reason").eq("user_id", profile.user_id),
+    client.rpc("crew_onboarding").then(({ data }) => { if (data) employeeOnboarding = new Map(data.map((r) => [r.user_id, r])); }),
   ]);
 
   const requested = realDocs(invite && invite.requested_documents);
@@ -152,14 +179,6 @@ async function openEmployeeModal(profile, accessRole, invite) {
   const sheetCounts = { pending: 0, approved: 0, rejected: 0 };
   (sheets || []).forEach((s) => { if (sheetCounts[s.status] != null) sheetCounts[s.status]++; });
 
-  const sheetsHtml = (sheets || []).length
-    ? `<ul class="file-list">${sheets.map((s) => `<li><span class="info"><span class="name">${invoiceOf(s) ? "Invoice " + escHtml(invoiceOf(s).number) : s.week_start ? "Week of " + periodLabel(s.week_start) : s.file_path.split("/").pop()}</span><span class="email">${invoiceOf(s) ? money(invoiceOf(s).total) + " · " : s.week_start ? Number(s.total_hours || 0).toFixed(2) + " hrs · " : ""}${new Date(s.created_at).toLocaleDateString()}</span></span><span class="status-badge status-${s.status}">${s.status}</span></li>`).join("")}</ul>`
-    : `<p class="empty" style="padding:0;text-align:left;">No timesheets submitted yet.</p>`;
-
-  const stubsHtml = (stubs || []).length
-    ? `<ul class="file-list">${stubs.map((s) => `<li><span class="info"><span class="name">${s.file_path.split("/").pop()}</span><span class="email">${new Date(s.created_at).toLocaleDateString()}</span></span></li>`).join("")}</ul>`
-    : `<p class="empty" style="padding:0;text-align:left;">No paystubs issued yet.</p>`;
-
   const dealsHtml = (deals || []).length
     ? `<ul class="file-list">${deals.map((d) => {
         const t = allTemplates.find((tpl) => tpl.id === d.template_id);
@@ -173,15 +192,26 @@ async function openEmployeeModal(profile, accessRole, invite) {
   const kitBit = invite && invite.kit_fee_enabled ? ` · $${Number(invite.kit_fee_rate || 0).toFixed(2)}/day kit` : "";
   const dates = invite && invite.start_date ? `${invite.start_date} – ${invite.end_date || "?"}` : null;
 
+  // Onboarding steps, as a numbered row of ticks.
+  const steps = (employeeOnboarding.get(profile.user_id) || {}).steps || [];
+  const stepsHtml = steps.length > 1
+    ? `<ol class="ob-stepper">${steps.map((st, i) => `<li class="${st.done ? "done" : steps.findIndex((x) => !x.done) === i ? "next" : ""}"><span class="ob-dot">${st.done ? "✓" : i + 1}</span><span>${escHtml(st.label)}${st.total ? ` <em>${st.count}/${st.total}</em>` : ""}</span></li>`).join("")}</ol>`
+    : `<p class="empty" style="padding:0 0 8px;text-align:left;">Nothing to complete: no documents or forms were assigned to them.</p>`;
+  const onboardedAt = (employeeOnboarding.get(profile.user_id) || {}).onboarded_at;
+
   body.innerHTML = `
-    <h2>${profile.email}</h2>
-    <p class="modal-sub">${invite ? `${invite.crew_role || accessRole}${invite.department ? " (" + invite.department + ")" : ""}` : accessRole}${kitBit}</p>
+    <h2>${escHtml((invite && invite.full_name) || profile.email)}</h2>
+    <p class="modal-sub">${escHtml(profile.email)} · ${invite ? `${escHtml(invite.crew_role || accessRole)}${invite.department ? " (" + escHtml(invite.department) + ")" : ""}` : accessRole}${kitBit}</p>
     <div class="summary-row">
       <span class="summary-chip">${accessRole}</span>
       ${dates ? `<span class="summary-chip">${dates}</span>` : ""}
       <span class="summary-chip">${sheetCounts.pending} timesheet${sheetCounts.pending === 1 ? "" : "s"} pending</span>
       <span class="summary-chip">${(stubs || []).length} paystub${(stubs || []).length === 1 ? "" : "s"} issued</span>
     </div>
+
+    <h3>Onboarding${onboardedAt ? ` <span class="status-badge status-approved">fully onboarded ${new Date(onboardedAt).toLocaleDateString()}</span>` : ""}</h3>
+    ${onboardingBarHtml(steps)}
+    ${stepsHtml}
 
     <h3>Requested documents</h3>
     ${checklistHtml}
@@ -195,12 +225,17 @@ async function openEmployeeModal(profile, accessRole, invite) {
     </div>
     <div id="sendDealMsg"></div>
 
-    <h3>Timesheets</h3>
-    ${sheetsHtml}
-
-    <h3>Paystubs</h3>
-    ${stubsHtml}
+    <h3>Files</h3>
+    ${fileFilterBar("efOne", true)}
   `;
+  const files = await gatherFiles(profile.user_id);
+  if (employeeModalCtx.profile !== profile) return;  // they opened someone else meanwhile
+  const who = safeName((invite && invite.full_name) || profile.email);
+  wireFileFilters(body, "efOne", () => files, {
+    byPerson: false,
+    zipName: ({ from, to }) => `${who} files${from || to ? ` ${from || "start"} to ${to || "today"}` : ""}.zip`,
+    render: (list) => renderFileRows(body.querySelector("#efOneList"), list),
+  });
 }
 
 document.getElementById("employeeModalBody").addEventListener("click", async (e) => {
