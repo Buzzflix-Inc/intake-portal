@@ -14,6 +14,8 @@ async function loadAdminOverview() {
     client.from("company_invites").select("email, full_name, used"),
   ]);
   const nameByEmail = new Map((invites.data || []).map((i) => [i.email, i.full_name || i.email]));
+  const firstInvite = (invites.data || [])[0];
+  if (firstInvite) document.getElementById("overviewTitle").innerHTML = `Latest invite: ${firstInvite.full_name}`;
   const who = (uid) => { const em = String(profileMap.get(uid) || "").toLowerCase(); return nameByEmail.get(em) || em || "Someone"; };
   renderCrewProgress(progress.data || [], invites.data || [], who);
 }
