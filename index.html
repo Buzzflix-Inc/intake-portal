@@ -378,8 +378,13 @@
 
       <section class="panel">
         <h2>Employees</h2>
-        <p class="desc">Everyone who has completed onboarding. Removing someone revokes their portal access.</p>
+        <p class="desc">Everyone at the production and how far along onboarding they are. You'll get a notification when someone finishes. Click a person to see their steps and files.</p>
         <div id="employeesMsg"></div>
+        <details class="ef-all">
+          <summary>Download files by date</summary>
+          <p class="desc">Documents, timesheets, invoices, paystubs and signed forms for everyone, in one .zip with a folder per person.</p>
+          <div id="employeesFiles"></div>
+        </details>
         <ul class="file-list" id="employeesList"></ul>
         <p class="empty hidden" id="employeesEmpty">No one has onboarded yet.</p>
       </section>
@@ -751,6 +756,7 @@
 <script src="src/js/admin/department-heads.js"></script>
 <script src="src/js/department/review.js"></script>
 <script src="src/js/admin/employees.js"></script>
+<script src="src/js/admin/employee-files.js"></script>
 <script src="src/js/admin/review-lists.js"></script>
 <script src="src/js/admin/paystubs.js"></script>
 <script src="src/js/ui/preview-modal.js"></script>

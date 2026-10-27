@@ -86,7 +86,7 @@ const NT_ICON = {
 function ntTone(kind) {
   if (kind === "announcement") return "announcement";
   if (/rejected|returned/.test(kind)) return "bad";
-  if (/approved|countersigned/.test(kind)) return "ok";
+  if (/approved|countersigned|onboarded/.test(kind)) return "ok";
   if (kind === "paystub") return "cash";
   if (/^timesheet/.test(kind)) return "clock";
   return "pen";
@@ -152,6 +152,7 @@ function handleNewNotification(n) {
   if (n.view === "dept" && typeof loadDeptTimesheets === "function") loadDeptTimesheets();
   if (n.view === "admin:countersign" && typeof loadPendingCountersignatures === "function") loadPendingCountersignatures();
   if (n.view === "admin:timesheets") loadAdminList("timesheets", "timesheets");
+  if (n.view === "admin:employees" && isAdmin) loadEmployees();
 }
 
 async function markNotificationsRead(ids) {
@@ -169,7 +170,7 @@ function openNotificationView(view) {
   else if (tab === "dept" && !tabDeptBtn.classList.contains("hidden")) { switchTab("dept"); loadDeptTimesheets(); }
   else if (tab === "admin" && isAdmin) {
     switchTab("admin");
-    const target = { countersign: "countersignList", timesheets: "adminTimesheetsList", documents: "adminDocumentsList" }[sub];
+    const target = { countersign: "countersignList", timesheets: "adminTimesheetsList", documents: "adminDocumentsList", employees: "employeesList" }[sub];
     if (target) expandPanelOf(document.getElementById(target));
   } else return;
   window.scrollTo({ top: 0 });

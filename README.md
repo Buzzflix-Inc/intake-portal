@@ -56,6 +56,18 @@ The Terms of Service and Privacy Notice are `terms.html` and `privacy.html`. The
 have them reviewed and fill in the bracketed details. When you change them, bump
 `TERMS_VERSION` in `src/js/auth/onboarding.js` so everyone is asked to accept the new version.
 
+## Onboarding progress and files (Manage Crew > Employees)
+
+Each person shows a progress bar of their onboarding steps: joined, documents uploaded, documents
+approved, forms signed, forms countersigned (steps that don't apply to them are left out). When the
+last step is done, admins and the person's department heads get a "Fully onboarded" notification in
+the bell. The steps are worked out in the database (`onboarding_steps`), so they stay right however
+the records change; `company_memberships.onboarded_at` records when someone finished.
+
+Each person's overview lists all their files (documents, timesheets, invoices, paystubs, signed forms),
+newest first, filterable by type and date and downloadable as a .zip. "Download files by date" at the
+top of Employees does the same for everyone, with a folder per person.
+
 ## Account pane
 
 Clicking your name in the top right opens your account: your details (name, phone, address, used to
