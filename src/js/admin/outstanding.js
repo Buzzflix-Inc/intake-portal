@@ -79,8 +79,8 @@ function renderOutstandingFilters() {
   const counts = new Map(OT_STAGES.map((s) => [s, 0]));
   otRows.forEach((r) => counts.set(r.stage, counts.get(r.stage) + 1));
   document.getElementById("outStages").innerHTML =
-    `<button type="button" class="ot-stage${otFilter.stage ? "" : " on"}" data-stage=""><span>Everyone</span><b>${otRows.length}</b></button>` +
-    OT_STAGES.map((s) => `<button type="button" class="ot-stage${otFilter.stage === s ? " on" : ""}${counts.get(s) ? "" : " zero"}" data-stage="${escHtml(s)}"><span>${escHtml(s)}</span><b>${counts.get(s)}</b></button>`).join("");
+    `<button type="button" class="ot-stage${otFilter.stage ? "" : " on"}" data-stage="">Everyone <b>${otRows.length}</b></button>` +
+    OT_STAGES.map((s) => `<button type="button" class="ot-stage${otFilter.stage === s ? " on" : ""}${counts.get(s) ? "" : " zero"}" data-stage="${escHtml(s)}">${escHtml(s)} <b>${counts.get(s)}</b></button>`).join("");
 }
 
 const otVisible = () => {

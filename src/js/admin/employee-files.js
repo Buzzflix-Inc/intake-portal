@@ -118,7 +118,7 @@ async function downloadFilesZip(items, zipName, byPerson, onProgress) {
 // The filter bar (type, from, to, and a name search for everyone's files) plus a download button.
 function fileFilterBar(prefix, withList, withSearch) {
   return `<div class="ef-bar">
-    ${withSearch ? `<div><label for="${prefix}Search">Person</label><input type="search" id="${prefix}Search" placeholder="Search names" autocomplete="off" /></div>` : ""}
+    ${withSearch ? `<div><label for="${prefix}Search">Person</label><input type="text" id="${prefix}Search" placeholder="Search names" autocomplete="off" /></div>` : ""}
     <div><label for="${prefix}Kind">Type</label><select id="${prefix}Kind"><option value="">All files</option>${FILE_KINDS.map((k) => `<option value="${k.key}">${k.label}</option>`).join("")}</select></div>
     <div><label for="${prefix}From">From</label><input type="date" id="${prefix}From" /></div>
     <div><label for="${prefix}To">To</label><input type="date" id="${prefix}To" /></div>
