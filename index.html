@@ -115,6 +115,7 @@
         <button class="tab-btn active" id="tabPortalBtn">My Portal</button>
         <button class="tab-btn hidden" id="tabDeptBtn">Department Review</button>
         <button class="tab-btn hidden" id="tabAdminBtn">Manage Crew</button>
+        <button class="tab-btn hidden" id="tabPayrollBtn">Payroll</button>
         <button class="tab-btn hidden" id="tabSettingsBtn">Company Settings</button>
         <button class="tab-btn hidden" id="tabSuperBtn">All Companies</button>
       </div>
@@ -545,6 +546,20 @@
       </section>
     </div>
 
+    <!-- Payroll view (admins and people with payroll access) -->
+    <div id="payrollTab" class="hidden">
+      <section class="panel">
+        <h2>Payroll summary</h2>
+        <p class="desc">Every timesheet and contractor invoice for a week in one place: what to pay in total and to each person. Click a person to see their days. Pay itself is done in your payroll software.</p>
+        <div class="dept-filters">
+          <div style="flex:1;min-width:240px;"><label for="prWeek">Week</label><select id="prWeek"></select></div>
+          <div><label for="prDate">Or jump to a date</label><input type="date" id="prDate" /></div>
+        </div>
+        <div id="prMsg"></div>
+        <div id="prBody"></div>
+      </section>
+    </div>
+
     <!-- Company settings view (admins) -->
     <div id="settingsTab" class="hidden">
       <section class="panel span-2">
@@ -610,6 +625,19 @@
         <ul class="file-list" id="chainList" style="margin-top:14px;"></ul>
         <p class="empty hidden" id="chainEmpty">No approval chain set — any admin can approve directly.</p>
       </section>
+      <section class="panel">
+        <h2>Payroll rules</h2>
+        <p class="desc">Overtime for hourly crew in the payroll summary. Leave a limit empty to turn it off. Overtime someone enters on their timesheet is used as entered.</p>
+        <div class="invite-grid">
+          <div><label for="pr_ot_daily_after">Overtime after (hours a day)</label><input type="number" id="pr_ot_daily_after" min="0" step="0.25" placeholder="Off" /></div>
+          <div><label for="pr_ot_multiplier">Overtime rate (×)</label><input type="number" id="pr_ot_multiplier" min="1" step="0.05" /></div>
+          <div><label for="pr_dt_daily_after">Double time after (hours a day)</label><input type="number" id="pr_dt_daily_after" min="0" step="0.25" placeholder="Off" /></div>
+          <div><label for="pr_dt_multiplier">Double time rate (×)</label><input type="number" id="pr_dt_multiplier" min="1" step="0.05" /></div>
+          <div><label for="pr_ot_weekly_after">Overtime after (hours a week)</label><input type="number" id="pr_ot_weekly_after" min="0" step="0.25" placeholder="Off" /></div>
+        </div>
+        <button type="button" class="btn-secondary" id="prRulesSave" style="margin-top:12px;">Save rules</button>
+        <div id="prRulesMsg"></div>
+      </section>
     </div>
   </div>
 
@@ -652,6 +680,13 @@
           <div>
             <label for="inviteDealMemoSelect">Deal memo</label>
             <select id="inviteDealMemoSelect"><option value="">None</option></select>
+          </div>
+          <div id="invitePayWrap">
+            <label for="invitePayRateInput">Pay rate <span class="muted">(optional)</span></label>
+            <div class="pay-rate-row">
+              <input type="number" id="invitePayRateInput" min="0" step="0.01" placeholder="0.00" />
+              <select id="invitePayUnitSelect" aria-label="Pay rate per"><option value="hour">per hour</option><option value="day">per day</option><option value="week">per week</option></select>
+            </div>
           </div>
           <div>
             <label for="inviteTypeSelect">Worker type</label>
@@ -793,6 +828,7 @@
 <script src="src/js/super/super-admin.js"></script>
 <script src="src/js/core/company-switcher.js"></script>
 <script src="src/js/admin/payroll-export.js"></script>
+<script src="src/js/admin/payroll-summary.js"></script>
 <script src="src/js/ui/side-nav.js"></script>
 <script src="src/js/ui/invite-modal.js"></script>
 <script src="src/js/ui/announcements.js"></script>

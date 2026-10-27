@@ -102,6 +102,28 @@ Each person's overview lists all their files (documents, timesheets, invoices, p
 newest first, filterable by type and date and downloadable as a .zip. "Download files by date" at the
 top of Employees does the same for everyone, with a folder per person.
 
+## Payroll summary (Payroll tab)
+
+One place for accounting to see what to pay for a week. Pick a week (Sunday to Saturday) to see the
+total, the amount for each person, and their days (click a row). **Download PDF** gives the summary,
+plus each person's days if that box is ticked. Payment itself is done in your payroll software; the
+amounts are estimates before deductions.
+
+- **Who sees it:** admins, and anyone an admin gives access with **Give payroll access** in
+  Manage Crew > Employees (for an accountant who shouldn't see the rest of Manage Crew).
+- **Ready or draft:** a week is ready once everyone expected is approved. Expected means crew who
+  aren't admins or contractors and whose start and end dates overlap the week. Until then the summary
+  lists who's still pending, rejected or hasn't submitted, and the PDF is marked DRAFT. When the last
+  timesheet of a week is approved, everyone with payroll access gets a "Payroll ready" notification.
+- **Rates:** set on each person's crew record, per hour, day or week: in the invite form, in their
+  overview (Manage Crew > Employees > View), or in the Payroll tab by opening their row. Someone without a
+  rate is left out of the total and flagged.
+- **Overtime:** for hourly crew, from **Company Settings > Payroll rules** (default 1.5x after 8 hours a
+  day, 2x after 12; optional weekly limit). Overtime typed on a timesheet (union forms) is used as entered.
+  Day and weekly rates don't get overtime added.
+- Kit fees come from the timesheet, and approved contractor invoices dated in the week are included.
+- Data comes from the `payroll_week` and `payroll_weeks` database functions, which check access.
+
 ## Account pane
 
 Clicking your name in the top right opens your account: your details (name, phone, address, used to
