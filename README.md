@@ -16,6 +16,35 @@ Onboarding, timesheets, deal memos and payroll for film and TV crews. A static s
    ```
 3. Open http://localhost:5173.
 
+## Shared staging environment (for the whole team)
+
+Everyone, on every device, tests against one Supabase project (`htdydskyvduyroswpmee`) and one
+hosted site, so a record one person creates is what everyone else sees.
+
+| Piece | How it works |
+|---|---|
+| Database, auth, storage | The staging Supabase project. Ask the owner to invite you to the Buzzflix organization. |
+| Schema changes | Add a file to `supabase/migrations/` (name it `YYYYMMDDHHMMSS_name.sql`, later than the last one) and merge to `main`. `.github/workflows/deploy-supabase.yml` runs `supabase db push` and redeploys the Edge Functions. Pull requests get a dry run. Never change tables in the dashboard or apply migrations by hand. |
+| Hosted site | Vercel builds `main` to the staging URL and every pull request to a preview URL, with `sh scripts/write-config.sh` and `APP_ENV=staging`. |
+| Local copy | Copy `src/js/config.example.js` to `src/js/config.js` with the staging URL and publishable key (Project Settings > API). Ask a teammate for `testLoginKey`. |
+| Sign-in emails | Supabase's built-in sender. It only delivers to members of the Supabase organization, a few an hour, so use test mode or demo mode for most testing. |
+| Invite emails | Resend, from `onboarding@resend.dev` until a domain is verified. That sender only delivers to the Resend account owner; use **Copy Invite** for everyone else. |
+| Shared test data | Demo mode (`demo@demo.example.com`, Reset demo puts it back) and test mode (`@example.com`, local only). |
+
+**Who can sign up:** while `public.signup_allowlist_settings.enabled` is true, new accounts are only
+created for addresses in `public.signup_allowlist`, anyone with a pending invite, and the reserved
+`@example.com` / `@demo.example.com` test addresses. Everyone who already had an account was added.
+
+```sql
+insert into public.signup_allowlist (email, note) values ('name@company.com', 'Developer');
+```
+
+The check is the Postgres function `public.hook_signup_allowlist`, turned on under
+**Authentication > Hooks > Before User Created**. Turn it off for production:
+`update public.signup_allowlist_settings set enabled = false;`
+
+Test mode stays off on hosted sites: `write-config.sh` never writes `testLoginKey`.
+
 ## Backend
 
 Everything the database needs is in `supabase/`:
@@ -134,11 +163,12 @@ whose SHA-256 hash is in that table. Real addresses always go through email.
 |---|---|---|
 | Supabase URL + **publishable** key | `src/js/config.js` (browser) | No (gitignored). Safe to expose by design; row-level security protects the data. |
 | **Service-role** key | Supabase Edge Function runtime (provided automatically) | Never. Never put it in the browser or this repo. |
-| `RESEND_API_KEY`, `INVITE_FROM`, `PORTAL_URL` | Supabase Edge Function secrets | No. Set with `supabase secrets set ...` or in the dashboard under Edge Functions > Secrets. |
+| `RESEND_API_KEY`, `INVITE_FROM`, `PORTAL_URL`, `PASSKEY_ORIGINS` | Supabase Edge Function secrets | No. Set with `supabase secrets set ...` or in the dashboard under Edge Functions > Secrets. |
+| `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD` | GitHub repository secrets (used by the deploy workflow) | No. Settings > Secrets and variables > Actions. |
 
 ## Hosting (Cloudflare Pages, Netlify, Vercel)
 
-Set `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and optionally `PORTAL_URL` as environment
+Set `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and optionally `PORTAL_URL` and `APP_ENV` as environment
 variables on the host, use `sh scripts/write-config.sh` as the build command, and serve the
 repository root. Add the site's URL to Supabase under Authentication > URL Configuration.
 
