@@ -29,17 +29,18 @@ const ID = "Government-issued ID", CHEQUE = "Void cheque / direct deposit form",
 type Person = {
   key: string; email: string; name: string; dept: string; role: string; stage: string;
   admin?: boolean; invitedOnly?: boolean; contractor?: boolean; kit?: number; docs?: string[]; phone?: string;
+  pay?: [number, "hour" | "day" | "week"]; startDaysAgo?: number;
 };
 // The crew, in the order the demo bar lists them. invitedOnly people have an invite but no account
 // until someone signs in as them, which shows the new-hire flow from the very start.
 const PEOPLE: Person[] = [
-  { key: "admin", email: ADMIN_EMAIL, name: "Jordan Avery", dept: "Production", role: "Production Manager", admin: true, stage: "Production admin" },
-  { key: "maya", email: `maya.chen@${DOMAIN}`, name: "Maya Chen", dept: "Camera", role: "Director of Photography", stage: "Fully onboarded · Camera head, reviews timesheets" },
-  { key: "liam", email: `liam.oconnor@${DOMAIN}`, name: "Liam O'Connor", dept: "Camera", role: "1st Assistant Camera (Focus Puller)", kit: 50, stage: "Last steps: approve 2 documents, countersign the deal memo" },
-  { key: "priya", email: `priya.patel@${DOMAIN}`, name: "Priya Patel", dept: "Grip & Electric", role: "Gaffer", kit: 75, stage: "Just joined · deal memo and safety form to sign" },
-  { key: "noah", email: `noah.williams@${DOMAIN}`, name: "Noah Williams", dept: "Sound", role: "Boom Operator", stage: "ID rejected · deal memo sent back to re-sign" },
-  { key: "ethan", email: `ethan.brooks@${DOMAIN}`, name: "Ethan Brooks", dept: "Art Department", role: "Set Dresser", stage: "Timesheet ready for final approval" },
-  { key: "grace", email: `grace.kim@${DOMAIN}`, name: "Grace Kim", dept: "Art Department", role: "Art Director", stage: "Fully onboarded · Art head" },
+  { key: "admin", email: ADMIN_EMAIL, name: "Jordan Avery", dept: "Production", role: "Production Manager", admin: true, pay: [2600, "week"], stage: "Production admin" },
+  { key: "maya", email: `maya.chen@${DOMAIN}`, name: "Maya Chen", dept: "Camera", role: "Director of Photography", pay: [1150, "day"], stage: "Fully onboarded · Camera head, reviews timesheets" },
+  { key: "liam", email: `liam.oconnor@${DOMAIN}`, name: "Liam O'Connor", dept: "Camera", role: "1st Assistant Camera (Focus Puller)", kit: 50, pay: [52, "hour"], stage: "Last steps: approve 2 documents, countersign the deal memo" },
+  { key: "priya", email: `priya.patel@${DOMAIN}`, name: "Priya Patel", dept: "Grip & Electric", role: "Gaffer", kit: 75, pay: [55, "hour"], startDaysAgo: 0, stage: "Just joined · deal memo and safety form to sign" },
+  { key: "noah", email: `noah.williams@${DOMAIN}`, name: "Noah Williams", dept: "Sound", role: "Boom Operator", pay: [44, "hour"], stage: "ID rejected · deal memo sent back to re-sign" },
+  { key: "ethan", email: `ethan.brooks@${DOMAIN}`, name: "Ethan Brooks", dept: "Art Department", role: "Set Dresser", pay: [36, "hour"], stage: "Timesheet ready for final approval" },
+  { key: "grace", email: `grace.kim@${DOMAIN}`, name: "Grace Kim", dept: "Art Department", role: "Art Director", pay: [3200, "week"], stage: "Fully onboarded · Art head" },
   { key: "sofia", email: `sofia.martinez@${DOMAIN}`, name: "Sofia Martinez", dept: "Costume & Wardrobe", role: "Costume Designer", contractor: true, docs: [ID, CHEQUE], stage: "Contractor · one invoice paid, one waiting" },
   { key: "olivia", email: `olivia.reyes@${DOMAIN}`, name: "Olivia Reyes", dept: "Hair & Makeup", role: "Key Makeup Artist", invitedOnly: true, stage: "Invited · hasn't signed in yet" },
   { key: "marcus", email: `marcus.lee@${DOMAIN}`, name: "Marcus Lee", dept: "Transportation", role: "Driver", invitedOnly: true, docs: [ID, CHEQUE, SIN, "Driver's license / abstract"], stage: "Invited · hasn't signed in yet" },
@@ -193,8 +194,8 @@ async function reset(admin: SupabaseClient, termsVersion: string) {
   must(await admin.from("company_invites").insert(PEOPLE.map((p, i) => ({
     company_id: COMPANY_ID, email: p.email, role: p.admin ? "admin" : "employee",
     full_name: p.name, phone: `604-555-01${String(10 + i)}`, department: p.dept, crew_role: p.role,
-    start_date: ymd(daysFrom(p.invitedOnly ? 3 : -28)), end_date: ymd(daysFrom(70)),
-    kit_fee_enabled: !!p.kit, kit_fee_rate: p.kit ?? null,
+    start_date: ymd(daysFrom(p.invitedOnly ? 3 : -(p.startDaysAgo ?? 28))), end_date: ymd(daysFrom(70)),
+    kit_fee_enabled: !!p.kit, kit_fee_rate: p.kit ?? null, pay_rate: p.pay?.[0] ?? null, pay_unit: p.pay?.[1] ?? "hour",
     requested_documents: p.admin ? [] : [...(p.contractor ? ["__contractor__"] : []), ...(p.docs ?? [ID, CHEQUE, SIN])],
     deal_memo_template_id: p.admin ? null : p.contractor ? CONTRACT : DEAL,
     safety_template_id: p.admin || p.contractor ? null : SAFETY,
@@ -281,7 +282,10 @@ async function reset(admin: SupabaseClient, termsVersion: string) {
     }
   };
   await Promise.all([
+    // Two weeks ago is fully approved (payroll ready); last week isn't yet.
     addSheet("maya", 2, "approved", "approved", "maya", 1),
+    addSheet("grace", 2, "approved", "approved", "grace", 9),
+    addSheet("noah", 2, "approved", "approved", null, 10),
     addSheet("maya", 1, "approved", "approved", "maya", 2),
     addSheet("grace", 1, "approved", "approved", "grace", 3),
     addSheet("liam", 2, "approved", "approved", "maya", 4),

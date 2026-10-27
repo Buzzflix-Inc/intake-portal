@@ -87,7 +87,7 @@ function ntTone(kind) {
   if (kind === "announcement") return "announcement";
   if (/rejected|returned/.test(kind)) return "bad";
   if (/approved|countersigned|onboarded/.test(kind)) return "ok";
-  if (kind === "paystub") return "cash";
+  if (kind === "paystub" || kind === "payroll_ready") return "cash";
   if (/^timesheet/.test(kind)) return "clock";
   return "pen";
 }
@@ -168,6 +168,7 @@ function openNotificationView(view) {
   if (!view) return;
   const [tab, sub] = view.split(":");
   if (tab === "portal") { switchTab("portal"); if (sub) showPortalView(sub); }
+  else if (tab === "payroll" && canSeePayroll) { switchTab("payroll"); loadPayroll(sub || null); }
   else if (tab === "dept" && !tabDeptBtn.classList.contains("hidden")) { switchTab("dept"); loadDeptTimesheets(); }
   else if (tab === "admin" && isAdmin) {
     switchTab("admin");

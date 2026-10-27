@@ -69,6 +69,8 @@ async function loadEmployees() {
   }
   emptyEl.classList.add("hidden");
 
+  const { data: access } = await client.from("company_memberships").select("user_id, payroll_access").eq("company_id", currentCompany.id);
+  const payrollAccess = new Set((access || []).filter((m) => m.payroll_access).map((m) => m.user_id));
   const roleMap = new Map((roles || []).map((r) => [r.user_id, r.role]));
   const inviteMap = new Map((invites || []).map((i) => [i.email, i]));
   employeeOnboarding = new Map((progress || []).map((r) => [r.user_id, r]));
@@ -95,7 +97,7 @@ async function loadEmployees() {
     let subtitle = escHtml(p.email);
     if (invite) {
       const kitBit = invite.kit_fee_enabled ? ` · <span class="kit-tag">$${Number(invite.kit_fee_rate || 0).toFixed(2)}/day kit</span>` : "";
-      subtitle = `${escHtml(invite.crew_role || accessRole)}${invite.department ? " (" + escHtml(invite.department) + ")" : ""}${accessRole === "admin" ? " · admin" : ""}${kitBit}`;
+      subtitle = `${escHtml(invite.crew_role || accessRole)}${invite.department ? " (" + escHtml(invite.department) + ")" : ""}${accessRole === "admin" ? " · admin" : ""}${payrollAccess.has(p.user_id) && accessRole !== "admin" ? " · payroll" : ""}${kitBit}`;
     }
 
     left.innerHTML = `<span class="name">${escHtml(nameOf(p))}</span><span class="email">${subtitle}</span>${onboardingBarHtml((employeeOnboarding.get(p.user_id) || {}).steps)}`;
@@ -123,6 +125,16 @@ async function loadEmployees() {
       roleBtn.addEventListener("click", () => setMemberRole(p.user_id, p.email, accessRole === "admin" ? "employee" : "admin"));
       right.appendChild(roleBtn);
 
+      // Admins see payroll anyway; anyone else (e.g. the accountant) needs access given.
+      if (access && accessRole !== "admin") {
+        const on = payrollAccess.has(p.user_id);
+        const payBtn = document.createElement("button");
+        payBtn.className = "remove-link";
+        payBtn.textContent = on ? "Remove payroll access" : "Give payroll access";
+        payBtn.addEventListener("click", () => setPayrollAccess(p.user_id, p.email, !on));
+        right.appendChild(payBtn);
+      }
+
       const removeBtn = document.createElement("button");
       removeBtn.className = "remove-link";
       removeBtn.textContent = "Remove access";
@@ -147,6 +159,30 @@ async function setMemberRole(userId, email, role) {
   if (error) { msgEl.innerHTML = `<div class="msg error">${escHtml(error.message)}</div>`; return; }
   msgEl.innerHTML = `<div class="msg ok">${escHtml(email)} is ${role === "admin" ? "now an admin" : "no longer an admin"}.</div>`;
   loadEmployees();
+}
+
+async function setPayrollAccess(userId, email, on) {
+  const msgEl = document.getElementById("employeesMsg");
+  const ask = on
+    ? `Give ${email} payroll access? They'll see the Payroll tab: everyone's hours, pay rates and what each person is paid.`
+    : `Remove ${email}'s payroll access?`;
+  if (!window.confirm(ask)) return;
+  const { error } = await client.rpc("set_payroll_access", { p_user: userId, p_on: on });
+  if (error) { msgEl.innerHTML = `<div class="msg error">${escHtml(error.message)}</div>`; return; }
+  msgEl.innerHTML = `<div class="msg ok">${escHtml(email)} ${on ? "now has" : "no longer has"} payroll access.</div>`;
+  loadEmployees();
+}
+
+// Pay rate on someone's crew record (their invite). Returns an error message, or null.
+async function savePayRate(email, rate, unit) {
+  if (!email) return "This person has no crew record to save a rate on.";
+  if (rate != null && !(rate >= 0)) return "Enter the rate as a number, or leave it empty.";
+  const { data, error } = await client.from("company_invites")
+    .update({ pay_rate: rate, pay_unit: unit || "hour" })
+    .eq("company_id", currentCompany.id).eq("email", email.toLowerCase()).select("id");
+  if (error) return error.message;
+  if (!data || !data.length) return "This person has no crew record to save a rate on.";
+  return null;
 }
 
 // ---- Admin: employee overview modal ----
@@ -213,6 +249,8 @@ async function openEmployeeModal(profile, accessRole, invite) {
     ${onboardingBarHtml(steps)}
     ${stepsHtml}
 
+    <div id="empPayBox"></div>
+
     <h3>Requested documents</h3>
     ${checklistHtml}
 
@@ -228,6 +266,7 @@ async function openEmployeeModal(profile, accessRole, invite) {
     <h3>Files</h3>
     ${fileFilterBar("efOne", true)}
   `;
+  renderEmployeePay(body.querySelector("#empPayBox"), profile, invite);
   const files = await gatherFiles(profile.user_id);
   if (employeeModalCtx.profile !== profile) return;  // they opened someone else meanwhile
   const who = safeName((invite && invite.full_name) || profile.email);
@@ -235,6 +274,30 @@ async function openEmployeeModal(profile, accessRole, invite) {
     byPerson: false,
     zipName: ({ from, to }) => `${who} files${from || to ? ` ${from || "start"} to ${to || "today"}` : ""}.zip`,
     render: (list) => renderFileRows(body.querySelector("#efOneList"), list),
+  });
+}
+
+// Pay rate section of the employee overview (used by the payroll summary).
+async function renderEmployeePay(box, profile, invite) {
+  if (!invite || isContractorInv(invite)) return;  // contractors invoice instead
+  const { data, error } = await client.from("company_invites").select("pay_rate, pay_unit")
+    .eq("company_id", currentCompany.id).eq("email", profile.email.toLowerCase()).maybeSingle();
+  if (error || !data || employeeModalCtx.profile !== profile) return;
+  const unit = data.pay_unit || "hour";
+  box.innerHTML = `<h3>Pay</h3>
+    <p class="desc" style="margin-bottom:8px;">Used for the estimate in the Payroll summary.</p>
+    <div class="pay-rate-row" style="max-width:420px;">
+      <input type="number" min="0" step="0.01" placeholder="No rate set" aria-label="Pay rate" data-pay-rate value="${data.pay_rate == null ? "" : escHtml(data.pay_rate)}" />
+      <select aria-label="Pay rate per" data-pay-unit>${["hour", "day", "week"].map((u) => `<option value="${u}"${unit === u ? " selected" : ""}>per ${u}</option>`).join("")}</select>
+      <button type="button" class="btn-secondary" data-pay-save>Save</button>
+    </div>
+    <div data-pay-msg></div>`;
+  box.querySelector("[data-pay-save]").addEventListener("click", async (e) => {
+    const raw = box.querySelector("[data-pay-rate]").value.trim();
+    e.target.disabled = true;
+    const err = await savePayRate(profile.email, raw === "" ? null : Number(raw), box.querySelector("[data-pay-unit]").value);
+    e.target.disabled = false;
+    box.querySelector("[data-pay-msg]").innerHTML = err ? `<div class="msg error">${escHtml(err)}</div>` : `<div class="msg ok">Pay rate saved.</div>`;
   });
 }
 
