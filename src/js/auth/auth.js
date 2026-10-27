@@ -136,6 +136,10 @@ async function signOutEverywhere() {
     client.removeChannel(reviewChannel);
     reviewChannel = null;
   }
+  if (typeof notificationChannel !== "undefined" && notificationChannel) {
+    client.removeChannel(notificationChannel);
+    notificationChannel = null;
+  }
   await client.auth.signOut();
   forgetTheme();
   location.reload();

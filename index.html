@@ -88,6 +88,24 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1M19 8v6M16 11h6"/></svg>
             <span>Invite crew</span>
           </button>
+          <div class="nt-wrap" id="ntWrap">
+            <button type="button" class="nt-bell" id="ntBellBtn" aria-label="Notifications" aria-haspopup="true" aria-expanded="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+              <span class="nt-count hidden" id="ntCount"></span>
+            </button>
+            <div class="nt-panel hidden" id="ntPanel" role="dialog" aria-label="Notifications">
+              <div class="nt-head">
+                <strong>Notifications</strong>
+                <button type="button" class="nt-head-btn" id="ntMarkAllBtn">Mark all read</button>
+              </div>
+              <button type="button" class="nt-compose hidden" id="ntComposeBtn" data-announce-open>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+                New announcement
+              </button>
+              <ul class="nt-list" id="ntList"></ul>
+              <p class="nt-empty hidden" id="ntEmpty">You're all caught up.</p>
+            </div>
+          </div>
           <span id="whoAmI" class="who-am-i" title=""></span>
           <button id="signOutBtn">Sign out</button>
         </div>
@@ -201,6 +219,15 @@
         <ul class="file-list" id="deptTimesheetsList"></ul>
         <p class="empty hidden" id="deptTimesheetsEmpty">No timesheets to review.</p>
       </section>
+
+      <section class="panel">
+        <h2>Announcements</h2>
+        <p class="desc">Post an update to the departments you head. It shows in everyone's notification bell.</p>
+        <button type="button" class="btn-secondary invite-open" data-announce-open>New announcement</button>
+        <div id="deptAnnounceMsg"></div>
+        <ul class="file-list an-list" id="deptAnnounceList"></ul>
+        <p class="empty hidden" id="deptAnnounceEmpty">You haven't posted any announcements yet.</p>
+      </section>
     </div>
 
     <!-- Super admin view -->
@@ -311,6 +338,15 @@
         <div id="invitesListMsg"></div>
         <ul class="file-list" id="pendingInvitesList"></ul>
         <p class="empty hidden" id="pendingInvitesEmpty">No pending invites.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Announcements</h2>
+        <p class="desc">Post an update to the whole production or chosen departments. It shows in everyone's notification bell. Department heads can post to their own departments too.</p>
+        <button type="button" class="btn-secondary invite-open" data-announce-open>New announcement</button>
+        <div id="adminAnnounceMsg"></div>
+        <ul class="file-list an-list" id="adminAnnounceList"></ul>
+        <p class="empty hidden" id="adminAnnounceEmpty">No announcements yet.</p>
       </section>
 
       <section class="panel span-2">
@@ -671,6 +707,23 @@
   </div>
 </div>
 
+<div id="announceModalOverlay" class="modal-overlay hidden">
+  <div class="modal-card an-card" role="dialog" aria-modal="true" aria-labelledby="announceModalTitle">
+    <button class="modal-close" id="announceModalClose" aria-label="Close">&times;</button>
+    <h2 id="announceModalTitle">New announcement</h2>
+    <p class="modal-sub" id="announceModalSub">It shows in the notification bell of everyone you send it to.</p>
+    <label for="announceTitleInput">Title</label>
+    <input type="text" id="announceTitleInput" maxlength="120" placeholder="e.g. Call time moved to 7 AM tomorrow" />
+    <label for="announceBodyInput">Message</label>
+    <textarea id="announceBodyInput" maxlength="4000" rows="5" placeholder="Details, location, who to contact…"></textarea>
+    <label class="block-label">Send to</label>
+    <div class="an-audience" id="announceAudience"></div>
+    <div class="doc-request-grid an-depts" id="announceDepts"></div>
+    <div id="announceMsg"></div>
+    <div class="invite-actions"><button type="button" class="btn-secondary" id="announceCancelBtn">Cancel</button><button class="btn-primary" id="announceSendBtn">Post announcement</button></div>
+  </div>
+</div>
+
 <div id="employeeModalOverlay" class="modal-overlay hidden">
   <div class="modal-card">
     <button class="modal-close" id="employeeModalClose" aria-label="Close">&times;</button>
@@ -719,6 +772,7 @@
 <script src="src/js/admin/payroll-export.js"></script>
 <script src="src/js/ui/side-nav.js"></script>
 <script src="src/js/ui/invite-modal.js"></script>
+<script src="src/js/ui/announcements.js"></script>
 <script src="src/js/auth/passkeys.js"></script>
 <script src="src/js/auth/onboarding.js"></script>
 <script src="src/js/auth/mfa.js"></script>

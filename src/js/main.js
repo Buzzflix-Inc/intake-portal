@@ -64,6 +64,9 @@ async function showApp() {
   buildPeriodOptions();
   await loadMyHeadDepartments();
   if (myHeadDepartments.length) loadDeptTimesheets();
+  document.getElementById("ntComposeBtn").classList.toggle("hidden", !canAnnounce());
+  loadAnnouncements();
+  loadNotifications();
 
   loadList("documents", "documents", true);
   loadList("timesheets", "timesheets", true);
