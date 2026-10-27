@@ -44,6 +44,7 @@ function syncInviteType() {
   const c = document.getElementById("inviteTypeSelect").value === "contractor";
   document.getElementById("inviteTsWrap").classList.toggle("hidden", c);
   document.getElementById("inviteKitRow").classList.toggle("hidden", c);
+  document.getElementById("invitePayWrap").classList.toggle("hidden", c);
 }
 document.getElementById("inviteTypeSelect").addEventListener("change", syncInviteType);
 
@@ -87,6 +88,14 @@ document.getElementById("sendInviteBtn").addEventListener("click", async () => {
     requested_documents, deal_memo_template_id, safety_template_id,
   };
 
+  // Only sent when filled in, so invites still work on databases without the pay columns.
+  const payRaw = document.getElementById("invitePayRateInput").value.trim();
+  if (payRaw !== "" && !isContractorInvite) {
+    if (!(Number(payRaw) >= 0)) { msgEl.innerHTML = `<div class="msg error">Enter the pay rate as a number.</div>`; return; }
+    invitePayload.pay_rate = Number(payRaw);
+    invitePayload.pay_unit = document.getElementById("invitePayUnitSelect").value;
+  }
+
   const tsSel = document.getElementById("inviteTimesheetSelect");
   if (tsSel && (tsSel.value || allTsTemplates.length)) invitePayload.timesheet_template_id = isContractorInvite ? null : (tsSel.value || null);
 
@@ -97,7 +106,7 @@ document.getElementById("sendInviteBtn").addEventListener("click", async () => {
     .single();
 
   if (error) {
-    msgEl.innerHTML = `<div class="msg error">${error.message}</div>`;
+    msgEl.innerHTML = `<div class="msg error">${escHtml(error.message)}</div>`;
     return;
   }
 
@@ -108,7 +117,7 @@ document.getElementById("sendInviteBtn").addEventListener("click", async () => {
     ? `<div class="msg ok">Invite emailed to ${escHtml(email)}. You can invite someone else now.</div>`
     : `<div class="msg ok">Invite created for ${escHtml(email)}${dispatch.error ? `, but the email didn't send (${escHtml(dispatch.error)})` : ""}. Use "Copy Invite" in <button type="button" class="preview-link" data-show-invites>Invites</button> to send it yourself.</div>`;
 
-  ["inviteNameInput", "inviteEmailInput", "invitePhoneInput", "inviteKitRateInput", "inviteDocsOtherInput"]
+  ["inviteNameInput", "inviteEmailInput", "invitePhoneInput", "inviteKitRateInput", "invitePayRateInput", "inviteDocsOtherInput"]
     .forEach((id) => { document.getElementById(id).value = ""; });
   inviteDefaultDates(true);
   inviteKitToggle.checked = false;

@@ -113,10 +113,59 @@ begin
   );
 end $$;
 
+-- Is every timesheet for the week approved, with nobody who's expected still missing?
+-- Each person's timesheet is their latest one that wasn't rejected (else their latest).
+-- Expected: non-admin crew who aren't contractors and whose dates overlap the week.
+-- payroll-summary.js works this out the same way for the summary.
+create function public.payroll_week_ready(p_company uuid, p_week date) returns boolean
+language sql stable security definer set search_path = '' as $$
+  with latest as (
+    select distinct on (t.user_id) t.user_id, t.status
+      from public.timesheets t
+     where t.company_id = p_company and t.week_start = p_week
+     order by t.user_id, (t.status <> 'rejected') desc, t.created_at desc
+  )
+  select exists (select 1 from latest)
+     and not exists (select 1 from latest where status <> 'approved')
+     and not exists (
+       select 1 from public.company_memberships m
+         join public.profiles p on p.user_id = m.user_id
+         join public.company_invites i on i.company_id = p_company and i.email = lower(p.email)
+        where m.company_id = p_company and m.role <> 'admin'
+          and not ('__contractor__' = any (i.requested_documents))
+          and (i.start_date is null or i.start_date <= p_week + 6)
+          and (i.end_date is null or i.end_date >= p_week)
+          and not exists (select 1 from latest l where l.user_id = m.user_id)
+     )
+$$;
+
+-- When the last timesheet of a week is approved, tell everyone with payroll access.
+create function public.notify_payroll_ready() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.week_start is not null and new.status = 'approved' and old.status is distinct from 'approved'
+     and public.payroll_week_ready(new.company_id, new.week_start) then
+    insert into public.notifications (user_id, company_id, kind, title, body, view)
+    select m.user_id, new.company_id, 'payroll_ready',
+           'Payroll ready: week of ' || to_char(new.week_start, 'FMMon FMDD'),
+           'Every timesheet for the week is approved. The payroll summary is ready to download.',
+           'payroll:' || new.week_start
+      from public.company_memberships m
+     where m.company_id = new.company_id and (m.role = 'admin' or m.payroll_access);
+  end if;
+  return null;
+end $$;
+
+create trigger timesheets_payroll_ready
+  after update of status on public.timesheets
+  for each row execute function public.notify_payroll_ready();
+
 revoke all on function public.can_view_payroll(uuid) from public, anon;
 revoke all on function public.set_payroll_access(uuid, boolean) from public, anon;
 revoke all on function public.payroll_weeks() from public, anon;
 revoke all on function public.payroll_week(date) from public, anon;
+revoke all on function public.payroll_week_ready(uuid, date) from public, anon, authenticated;
+revoke all on function public.notify_payroll_ready() from public, anon, authenticated;
 grant execute on function public.can_view_payroll(uuid) to authenticated;
 grant execute on function public.set_payroll_access(uuid, boolean) to authenticated;
 grant execute on function public.payroll_weeks() to authenticated;

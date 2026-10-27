@@ -35,6 +35,8 @@ async function showApp() {
     .single();
 
   isAdmin = roleRow && roleRow.role === "admin";
+  canSeePayroll = isAdmin || await client.rpc("can_view_payroll").then(({ data, error }) => !error && data === true);
+  tabPayrollBtn.classList.toggle("hidden", !canSeePayroll);
 
   // Branding and the background photo first, so the page looks right
   // while everything else is still loading.
@@ -57,6 +59,7 @@ async function showApp() {
     loadEmployees();
     loadOutstanding();
     loadPendingCountersignatures();
+    loadPayrollRules();
     // Admins start on the Overview.
     document.getElementById("pvOverviewLink").classList.remove("hidden");
     showPortalView("overview");

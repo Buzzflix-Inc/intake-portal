@@ -8,11 +8,13 @@ const tabDeptBtn = document.getElementById("tabDeptBtn");
 const deptTab = document.getElementById("deptTab");
 const tabSettingsBtn = document.getElementById("tabSettingsBtn");
 const settingsTab = document.getElementById("settingsTab");
+const tabPayrollBtn = document.getElementById("tabPayrollBtn");
+const payrollTab = document.getElementById("payrollTab");
 const tabSuperBtn = document.getElementById("tabSuperBtn");
 const superTab = document.getElementById("superTab");
 
 function switchTab(which) {
-  [[tabPortalBtn, portalTab, "portal"], [tabDeptBtn, deptTab, "dept"], [tabAdminBtn, adminTab, "admin"], [tabSettingsBtn, settingsTab, "settings"], [tabSuperBtn, superTab, "super"]]
+  [[tabPortalBtn, portalTab, "portal"], [tabDeptBtn, deptTab, "dept"], [tabAdminBtn, adminTab, "admin"], [tabPayrollBtn, payrollTab, "payroll"], [tabSettingsBtn, settingsTab, "settings"], [tabSuperBtn, superTab, "super"]]
     .forEach(([btn, panel, key]) => {
       btn.classList.toggle("active", key === which);
       panel.classList.toggle("hidden", key !== which);
@@ -23,5 +25,6 @@ function switchTab(which) {
 tabPortalBtn.addEventListener("click", () => switchTab("portal"));
 tabAdminBtn.addEventListener("click", () => switchTab("admin"));
 tabSettingsBtn.addEventListener("click", () => switchTab("settings"));
+tabPayrollBtn.addEventListener("click", () => { switchTab("payroll"); loadPayroll(); });
 tabDeptBtn.addEventListener("click", () => { switchTab("dept"); loadDeptTimesheets(); });
 tabSuperBtn.addEventListener("click", () => { switchTab("super"); loadSuperOverview(); loadAuditLog(); });
