@@ -33,6 +33,18 @@ jobs:
           if [ -n "$ANTHROPIC_API_KEY" ]; then echo "present=true" >> "$GITHUB_OUTPUT"
           else echo "::notice::ANTHROPIC_API_KEY isn't set, so the Claude review is skipped."; fi
 
+      - name: TEMP diagnose API key (test branch only)
+        if: steps.key.outputs.present == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          for m in claude-opus-5-5 claude-sonnet-5-5; do
+            code=$(curl -s -o /tmp/r.json -w "%{http_code}" https://api.anthropic.com/v1/messages \
+              -H "x-api-key: $ANTHROPIC_API_KEY" -H "anthropic-version: 2023-06-01" -H "content-type: application/json" \
+              -d "{\"model\":\"$m\",\"max_tokens\":1,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}")
+            echo "$m -> HTTP $code: $(jq -c '.error // {ok: true}' /tmp/r.json)"
+          done
+
       - uses: actions/checkout@v4
         if: steps.key.outputs.present == 'true'
         with:
