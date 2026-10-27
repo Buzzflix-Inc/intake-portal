@@ -1,0 +1,78 @@
+# Automatic first-pass review of every ready pull request, against the rules in CLAUDE.md.
+# Posts (and on later pushes, updates) one PR comment. It never blocks a merge.
+#
+# Repository secret (Settings > Secrets and variables > Actions):
+#   ANTHROPIC_API_KEY   from console.anthropic.com. Without it the review is skipped, not failed.
+name: Claude review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # Drafts are still in progress; PRs from other forks don't get the secret.
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - name: Check for API key
+        id: key
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then echo "present=true" >> "$GITHUB_OUTPUT"
+          else echo "::notice::ANTHROPIC_API_KEY isn't set, so the Claude review is skipped."; fi
+
+      - uses: actions/checkout@v4
+        if: steps.key.outputs.present == 'true'
+        with:
+          fetch-depth: 0   # full history, so migrations on main can be compared
+
+      - name: Review
+        if: steps.key.outputs.present == 'true'
+        uses: anthropics/claude-code-action@v1.0.262
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --max-turns 30
+            --allowedTools "Read,Grep,Glob,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(git log:*),Bash(git diff:*),Bash(ls:*)"
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            You are reviewing a pull request for the HR Intake Portal. Read CLAUDE.md first; it is the
+            team's rulebook. Get the change with `gh pr diff ${{ github.event.pull_request.number }}`,
+            and read surrounding code where you need context.
+
+            Check specifically for, and cite file:line for each finding:
+            1. Text from the database or user input put into `innerHTML` (or template strings that
+               end up there) without `escHtml()` from src/js/lib/utils.js.
+            2. New tables without `enable row level security` and policies (or a comment saying
+               they're service-role only).
+            3. Migrations that drop or rename columns or tables, edit or rename a migration that
+               already exists on main, or whose timestamp isn't newer than every migration on main
+               (`git log origin/main --name-only -- supabase/migrations` or list the folder).
+            4. New `<script>` or stylesheet files not added to index.html, or added before a file
+               they depend on (all scripts share one global scope and load in order).
+            5. Secrets, the service-role key or a `testLoginKey` value in front-end code or in the repo.
+            6. A new Edge Function not added to the right list in .github/workflows/deploy-supabase.yml.
+            7. Real bugs: wrong logic, missing error handling on Supabase calls, broken RLS checks.
+
+            Don't comment on style or formatting, and don't suggest refactors outside the change.
+            Only report things you've confirmed in the code.
+
+            Post exactly one comment with `gh pr comment ${{ github.event.pull_request.number }} --edit-last --create-if-none --body "..."`
+            so later pushes update the same comment. Start it with "### Claude review" and the commit
+            reviewed (`${{ github.event.pull_request.head.sha }}`). List findings most serious first,
+            each with file:line, what's wrong and the fix. If there's nothing to report, say
+            "No problems found against CLAUDE.md." in one line.

@@ -130,3 +130,5 @@ data rules.
 - If you added a migration, the PR's "check" job shows the dry run; make sure it lists only your file.
 - Update the README when behaviour, setup or a secret changes.
 - Say in the PR what to click to test it, so the other developer can check it on the preview.
+- When the PR is ready (not a draft), the "Claude review" workflow posts a review comment against
+  these rules and updates it on each push. Fix or answer its findings; it doesn't block merging.
