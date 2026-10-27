@@ -333,11 +333,13 @@
         <h2>Onboarding tracker</h2>
         <p class="desc">Everyone at the production, where they are in onboarding and what they still owe. Email a reminder to one person or everyone at once; they also see it as a notification. Click a name to see their steps and files.</p>
         <div class="ot-stages" id="outStages"></div>
-        <div class="ef-bar ot-bar">
-          <div><label for="outSearch">Search</label><input type="search" id="outSearch" placeholder="Name or email" autocomplete="off" /></div>
+        <div class="dept-filters ot-filters">
+          <div class="ot-search"><label for="outSearch">Search</label><input type="text" id="outSearch" placeholder="Name or email" autocomplete="off" /></div>
           <div><label for="outDept">Department</label><select id="outDept"><option value="">All departments</option></select></div>
-          <button type="button" class="btn-secondary" id="outRefreshBtn">Refresh</button>
-          <button type="button" class="btn-primary" id="outRemindAll" data-nobusy disabled>Remind everyone with items outstanding</button>
+          <div class="ot-buttons">
+            <button type="button" class="btn-secondary" id="outRemindAll" data-nobusy disabled>Remind everyone with items outstanding</button>
+            <button type="button" class="btn-secondary" id="outRefreshBtn">Refresh</button>
+          </div>
         </div>
         <div id="outMsg"></div>
         <ul class="file-list ot-list" id="outList"></ul>
