@@ -56,6 +56,11 @@ The Terms of Service and Privacy Notice are `terms.html` and `privacy.html`. The
 have them reviewed and fill in the bracketed details. When you change them, bump
 `TERMS_VERSION` in `src/js/auth/onboarding.js` so everyone is asked to accept the new version.
 
+## Admin overview and Company Settings
+
+Admins land on **My Portal > Overview**: a summary of crew onboarding progress (how many are fully
+onboarded, how many are at each stage, and who's still in progress). Branding and the approval chain live in their own **Company Settings** tab.
+
 ## Onboarding progress and files (Manage Crew > Employees)
 
 Each person shows a progress bar of their onboarding steps: joined, documents uploaded, documents

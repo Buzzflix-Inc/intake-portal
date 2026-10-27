@@ -340,7 +340,6 @@ async function renderGettingStarted() {
   document.querySelector("#portalTab .pv-main").prepend(box);
 }
 function gotoAdmin(anchorId) {
-  switchTab("admin");
   expandPanelOf(document.getElementById(anchorId));
   window.scrollTo({ top: 0 });
 }

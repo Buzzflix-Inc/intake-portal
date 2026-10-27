@@ -115,6 +115,7 @@
         <button class="tab-btn active" id="tabPortalBtn">My Portal</button>
         <button class="tab-btn hidden" id="tabDeptBtn">Department Review</button>
         <button class="tab-btn hidden" id="tabAdminBtn">Manage Crew</button>
+        <button class="tab-btn hidden" id="tabSettingsBtn">Company Settings</button>
         <button class="tab-btn hidden" id="tabSuperBtn">All Companies</button>
       </div>
     </div>
@@ -122,6 +123,10 @@
     <!-- Employee view -->
     <div id="portalTab" class="has-side">
       <nav class="pv-nav" id="portalNav" aria-label="My Portal sections">
+        <button type="button" class="pv-link hidden" data-view="overview" id="pvOverviewLink">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+          <span class="pv-label">Overview</span>
+        </button>
         <button type="button" class="pv-link" data-view="deals">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
           <span class="pv-label">Deal Memos</span>
@@ -137,6 +142,12 @@
       </nav>
 
       <div class="pv-main">
+      <div class="pv-view" data-view="overview">
+      <section class="panel" id="crewProgressPanel">
+        <h2>Crew onboarding progress</h2>
+        <div id="crewProgressBody"><p class="empty">Loading…</p></div>
+      </section>
+      </div>
       <div class="pv-view" data-view="deals">
       <section class="panel" id="myDealsPanel">
         <h2>My deals</h2>
@@ -279,57 +290,6 @@
 
     <!-- Admin view -->
     <div id="adminTab" class="hidden">
-      <section class="panel span-2">
-        <h2>Company Settings</h2>
-        <p class="desc">Customize how the portal looks for your team.</p>
-        <label for="companyNameInput">Company name</label>
-        <input type="text" id="companyNameInput" />
-        <label for="companyTaglineInput">Tagline</label>
-        <input type="text" id="companyTaglineInput" />
-        <label class="block-label">Theme</label>
-        <p class="desc" style="margin-bottom:10px;">Colours everyone at your production sees. Click one to preview it, then Save.</p>
-        <p class="theme-custom-note hidden" id="themeCustomNote">You're using custom colours from before themes existed. Pick a theme to replace them.</p>
-        <div id="companyThemePicker" class="theme-picker"></div>
-        <button class="btn-secondary" id="saveCompanySettingsBtn">Save</button>
-        <div id="companySettingsMsg"></div>
-
-        <div class="logo-row">
-          <div class="logo-preview" id="companyLogoPreview">HR</div>
-          <input type="file" id="companyLogoFile" accept="image/*" />
-          <button class="btn-secondary" id="uploadLogoBtn">Upload logo</button>
-        </div>
-        <div id="companyLogoMsg"></div>
-
-        <div class="bg-section">
-          <label class="block-label">Portal background</label>
-          <p class="desc" style="margin-bottom:10px;">Shows behind the whole portal for everyone at your company.</p>
-
-          <div class="bg-preview-wrap">
-            <div id="bgPreviewBox" class="bg-preview"><div class="bg-preview-overlay" id="bgPreviewOverlay"></div></div>
-          </div>
-
-          <label for="companyBgFile">Background image</label>
-          <input type="file" id="companyBgFile" accept="image/*" />
-
-          <label for="bgOpacityInput" style="margin-top:14px;">Opacity (<span id="bgOpacityValue">40</span>%)</label>
-          <input type="range" id="bgOpacityInput" min="0" max="100" value="40" />
-
-          <div class="row2">
-            <div class="field">
-              <label for="bgPosXInput">Horizontal crop</label>
-              <input type="range" id="bgPosXInput" min="0" max="100" value="50" />
-            </div>
-            <div class="field">
-              <label for="bgPosYInput">Vertical crop</label>
-              <input type="range" id="bgPosYInput" min="0" max="100" value="50" />
-            </div>
-          </div>
-
-          <button class="btn-secondary" id="saveBgBtn" style="margin-top:12px;">Save background</button>
-          <button class="remove-link" id="removeBgBtn" style="margin-left:10px;">Remove background</button>
-          <div id="bgMsg"></div>
-        </div>
-      </section>
 
       <section class="panel span-2">
         <h2>Invites</h2>
@@ -576,6 +536,68 @@
         <p class="empty hidden" id="tsTplEmpty">No timesheet forms yet. Everyone uses the standard portal timesheet.</p>
       </section>
 
+
+      <section class="panel">
+        <h2>Deals — pending signature</h2>
+        <p class="desc">Employee-signed deal memos and safety acknowledgments waiting on your countersignature.</p>
+        <ul class="file-list" id="countersignList"></ul>
+        <p class="empty hidden" id="countersignEmpty">Nothing waiting on you right now.</p>
+      </section>
+    </div>
+
+    <!-- Company settings view (admins) -->
+    <div id="settingsTab" class="hidden">
+      <section class="panel span-2">
+        <h2>Branding</h2>
+        <p class="desc">Customize how the portal looks for your team.</p>
+        <label for="companyNameInput">Company name</label>
+        <input type="text" id="companyNameInput" />
+        <label for="companyTaglineInput">Tagline</label>
+        <input type="text" id="companyTaglineInput" />
+        <label class="block-label">Theme</label>
+        <p class="desc" style="margin-bottom:10px;">Colours everyone at your production sees. Click one to preview it, then Save.</p>
+        <p class="theme-custom-note hidden" id="themeCustomNote">You're using custom colours from before themes existed. Pick a theme to replace them.</p>
+        <div id="companyThemePicker" class="theme-picker"></div>
+        <button class="btn-secondary" id="saveCompanySettingsBtn">Save</button>
+        <div id="companySettingsMsg"></div>
+
+        <div class="logo-row">
+          <div class="logo-preview" id="companyLogoPreview">HR</div>
+          <input type="file" id="companyLogoFile" accept="image/*" />
+          <button class="btn-secondary" id="uploadLogoBtn">Upload logo</button>
+        </div>
+        <div id="companyLogoMsg"></div>
+
+        <div class="bg-section">
+          <label class="block-label">Portal background</label>
+          <p class="desc" style="margin-bottom:10px;">Shows behind the whole portal for everyone at your company.</p>
+
+          <div class="bg-preview-wrap">
+            <div id="bgPreviewBox" class="bg-preview"><div class="bg-preview-overlay" id="bgPreviewOverlay"></div></div>
+          </div>
+
+          <label for="companyBgFile">Background image</label>
+          <input type="file" id="companyBgFile" accept="image/*" />
+
+          <label for="bgOpacityInput" style="margin-top:14px;">Opacity (<span id="bgOpacityValue">40</span>%)</label>
+          <input type="range" id="bgOpacityInput" min="0" max="100" value="40" />
+
+          <div class="row2">
+            <div class="field">
+              <label for="bgPosXInput">Horizontal crop</label>
+              <input type="range" id="bgPosXInput" min="0" max="100" value="50" />
+            </div>
+            <div class="field">
+              <label for="bgPosYInput">Vertical crop</label>
+              <input type="range" id="bgPosYInput" min="0" max="100" value="50" />
+            </div>
+          </div>
+
+          <button class="btn-secondary" id="saveBgBtn" style="margin-top:12px;">Save background</button>
+          <button class="remove-link" id="removeBgBtn" style="margin-left:10px;">Remove background</button>
+          <div id="bgMsg"></div>
+        </div>
+      </section>
       <section class="panel">
         <h2>Approval chain</h2>
         <p class="desc">Documents route through these approvers in order before being marked approved. Leave empty and any admin can approve directly.</p>
@@ -587,13 +609,6 @@
         <div id="chainMsg"></div>
         <ul class="file-list" id="chainList" style="margin-top:14px;"></ul>
         <p class="empty hidden" id="chainEmpty">No approval chain set — any admin can approve directly.</p>
-      </section>
-
-      <section class="panel">
-        <h2>Deals — pending signature</h2>
-        <p class="desc">Employee-signed deal memos and safety acknowledgments waiting on your countersignature.</p>
-        <ul class="file-list" id="countersignList"></ul>
-        <p class="empty hidden" id="countersignEmpty">Nothing waiting on you right now.</p>
       </section>
     </div>
   </div>
@@ -757,6 +772,7 @@
 <script src="src/js/department/review.js"></script>
 <script src="src/js/admin/employees.js"></script>
 <script src="src/js/admin/employee-files.js"></script>
+<script src="src/js/admin/overview.js"></script>
 <script src="src/js/admin/review-lists.js"></script>
 <script src="src/js/admin/paystubs.js"></script>
 <script src="src/js/ui/preview-modal.js"></script>
