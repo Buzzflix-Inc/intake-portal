@@ -27,6 +27,7 @@ Everything the database needs is in `supabase/`:
 | `supabase/functions/send-invite-email/` | Emails invites through Resend. |
 | `supabase/functions/passkey/` | Registers passkeys and signs people in with them. Deployed without JWT verification (it checks callers itself). |
 | `supabase/functions/test-login/` | Local test mode: signs in `@example.com` addresses without email (see "Test mode"). |
+| `supabase/functions/demo/` | Demo mode: signs in the demo accounts and resets the demo production (see "Demo mode"). |
 | `supabase/templates/sign-in-code.html` | Email template with the 6-digit sign-in code (see below). |
 
 ## Sign-in: emailed codes and passkeys (no passwords)
@@ -54,6 +55,30 @@ A backup code removes a lost authenticator so a new one can be set up.
 The Terms of Service and Privacy Notice are `terms.html` and `privacy.html`. They're drafts:
 have them reviewed and fill in the bracketed details. When you change them, bump
 `TERMS_VERSION` in `src/js/auth/onboarding.js` so everyone is asked to accept the new version.
+
+## Demo mode (for showing the portal off)
+
+Sign in as **`demo@demo.example.com`**: no email, no code, no two-step sign-in. It's the admin of
+**Silver Harbour**, a demo production whose crew are at different stages of onboarding: fully
+onboarded department heads, a deal memo waiting for countersignature, a rejected ID upload, a memo
+sent back to re-sign, timesheets at department-head and final review, a contractor with invoices,
+paystubs, announcements, and two people who were invited but haven't signed in yet.
+
+While signed in as a demo account, a bar at the bottom of the screen lets you:
+
+- **Switch person:** sign in as any of the demo crew to show their side (sign a memo, upload a
+  document, submit a timesheet), then switch back to the admin to approve it. Picking an invited
+  person (Olivia or Marcus) walks through the new-hire flow from the Terms screen.
+- **Reset demo:** puts everything back to the starting state (takes about 20 seconds), so the demo
+  can be run again.
+
+How it's contained: every demo address is `@demo.example.com` (a reserved domain), the `demo` Edge
+Function only signs in the accounts it defines, the demo production can only invite demo addresses
+(and they can't be invited anywhere else), demo accounts can't create productions, and reset deletes
+the demo production and rebuilds it with only made-up data. The crew and their stages are the `PEOPLE`
+list in `supabase/functions/demo/index.ts`.
+
+- Turn it off: `update public.demo_settings set enabled = false;`
 
 ## Test mode (local only, remove before production)
 

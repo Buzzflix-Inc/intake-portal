@@ -3,6 +3,7 @@
 // has an authenticator but no codes yet. A backup code removes a lost authenticator so a new one
 // can be set up.
 async function requireMfa(user) {
+  if (isDemoEmail(user.email)) return true; // demo accounts (demo.js) never need the second step
   // Only people who can reach admin screens need it.
   let privileged = false;
   try {

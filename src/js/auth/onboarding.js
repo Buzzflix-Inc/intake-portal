@@ -279,7 +279,7 @@ function markPasskeyOffered() {
   client.auth.updateUser({ data: { passkey_offered: true } }).catch(() => {});
 }
 async function offerPasskeyOnce(user) {
-  if (!passkeySupported() || (user.user_metadata && user.user_metadata.passkey_offered)) return;
+  if (!passkeySupported() || isDemoEmail(user.email) || (user.user_metadata && user.user_metadata.passkey_offered)) return;
   const { count } = await client.from("passkeys").select("id", { count: "exact", head: true });
   if (count) { markPasskeyOffered(); return; }
   await new Promise((resolve) => {
