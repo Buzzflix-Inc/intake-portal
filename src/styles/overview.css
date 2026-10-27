@@ -153,3 +153,22 @@ body.modal-open { overflow: hidden; }
 .ef-list .ef-kind { font-weight: 600; }
 .ef-list .actions { flex-wrap: wrap; justify-content: flex-end; }
 .ef-none { color: var(--ink-faint); font-size: 13px; }
+
+/* My Portal Overview for admins (overview.js) */
+.cp-head { font-size: 14px; color: var(--ink-soft); margin-bottom: 8px; }
+.cp-head b { font-size: 20px; color: var(--ink); margin-right: 4px; }
+.cp-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--line); }
+.cp-bar i, .cp-legend i { display: block; }
+.cp-bar .cp-done, .cp-legend .cp-done { background: var(--ok); }
+.cp-bar .cp-going, .cp-legend .cp-going { background: var(--accent); }
+.cp-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 8px 0 14px; font-size: 12.5px; color: var(--ink-soft); }
+.cp-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.cp-legend i { width: 10px; height: 10px; border-radius: 3px; background: var(--line); }
+.cp-stages { list-style: none; margin: 0 0 6px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+.cp-stages li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 9px; font-size: 13px; color: var(--ink-soft); }
+.cp-stages li b { font-size: 15px; color: var(--ink); }
+.cp-stages li.zero { opacity: 0.55; }
+.cp-sub { font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-faint); margin: 18px 0 4px; font-weight: 700; }
+.cp-people { margin-bottom: 14px; }
+#cpSeeAll { width: auto; }
+@media (max-width: 520px) { 

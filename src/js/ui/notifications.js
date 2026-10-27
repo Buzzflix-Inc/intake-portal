@@ -153,6 +153,7 @@ function handleNewNotification(n) {
   if (n.view === "admin:countersign" && typeof loadPendingCountersignatures === "function") loadPendingCountersignatures();
   if (n.view === "admin:timesheets") loadAdminList("timesheets", "timesheets");
   if (n.view === "admin:employees" && isAdmin) loadEmployees();
+  if (isAdmin && typeof loadAdminOverview === "function") loadAdminOverview();
 }
 
 async function markNotificationsRead(ids) {
@@ -170,7 +171,7 @@ function openNotificationView(view) {
   else if (tab === "dept" && !tabDeptBtn.classList.contains("hidden")) { switchTab("dept"); loadDeptTimesheets(); }
   else if (tab === "admin" && isAdmin) {
     switchTab("admin");
-    const target = { countersign: "countersignList", timesheets: "adminTimesheetsList", documents: "adminDocumentsList", employees: "employeesList" }[sub];
+    const target = { countersign: "countersignList", timesheets: "adminTimesheetsList", documents: "adminDocumentsList", employees: "employeesList", invites: "pendingInvitesList", outstanding: "outList" }[sub];
     if (target) expandPanelOf(document.getElementById(target));
   } else return;
   window.scrollTo({ top: 0 });

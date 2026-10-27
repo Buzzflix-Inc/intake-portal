@@ -42,6 +42,7 @@ async function showApp() {
 
   if (isAdmin) {
     tabAdminBtn.classList.remove("hidden");
+    tabSettingsBtn.classList.remove("hidden");
     document.getElementById("inviteCrewBtn").classList.remove("hidden");
     await loadProfileMap();
     populateEmployeeSelect();
@@ -56,6 +57,14 @@ async function showApp() {
     loadEmployees();
     loadOutstanding();
     loadPendingCountersignatures();
+    // Admins start on the Overview.
+    document.getElementById("pvOverviewLink").classList.remove("hidden");
+    showPortalView("overview");
+    loadAdminOverview();
+  } else {
+    // Crew have no Overview; if this browser last showed it (another account), go to Deal Memos.
+    const ov = document.querySelector('#portalTab .pv-view[data-view="overview"]');
+    if (ov && !ov.classList.contains("hidden")) showPortalView("deals");
   }
 
   await loadMyRequestedDocuments();

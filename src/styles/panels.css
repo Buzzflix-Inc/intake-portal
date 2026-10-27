@@ -1,5 +1,5 @@
 /* Sections */
-#portalTab, #adminTab, #deptTab, #superTab {
+#portalTab, #adminTab, #settingsTab, #deptTab, #superTab {
   display: grid;
   grid-template-columns: 1fr;
   gap: 20px;

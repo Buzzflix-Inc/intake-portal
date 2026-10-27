@@ -1,5 +1,5 @@
 // ---- Side menus: one section at a time, picked from a menu on the left ----
-// My Portal's menu is in the markup; Manage Crew and All Companies build theirs here
+// My Portal's menu is in the markup; Manage Crew, Company Settings and All Companies build theirs here
 // from the section headings, grouped as below.
 (function () {
   function wire(tab, key, fallback) {
@@ -114,12 +114,17 @@
       ["Deal memos & safety forms", "Deal memo forms", "Templates, fields and page ranges", "form"],
       ["Timesheet forms", "Timesheet forms", "Union timesheet cards and their boxes", "calendar"],
     ]},
+  ]);
+  const showAdmin = wire(adminTab, "intake_admin_view", "s0");
+
+  const settingsTab = document.getElementById("settingsTab");
+  build(settingsTab, [
     { label: "Settings", items: [
-      ["Company Settings", "Company settings", "Name, colours, logo, background", "sliders"],
+      ["Branding", "Branding", "Name, theme, logo, background", "sliders"],
       ["Approval chain", "Approval chain", "Who signs off documents, in order", "checks"],
     ]},
   ]);
-  const showAdmin = wire(adminTab, "intake_admin_view", "s0");
+  const showSettings = wire(settingsTab, "intake_settings_view", "s0");
 
   const superTab = document.getElementById("superTab");
   build(superTab, [
@@ -136,10 +141,14 @@
   ]);
   wire(superTab, "intake_super_view", "s0");
 
-  // Bring an admin section into view, e.g. when a form editor opens inside it.
+  // Bring a Manage Crew or Company Settings section into view (switching to its tab), e.g. when a
+  // form editor opens inside it or a notification points at it.
   window.expandPanelOf = (el) => {
-    const view = el && el.closest && el.closest("#adminTab .pv-view");
-    if (view) showAdmin(view.dataset.view, true);
+    const view = el && el.closest && el.closest("#adminTab .pv-view, #settingsTab .pv-view");
+    if (!view) return;
+    const inSettings = !!view.closest("#settingsTab");
+    switchTab(inSettings ? "settings" : "admin");
+    (inSettings ? showSettings : showAdmin)(view.dataset.view, true);
   };
   // Open a My Portal section by its menu key (deals, time, pay).
   window.showPortalView = (id) => showPortal(id, true);
