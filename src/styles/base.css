@@ -90,7 +90,8 @@ header.top h1 { font-size: 17px; font-weight: 600; margin: 0; letter-spacing: -0
 header.top .eyebrow { font-size: 12px; color: var(--link); margin: 0; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
 .top-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 #companySwitcher { max-width: 220px; }
-.who-am-i { font-size: 13px; font-weight: 600; color: var(--ink); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.who-am-i { font: inherit; font-size: 13px; font-weight: 600; color: var(--ink); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: none; border: 1px solid transparent; border-radius: 8px; padding: 6px 9px; cursor: pointer; }
+.who-am-i:hover, .who-am-i:focus-visible { background: var(--accent-soft); border-color: var(--line); }
 .who-am-i:empty { display: none; }
 button.is-busy { position: relative; pointer-events: none; opacity: 0.7; cursor: progress; }
 button.is-busy::after { content: ""; display: inline-block; width: 11px; height: 11px; margin-left: 8px; vertical-align: -1px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: busySpin 0.7s linear infinite; }

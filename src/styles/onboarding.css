@@ -89,8 +89,8 @@ input.auth-code { width: 100%; font-size: 22px; letter-spacing: 0.35em; text-ali
 }
 
 /* ---- Backup codes (two-step sign-in) ---- */
-#mfaGate .mfa-codes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; padding: 0 0 0 22px; margin: 6px 0 16px; }
-#mfaGate .mfa-codes code { display: inline; padding: 2px 6px; margin: 0; font-size: 14px; letter-spacing: .04em; background: var(--page); }
+#mfaGate .mfa-codes, .account-card .mfa-codes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; padding: 0 0 0 22px; margin: 6px 0 16px; }
+#mfaGate .mfa-codes code, .account-card .mfa-codes code { display: inline; padding: 2px 6px; margin: 0; font-size: 14px; letter-spacing: .04em; background: var(--page); }
 #mfaGate .mfa-save { justify-content: flex-start; margin-bottom: 14px; }
 #mfaGate .mfa-ack { display: flex; gap: 8px; align-items: center; font-size: 13.5px; color: var(--ink); margin-bottom: 14px; }
 #mfaGate .mfa-ack input { width: auto; margin: 0; font-size: inherit; letter-spacing: normal; }

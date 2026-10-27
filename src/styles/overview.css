@@ -93,3 +93,32 @@ body.modal-open { overflow: hidden; }
   .invite-actions { position: sticky; bottom: 0; background: var(--surface); margin: 18px -18px 0; padding: 12px 18px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
   .invite-actions button { flex: 1; }
 }
+
+/* Account pane (src/js/ui/account.js) */
+.modal-card.account-card { max-width: 600px; }
+.account-card h3 { margin-top: 26px; }
+.account-card h2 + .modal-sub { margin-bottom: 6px; }
+.acct-hint { color: var(--ink-soft); font-size: 13px; margin: 0 0 10px; line-height: 1.5; }
+.acct-hint a { color: var(--link); }
+.acct-note { color: var(--ink-faint); font-size: 12.5px; font-style: italic; margin: 0 0 8px; }
+.acct-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.acct-field label { display: block; font-size: 12.5px; color: var(--ink-soft); margin-bottom: 4px; }
+.acct-field input, .acct-code, #acctConfirmEmail { width: 100%; box-sizing: border-box; padding: 9px 12px; border: 1px solid var(--line); border-radius: 7px; font: inherit; font-size: 14px; background: var(--page); color: var(--ink); }
+.acct-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 4px; }
+.acct-inline { font-size: 13px; color: var(--ink-soft); }
+.acct-list { margin: 0 0 8px; }
+.acct-status { display: inline-block; margin: 0 0 8px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--page); border: 1px solid var(--line); color: var(--ink-soft); }
+.acct-status.on { background: var(--ok-soft); border-color: transparent; color: var(--ok); }
+.acct-danger { margin-top: 26px; padding: 16px 18px; border: 1px solid var(--error-soft); border-radius: var(--radius); }
+.acct-danger h3 { color: var(--error); margin: 0 0 8px; }
+.acct-danger > :last-child { margin-bottom: 0; }
+.acct-back { background: none; border: 0; padding: 0; margin: 0 0 10px; font: inherit; font-size: 13px; color: var(--link); cursor: pointer; }
+.acct-code, #acctConfirmEmail { display: block; max-width: 280px; margin: 4px 0 8px; }
+.acct-code { font-size: 20px; letter-spacing: 0.3em; }
+.acct-ack { margin: 8px 0 2px; }
+.account-card .mfa-qr { display: flex; justify-content: center; margin: 10px 0; }
+.account-card .mfa-qr img { width: 180px; height: 180px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
+@media (max-width: 520px) {
+  .acct-grid { grid-template-columns: 1fr; }
+  .modal-card.account-card { padding: 22px 18px; }
+}

@@ -9,8 +9,9 @@ function obRender(inner) {
   appView.classList.add("hidden");
   onboardView.classList.remove("hidden");
   onboardView.innerHTML = `<div class="ob-wrap"><div class="auth-mark">HR</div>${inner}
-    <p class="ob-who">Signed in as <b>${escHtml(currentUserEmail || "")}</b> · <button type="button" class="ob-link" data-ob-signout>Sign out</button></p></div>`;
+    <p class="ob-who">Signed in as <b>${escHtml(currentUserEmail || "")}</b> · <button type="button" class="ob-link" data-ob-account>Account</button> · <button type="button" class="ob-link" data-ob-signout>Sign out</button></p></div>`;
   onboardView.querySelector("[data-ob-signout]").addEventListener("click", signOutEverywhere);
+  onboardView.querySelector("[data-ob-account]").addEventListener("click", () => openAccount());
   window.scrollTo({ top: 0 });
 }
 function obHide() {

@@ -4,6 +4,8 @@
 //                                 company it is; purge also removes their records and files
 //   { action: "list-orphans" }    super admin: accounts that belong to no company
 //   { action: "delete-orphan", userId }  super admin: delete one of those (and its records)
+//   { action: "delete-self" }     anyone: delete their own login and leave every production; the
+//                                 records stay with each production (needs a fresh sign-in step)
 //
 // SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY are provided by Supabase at runtime.
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
@@ -37,12 +39,24 @@ async function purgeRecords(admin: SupabaseClient, userId: string) {
   for (const bucket of USER_BUCKETS) await removeFolder(admin, bucket, userId);
 }
 
+// The token was already checked by auth.getUser(); this only reads its claims.
+function jwtClaims(token: string) {
+  try {
+    const part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(part + "=".repeat((4 - (part.length % 4)) % 4)));
+  } catch (_) {
+    return {};
+  }
+}
+
 async function listOrphans(admin: SupabaseClient) {
-  const [{ data: members }, { data: supers }] = await Promise.all([
+  // Accounts people deleted themselves aren't orphans: productions still hold their records.
+  const [{ data: members }, { data: supers }, { data: deleted }] = await Promise.all([
     admin.from("company_memberships").select("user_id"),
     admin.from("superadmins").select("user_id"),
+    admin.from("profiles").select("user_id").not("deleted_at", "is", null),
   ]);
-  const keep = new Set([...(members ?? []), ...(supers ?? [])].map((r) => r.user_id));
+  const keep = new Set([...(members ?? []), ...(supers ?? []), ...(deleted ?? [])].map((r) => r.user_id));
   const orphans: { id: string; email?: string; created_at: string }[] = [];
   for (let page = 1; ; page++) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
@@ -78,6 +92,28 @@ Deno.serve(async (req) => {
       }
       await purgeRecords(admin, body.userId);
       const { error } = await admin.auth.admin.deleteUser(body.userId);
+      if (error) return json({ error: error.message }, 400);
+      return json({ deleted: true });
+    }
+
+    if (action === "delete-self") {
+      // Needs a sign-in step in the last 10 minutes: the authenticator code for people who have one,
+      // otherwise an emailed code. The token's amr claim says how and when they last proved it.
+      const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+      const claims = jwtClaims(token);
+      const { data: f } = await admin.auth.admin.mfa.listFactors({ userId: user.id });
+      const factors = (f?.factors ?? []).filter((x) => x.status === "verified");
+      const now = Date.now() / 1000;
+      const fresh = (claims.amr ?? []).some((a: { method: string; timestamp: number }) =>
+        now - a.timestamp < 600 && (factors.length ? a.method === "totp" : true));
+      if (!fresh) return json({ error: "Confirm it's you again, then try once more." }, 403);
+
+      const { error: prepErr } = await admin.rpc("prepare_account_deletion", { p_user: user.id });
+      if (prepErr) return json({ error: prepErr.message }, 400);
+      for (const x of f?.factors ?? []) await admin.auth.admin.mfa.deleteFactor({ id: x.id, userId: user.id });
+      // A soft delete removes the login and keeps the account row, so the records each production
+      // holds still point at it.
+      const { error } = await admin.auth.admin.deleteUser(user.id, true);
       if (error) return json({ error: error.message }, 400);
       return json({ deleted: true });
     }

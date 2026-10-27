@@ -91,6 +91,13 @@ async function loadEmployees() {
       tag.textContent = "you";
       right.appendChild(tag);
     } else {
+      // Another admin lets the last one leave the production or delete their account.
+      const roleBtn = document.createElement("button");
+      roleBtn.className = "remove-link";
+      roleBtn.textContent = accessRole === "admin" ? "Remove admin" : "Make admin";
+      roleBtn.addEventListener("click", () => setMemberRole(p.user_id, p.email, accessRole === "admin" ? "employee" : "admin"));
+      right.appendChild(roleBtn);
+
       const removeBtn = document.createElement("button");
       removeBtn.className = "remove-link";
       removeBtn.textContent = "Remove access";
@@ -102,6 +109,18 @@ async function loadEmployees() {
     li.appendChild(right);
     listEl.appendChild(li);
   }
+}
+
+async function setMemberRole(userId, email, role) {
+  const msgEl = document.getElementById("employeesMsg");
+  const ask = role === "admin"
+    ? `Make ${email} an admin? They'll see everyone's paperwork and can manage the production. They'll need to set up two-step sign-in.`
+    : `Remove ${email}'s admin access? They'll keep their crew access.`;
+  if (!window.confirm(ask)) return;
+  const { error } = await client.rpc("set_member_role", { p_user: userId, p_role: role });
+  if (error) { msgEl.innerHTML = `<div class="msg error">${escHtml(error.message)}</div>`; return; }
+  msgEl.innerHTML = `<div class="msg ok">${escHtml(email)} is ${role === "admin" ? "now an admin" : "no longer an admin"}.</div>`;
+  loadEmployees();
 }
 
 // ---- Admin: employee overview modal ----
