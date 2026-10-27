@@ -17,6 +17,27 @@ affects everyone at once. Read the README for how features work; this file is ho
 
 `EthanHeinze/intake-portal` is the original single-file version. Don't push or open PRs there.
 
+## Claiming work (so two people don't build the same thing)
+
+GitHub Issues are the only way to claim work. Before starting anything:
+
+```bash
+gh issue list --repo jackbuzzflix/intake-portal --state open
+gh pr list --repo jackbuzzflix/intake-portal --state open
+```
+
+- Don't start work that's assigned to someone else or already has an open PR. If it overlaps,
+  stop and say so instead of building a second version.
+- No issue yet? Create one (`gh issue create --title "..." --body "..."`), then claim it:
+  `gh issue edit <number> --add-assignee @me`.
+- Right away, push your branch and open a **draft** PR named after the issue, with
+  `Closes #<number>` in the body: `gh pr create --draft --title "<issue title>" --body "Closes #<number>"`.
+  The draft PR is the signal that the work is in progress, and gives it a preview URL.
+- If you stop working on something, unassign yourself and close or comment on the draft PR so
+  someone else can pick it up.
+- Claude sessions: if the user asks for work that matches someone else's issue or PR, tell them
+  before starting.
+
 ## Git workflow
 
 - Never commit or push to `main` directly. Branch from the latest `main` as `<yourname>/<short-topic>`
