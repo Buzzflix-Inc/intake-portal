@@ -72,3 +72,31 @@ select.sel-open { border-color: var(--link); box-shadow: 0 0 0 3px var(--accent-
   .inv-line .inv-amt { grid-column: 3; }
 }
 
+/* Calendar popup for date boxes (src/js/ui/pickers.js) */
+input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 1; width: 16px; height: 16px; padding: 2px; border-radius: 5px; background: var(--ink-soft);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2.5'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E") center / 16px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2.5'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E") center / 16px no-repeat; }
+input[type="date"]:hover::-webkit-calendar-picker-indicator, input[type="date"].dp-open::-webkit-calendar-picker-indicator { background: var(--link); }
+input[type="date"].dp-open { border-color: var(--link); box-shadow: 0 0 0 3px var(--accent-soft); }
+.dp-pop { position: fixed; z-index: 2000; display: none; width: 288px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 28px rgba(0,0,0,.18); padding: 12px; animation: accIn .12s ease-out; font-variant-numeric: tabular-nums; }
+.dp-head { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.dp-title { flex: 1; display: flex; gap: 6px; justify-content: center; }
+.dp-pop select { width: auto; margin: 0; padding: 5px 26px 5px 9px; font-size: 13.5px; font-weight: 600; border: 1px solid transparent; border-radius: 7px; background-color: transparent; color: var(--ink); background-position: calc(100% - 14px) 55%, calc(100% - 9px) 55%; }
+.dp-pop select:hover, .dp-pop select.sel-open { border-color: var(--line); background-color: var(--page); }
+.dp-nav { width: 30px; height: 30px; flex: none; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 18px; line-height: 1; padding: 0 0 2px; }
+.dp-nav:hover:not(:disabled) { border-color: var(--link); color: var(--link); }
+.dp-nav:disabled { opacity: .35; cursor: default; }
+.dp-dow, .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.dp-dow span { text-align: center; font-size: 11px; font-weight: 600; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .04em; padding: 2px 0 6px; }
+.dp-day { height: 34px; border: none; border-radius: 8px; background: none; color: var(--ink); font: inherit; font-size: 13.5px; padding: 0; }
+.dp-day:hover:not(:disabled) { background: var(--accent-soft); }
+.dp-day.out { color: var(--ink-faint); }
+.dp-day.today { box-shadow: inset 0 0 0 1.5px var(--link); font-weight: 600; }
+.dp-day.focus:not(.sel) { background: var(--accent-soft); }
+.dp-day.sel, .dp-day.sel:hover { background: var(--link); color: var(--on-link); font-weight: 600; }
+.dp-day:disabled { opacity: .3; cursor: default; }
+.dp-foot { display: flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.dp-foot button { background: none; border: none; padding: 4px 6px; border-radius: 6px; font: inherit; font-size: 13px; font-weight: 600; color: var(--link); }
+.dp-foot .dp-clear { color: var(--ink-soft); }
+.dp-foot button:hover:not(:disabled) { background: var(--accent-soft); }
+.dp-foot button:disabled { opacity: .4; cursor: default; }
