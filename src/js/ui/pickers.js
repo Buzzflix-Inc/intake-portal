@@ -142,3 +142,117 @@ document.addEventListener("keydown", (e) => {
 }, true);
 window.addEventListener("resize", selPickClose);
 document.addEventListener("scroll", (e) => { if (selPick.sel && e.target !== selPick.el && Date.now() - selPick.t > 400) selPickClose(); }, true);
+// Themed calendar for every <input type="date"> (replaces the browser's own popup; typing into the box still works)
+const dpPick = { el: null, input: null, view: null, focus: null, t: 0 };
+const DP_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+function dpParse(s) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ""); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; }
+function dpBounds(inp) { return { min: dpParse(inp.min), max: dpParse(inp.max) }; }
+function dpAllowed(d, b) { return (!b.min || d >= b.min) && (!b.max || d <= b.max); }
+function dpPickable(t) { return t && t.tagName === "INPUT" && t.type === "date" && !t.disabled && !t.readOnly && !t.hasAttribute("data-native") && !matchMedia("(pointer: coarse)").matches; }
+function dpBuild() {
+  if (dpPick.el) return;
+  const el = document.createElement("div");
+  el.className = "dp-pop"; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Choose a date");
+  el.innerHTML = `<div class="dp-head"><button type="button" class="dp-nav" data-step="-1" aria-label="Previous month">&#8249;</button>
+    <div class="dp-title"><select class="dp-month" aria-label="Month">${DP_MONTHS.map((m, i) => `<option value="${i}">${m}</option>`).join("")}</select><select class="dp-year" aria-label="Year"></select></div>
+    <button type="button" class="dp-nav" data-step="1" aria-label="Next month">&#8250;</button></div>
+    <div class="dp-dow">${["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => `<span>${d}</span>`).join("")}</div>
+    <div class="dp-grid" role="grid"></div>
+    <div class="dp-foot"><button type="button" class="dp-clear">Clear</button><button type="button" class="dp-today">Today</button></div>`;
+  el.addEventListener("mousedown", (e) => { if (!e.target.closest("select")) e.preventDefault(); });
+  el.addEventListener("click", (e) => {
+    const nav = e.target.closest(".dp-nav"), day = e.target.closest(".dp-day");
+    if (nav) { const v = dpPick.view; dpPick.view = new Date(v.getFullYear(), v.getMonth() + Number(nav.dataset.step), 1); dpRender(); }
+    else if (day && !day.disabled) dpChoose(day.dataset.v);
+    else if (e.target.closest(".dp-today")) dpChoose(ymd(new Date()));
+    else if (e.target.closest(".dp-clear")) dpChoose("");
+  });
+  el.querySelector(".dp-month").addEventListener("change", (e) => { dpPick.view = new Date(dpPick.view.getFullYear(), Number(e.target.value), 1); dpRender(); dpPick.input && dpPick.input.focus(); });
+  el.querySelector(".dp-year").addEventListener("change", (e) => { dpPick.view = new Date(Number(e.target.value), dpPick.view.getMonth(), 1); dpRender(); dpPick.input && dpPick.input.focus(); });
+  document.body.appendChild(el);
+  dpPick.el = el;
+}
+function dpRender() {
+  const inp = dpPick.input, v = dpPick.view, b = dpBounds(inp), el = dpPick.el;
+  const sel = inp.value, today = ymd(new Date()), focus = dpPick.focus ? ymd(dpPick.focus) : "";
+  const y0 = b.min ? b.min.getFullYear() : Math.min(1920, v.getFullYear()), y1 = b.max ? b.max.getFullYear() : Math.max(new Date().getFullYear() + 10, v.getFullYear());
+  const ys = el.querySelector(".dp-year");
+  ys.innerHTML = Array.from({ length: y1 - y0 + 1 }, (_, k) => `<option>${y1 - k}</option>`).join("");
+  ys.value = String(v.getFullYear()); el.querySelector(".dp-month").value = String(v.getMonth());
+  const first = new Date(v.getFullYear(), v.getMonth(), 1), start = new Date(first); start.setDate(1 - first.getDay());
+  let html = "";
+  for (let k = 0; k < 42; k++) {
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + k), s = ymd(d);
+    const cls = ["dp-day", d.getMonth() !== v.getMonth() ? "out" : "", s === today ? "today" : "", s === sel ? "sel" : "", s === focus ? "focus" : ""].filter(Boolean).join(" ");
+    html += `<button type="button" class="${cls}" data-v="${s}" tabindex="-1"${dpAllowed(d, b) ? "" : " disabled"}${s === sel ? ' aria-selected="true"' : ""}>${d.getDate()}</button>`;
+  }
+  el.querySelector(".dp-grid").innerHTML = html;
+  const prevEnd = new Date(v.getFullYear(), v.getMonth(), 0), nextStart = new Date(v.getFullYear(), v.getMonth() + 1, 1);
+  el.querySelector('.dp-nav[data-step="-1"]').disabled = !!(b.min && prevEnd < b.min);
+  el.querySelector('.dp-nav[data-step="1"]').disabled = !!(b.max && nextStart > b.max);
+  el.querySelector(".dp-today").disabled = !dpAllowed(dpParse(today), b);
+}
+function dpPlace() {
+  const r = dpPick.input.getBoundingClientRect(), box = dpPick.el;
+  const below = window.innerHeight - r.bottom, up = below < box.offsetHeight + 12 && r.top > below;
+  box.style.left = Math.max(8, Math.min(r.left, window.innerWidth - box.offsetWidth - 8)) + "px";
+  box.style.top = up ? Math.max(8, r.top - box.offsetHeight - 6) + "px" : r.bottom + 6 + "px";
+}
+function dpOpen(inp) {
+  dpBuild();
+  if (typeof selPickClose === "function") selPickClose();
+  const b = dpBounds(inp);
+  let base = dpParse(inp.value) || (b.min && b.min > new Date() ? b.min : null) || (b.max && b.max < new Date() ? b.max : null) || new Date();
+  dpPick.input = inp; dpPick.t = Date.now(); dpPick.focus = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+  dpPick.view = new Date(base.getFullYear(), base.getMonth(), 1);
+  inp.classList.add("dp-open");
+  dpPick.el.style.display = "block";
+  dpRender(); dpPlace();
+}
+function dpClose() { if (dpPick.el) dpPick.el.style.display = "none"; if (dpPick.input) dpPick.input.classList.remove("dp-open"); dpPick.input = null; }
+function dpChoose(val) {
+  const inp = dpPick.input; if (!inp) return;
+  dpClose();
+  if (inp.value !== val) { inp.value = val; inp.dispatchEvent(new Event("input", { bubbles: true })); inp.dispatchEvent(new Event("change", { bubbles: true })); }
+  inp.focus();
+}
+function dpMove(days, months) {
+  const f = dpPick.focus, n = months ? new Date(f.getFullYear(), f.getMonth() + months, Math.min(f.getDate(), 28)) : new Date(f.getFullYear(), f.getMonth(), f.getDate() + days);
+  dpPick.focus = n; dpPick.view = new Date(n.getFullYear(), n.getMonth(), 1); dpRender();
+}
+document.addEventListener("mousedown", (e) => {
+  const t = e.target;
+  if (dpPick.el && dpPick.el.contains(t)) return;
+  if (typeof selPick !== "undefined" && selPick.el && selPick.el.contains(t) && dpPick.input) return;   // month/year dropdowns
+  if (dpPickable(t)) {
+    // the calendar icon area would open the browser's popup, so take it over; the date parts stay typeable
+    const r = t.getBoundingClientRect();
+    if (e.clientX > r.right - 34) { e.preventDefault(); t.focus(); }
+    if (dpPick.input === t) dpClose(); else dpOpen(t);
+  } else if (dpPick.input) dpClose();
+}, true);
+document.addEventListener("click", (e) => { if (dpPickable(e.target)) e.preventDefault(); }, true);   // Firefox opens its popup on click
+document.addEventListener("keydown", (e) => {
+  const t = e.target;
+  if (dpPick.input && t === dpPick.input) {
+    const k = e.key;
+    if (k === "Escape") { e.preventDefault(); e.stopPropagation(); dpClose(); return; }
+    if (k === "Tab") { dpClose(); return; }
+    if (e.altKey && k === "ArrowUp") { e.preventDefault(); dpClose(); return; }
+    // arrows walk the calendar only when they aren't editing the typed date
+    if (e.ctrlKey || e.metaKey) {
+      const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[k];
+      if (step) { e.preventDefault(); dpMove(step); return; }
+    }
+    if (k === "PageUp" || k === "PageDown") { e.preventDefault(); dpMove(0, (k === "PageUp" ? -1 : 1) * (e.shiftKey ? 12 : 1)); return; }
+    if (k === "Enter") { e.preventDefault(); if (dpAllowed(dpPick.focus, dpBounds(t))) dpChoose(ymd(dpPick.focus)); return; }
+  } else if (dpPickable(t) && ((e.altKey && e.key === "ArrowDown") || e.key === "F4" || (e.key === " " && !e.target.value))) { e.preventDefault(); dpOpen(t); }
+}, true);
+// typing a date moves the open calendar along with it
+document.addEventListener("input", (e) => { if (dpPick.input && e.target === dpPick.input) { const d = dpParse(e.target.value); if (d) { dpPick.focus = d; dpPick.view = new Date(d.getFullYear(), d.getMonth(), 1); dpRender(); } } }, true);
+window.addEventListener("resize", dpClose);
+document.addEventListener("scroll", (e) => {
+  if (!dpPick.input || Date.now() - dpPick.t < 400) return;
+  if (dpPick.el.contains(e.target) || (typeof selPick !== "undefined" && selPick.el && selPick.el.contains(e.target))) return;
+  dpClose();
+}, true);

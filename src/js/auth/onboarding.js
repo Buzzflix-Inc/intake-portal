@@ -271,6 +271,8 @@ function setupDetails() {
     try { localStorage.removeItem(setupKey(obCompanyId)); sessionStorage.setItem("intake_after_setup", "1"); } catch (_) {}
     location.reload();
   };
+  const start = onboardView.querySelector("#obStart"), wrap = onboardView.querySelector("#obWrap");
+  start.addEventListener("change", () => { wrap.min = start.value; });   // wrap calendar opens at the start month, earlier days greyed out
   onboardView.querySelector("#obSkip").addEventListener("click", () => finish(false));
   onboardView.querySelector("#obNext").addEventListener("click", () => finish(true));
 }
