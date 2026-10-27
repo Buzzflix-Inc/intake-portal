@@ -94,7 +94,7 @@
   const adminTab = document.getElementById("adminTab");
   build(adminTab, [
     { label: "Review", items: [
-      ["Documents — all submissions", "Documents", "Approve or reject uploaded documents", "doc"],
+      ["Documents", "Documents", "Review uploaded documents, person by person", "doc"],
       ["Timesheets — all submissions", "Timesheets", "Approve timesheets, preview PDFs", "clock"],
       ["Deals — pending signature", "Countersign deals", "Countersign deal memos", "pen"],
     ]},

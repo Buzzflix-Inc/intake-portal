@@ -1,5 +1,6 @@
 // ---- Admin: review lists for documents/timesheets ----
 async function loadAdminList(bucket, table) {
+  if (bucket === "documents") return loadAdminDocuments();
   const listEl = document.getElementById(`admin${capitalize(bucket)}List`);
   const emptyEl = document.getElementById(`admin${capitalize(bucket)}Empty`);
   listEl.innerHTML = "";
@@ -121,7 +122,7 @@ async function deleteAdminRecord(bucket, table, id, filePath) {
   await client.storage.from(bucket).remove([filePath]);
   const { error } = await client.from(table).delete().eq("id", id);
   if (error) {
-    msgEl.innerHTML = `<div class="msg error">Couldn't delete: ${error.message}</div>`;
+    msgEl.innerHTML = `<div class="msg error">Couldn't delete: ${escHtml(error.message)}</div>`;
     return;
   }
   loadAdminList(bucket, table);
