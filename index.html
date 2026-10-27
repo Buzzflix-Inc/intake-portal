@@ -359,10 +359,25 @@
         <p class="empty hidden" id="employeesEmpty">No one has onboarded yet.</p>
       </section>
 
-      <section class="panel">
-        <h2>Documents — all submissions</h2>
+      <section class="panel span-2">
+        <h2>Documents</h2>
+        <p class="desc">Submissions grouped by person. Pick someone to review their documents; people with documents waiting are listed first.</p>
         <div id="adminDocumentsMsg"></div>
-        <ul class="file-list" id="adminDocumentsList"></ul>
+        <div class="dp-layout" id="dpLayout">
+          <div class="dp-side">
+            <input type="text" id="dpSearch" placeholder="Search people" aria-label="Search people" autocomplete="off" />
+            <div class="dp-filters">
+              <select id="dpDept" aria-label="Department"><option value="">All departments</option></select>
+              <select id="dpSort" aria-label="Sort by">
+                <option value="review">To review first</option>
+                <option value="department">By department</option>
+                <option value="name">By name</option>
+              </select>
+            </div>
+            <ul class="dp-people" id="dpPeopleList" role="tablist" aria-label="People" aria-orientation="vertical"></ul>
+          </div>
+          <div class="dp-docs" id="dpDocs" role="tabpanel" aria-live="polite"></div>
+        </div>
         <p class="empty hidden" id="adminDocumentsEmpty">No documents submitted yet.</p>
       </section>
 
@@ -818,6 +833,7 @@
 <script src="src/js/admin/employee-files.js"></script>
 <script src="src/js/admin/overview.js"></script>
 <script src="src/js/admin/review-lists.js"></script>
+<script src="src/js/admin/documents-by-person.js"></script>
 <script src="src/js/admin/paystubs.js"></script>
 <script src="src/js/ui/preview-modal.js"></script>
 <script src="src/js/ui/notifications.js"></script>

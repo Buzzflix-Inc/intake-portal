@@ -140,6 +140,15 @@ amounts are estimates before deductions.
 - Kit fees come from the timesheet, and approved contractor invoices dated in the week are included.
 - Data comes from the `payroll_week` and `payroll_weeks` database functions, which check access.
 
+## Reviewing documents (Manage Crew > Documents)
+
+Documents are grouped by person. The list on the left shows everyone with uploads or requested
+documents, with an initials icon, their role and department, and how many documents are waiting
+(orange) or still to upload (grey). Search by name, email, role or department, filter by department,
+and sort by what needs review, by department (grouped under headings) or by name. Picking someone opens
+their own tab: what they still need to upload, then their documents (pending first) with approve or
+reject, preview, download and delete. Approvals follow the approval chain as before.
+
 ## Account pane
 
 Clicking your name in the top right opens your account: your details (name, phone, address, used to
