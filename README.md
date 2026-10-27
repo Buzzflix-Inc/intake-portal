@@ -56,6 +56,21 @@ The Terms of Service and Privacy Notice are `terms.html` and `privacy.html`. The
 have them reviewed and fill in the bracketed details. When you change them, bump
 `TERMS_VERSION` in `src/js/auth/onboarding.js` so everyone is asked to accept the new version.
 
+## Account pane
+
+Clicking your name in the top right opens your account: your details (name, phone, address, used to
+fill in forms), your productions (switch or leave), two-step sign-in (turn on, replace the
+authenticator, make new backup codes), passkeys, sign out everywhere, download my data (.zip), the
+Terms you accepted, and deleting your account. Emails can't be changed.
+
+- Backup codes are only shown when they're made; only hashes are stored. Making new ones cancels the old.
+- Leaving a production, or deleting an account, keeps everything the person submitted with each
+  production. The only admin of a production with other people in it must first make someone else an
+  admin (Manage Crew > Make admin).
+- Deleting needs a fresh check (the authenticator code, or an emailed code for people without one),
+  then removes the login with a soft delete in the `delete-user` function, so records still point at it.
+  The same email can sign up again later as a new account.
+
 ## Demo mode (for showing the portal off)
 
 Sign in as **`demo@demo.example.com`**: no email, no code, no two-step sign-in. It's the admin of
