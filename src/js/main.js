@@ -8,6 +8,7 @@ async function showApp() {
   if (!user) { authView.classList.remove("hidden"); return; }
   currentUserId = user.id;
   currentUserEmail = user.email;
+  renderDemoBar();
 
   // First-time steps (onboarding.js): Terms, then create or join a production.
   await requireTerms(user);

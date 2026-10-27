@@ -71,8 +71,10 @@ authForm.addEventListener("submit", async (e) => {
   if (!email) return;
   authSubmitBtn.disabled = true;
   authMsg.innerHTML = "";
-  if (TEST_LOGIN_KEY && isTestEmail(email)) {
-    const { error: te } = await testLogin(email);
+  // Demo accounts (demo.js) and test mode sign in straight away.
+  const instantLogin = isDemoEmail(email) ? demoLogin : TEST_LOGIN_KEY && isTestEmail(email) ? testLogin : null;
+  if (instantLogin) {
+    const { error: te } = await instantLogin(email);
     authSubmitBtn.disabled = false;
     if (te) { authMsg.innerHTML = `<div class="msg error">${escHtml(te.message)}</div>`; return; }
     await showApp();
