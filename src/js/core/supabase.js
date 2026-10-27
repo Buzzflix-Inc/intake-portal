@@ -10,5 +10,13 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 }
 // -----------------------
 
+// Shared test environment: a tag in the corner so nobody mistakes it for the real portal.
+if (APP_CONFIG.environment) {
+  const tag = document.createElement("div");
+  tag.className = "env-tag";
+  tag.textContent = APP_CONFIG.environment;
+  document.body.appendChild(tag);
+}
+
 const { createClient } = supabase;
 const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);

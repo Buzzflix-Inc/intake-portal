@@ -9,6 +9,8 @@ window.APP_CONFIG = {
   supabasePublishableKey: "sb_publishable_...",
   // Where people open the portal; used in invite links. Defaults to the current page.
   portalUrl: "",
+  // Shown as a tag at the top of every page, e.g. "staging" for the shared test environment.
+  environment: "staging",
   // Local testing only: lets @example.com addresses sign in without email (see README, "Test mode").
   // Leave empty on any hosted site.
   testLoginKey: "",

@@ -1,0 +1,59 @@
+# Applies new migrations and redeploys Edge Functions to the shared staging Supabase project
+# whenever supabase/ changes on main. Nobody applies migrations by hand.
+#
+# Repository secrets (Settings > Secrets and variables > Actions):
+#   SUPABASE_ACCESS_TOKEN   personal access token (supabase.com/dashboard/account/tokens)
+#   SUPABASE_DB_PASSWORD    the staging database password (Project Settings > Database)
+name: Deploy Supabase (staging)
+
+on:
+  push:
+    branches: [main]
+    paths: ["supabase/**", ".github/workflows/deploy-supabase.yml"]
+  pull_request:
+    paths: ["supabase/**"]
+  workflow_dispatch:
+
+env:
+  SUPABASE_PROJECT_ID: htdydskyvduyroswpmee
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+concurrency:
+  group: supabase-staging
+  cancel-in-progress: false
+
+jobs:
+  # Pull requests: show which migrations would run, without changing anything.
+  # Skipped for PRs from other forks, which don't get the secrets.
+  check:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase link --project-ref "$SUPABASE_PROJECT_ID" -p "$SUPABASE_DB_PASSWORD"
+      - run: supabase db push --dry-run -p "$SUPABASE_DB_PASSWORD"
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase link --project-ref "$SUPABASE_PROJECT_ID" -p "$SUPABASE_DB_PASSWORD"
+      - name: Apply migrations
+        run: supabase db push -p "$SUPABASE_DB_PASSWORD"
+      - name: Deploy Edge Functions
+        run: |
+          # These check callers themselves, so they're deployed without JWT verification.
+          for fn in passkey test-login demo; do
+            supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt
+          done
+          for fn in delete-user send-invite-email; do
+            supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_ID"
+          done

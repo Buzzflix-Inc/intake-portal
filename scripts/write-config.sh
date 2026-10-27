@@ -5,6 +5,7 @@
 #   SUPABASE_URL                 https://<project-ref>.supabase.co
 #   SUPABASE_PUBLISHABLE_KEY     sb_publishable_...
 #   PORTAL_URL                   optional, e.g. https://portal.example.com/
+#   APP_ENV                      optional, e.g. staging (shown as a tag on every page)
 set -eu
 : "${SUPABASE_URL:?Set SUPABASE_URL}"
 : "${SUPABASE_PUBLISHABLE_KEY:?Set SUPABASE_PUBLISHABLE_KEY}"
@@ -15,6 +16,7 @@ window.APP_CONFIG = {
   supabaseUrl: "${SUPABASE_URL}",
   supabasePublishableKey: "${SUPABASE_PUBLISHABLE_KEY}",
   portalUrl: "${PORTAL_URL:-}",
+  environment: "${APP_ENV:-}",
 };
 EOF
 echo "Wrote src/js/config.js"
