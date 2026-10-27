@@ -49,6 +49,7 @@
     plus: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
     userX: '<circle cx="9" cy="8" r="4"/><path d="M2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1M17 8l4 4M21 8l-4 4"/>',
     history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l4 2"/>',
+    megaphone: '<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>',
   };
 
   // Groups of [section heading, menu label, hint, icon]; sections not listed go in a last "More" group.
@@ -88,7 +89,7 @@
     tab.classList.add("has-side");
   }
 
-  wire(document.getElementById("portalTab"), "intake_portal_view", "deals");
+  const showPortal = wire(document.getElementById("portalTab"), "intake_portal_view", "deals");
 
   const adminTab = document.getElementById("adminTab");
   build(adminTab, [
@@ -101,6 +102,7 @@
       ["Invites", "Invites", "Everyone invited: email again, copy or cancel", "mail"],
       ["Outstanding items", "Outstanding items", "Missing documents and unsigned memos, copy a reminder", "alert"],
       ["Employees", "Employees", "Everyone onboarded, send them forms", "users"],
+      ["Announcements", "Announcements", "Post updates to the production or departments", "megaphone"],
       ["Department heads", "Department heads", "Who reviews which department", "star"],
     ]},
     { label: "Pay", items: [
@@ -139,4 +141,6 @@
     const view = el && el.closest && el.closest("#adminTab .pv-view");
     if (view) showAdmin(view.dataset.view, true);
   };
+  // Open a My Portal section by its menu key (deals, time, pay).
+  window.showPortalView = (id) => showPortal(id, true);
 })();

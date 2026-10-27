@@ -4,14 +4,32 @@
     {
       "name": "intake-portal",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "5173"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5173"
+      ],
       "port": 5173
     },
     {
       "name": "intake-portal-alt",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "5174"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5174"
+      ],
       "port": 5174
+    },
+    {
+      "name": "intake-portal-worktree",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5175"
+      ],
+      "port": 5175
     }
   ]
 }
