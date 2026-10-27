@@ -47,7 +47,8 @@ function renderCrewProgress(rows, invites, who) {
     <div class="cp-legend"><span><i class="cp-done"></i>Fully onboarded ${done.length}</span><span><i class="cp-going"></i>In progress ${going.length}</span><span><i></i>Not signed in ${notJoined.length}</span></div>
     <ul class="cp-stages">${[...stages].map(([label, n]) => `<li class="${n ? "" : "zero"}"><span>${escHtml(label)}</span><b>${n}</b></li>`).join("")}</ul>
     ${going.length ? `<h3 class="cp-sub">In progress</h3><ul class="file-list cp-people">${going.slice(0, 6).map((r) => `<li><span class="info"><span class="name">${escHtml(who(r.user_id))}</span>${onboardingBarHtml(r.steps)}</span></li>`).join("")}</ul>` : ""}
-    <button type="button" class="btn-secondary" id="cpSeeAll" data-nobusy>See everyone in Employees</button>`;
+    <div class="cp-actions"><button type="button" class="btn-secondary" id="cpTracker" data-nobusy>Open onboarding tracker</button><button type="button" class="btn-secondary" id="cpSeeAll" data-nobusy>See everyone in Employees</button></div>`;
+  body.querySelector("#cpTracker").addEventListener("click", () => { openNotificationView("admin:outstanding"); loadOutstanding(); });
   body.querySelector("#cpSeeAll").addEventListener("click", () => openNotificationView("admin:employees"));
 }
 

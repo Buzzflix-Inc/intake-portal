@@ -152,7 +152,7 @@ function handleNewNotification(n) {
   if (n.view === "dept" && typeof loadDeptTimesheets === "function") loadDeptTimesheets();
   if (n.view === "admin:countersign" && typeof loadPendingCountersignatures === "function") loadPendingCountersignatures();
   if (n.view === "admin:timesheets") loadAdminList("timesheets", "timesheets");
-  if (n.view === "admin:employees" && isAdmin) loadEmployees();
+  if (n.view === "admin:employees" && isAdmin) { loadEmployees(); loadOutstanding(); }
   if (isAdmin && typeof loadAdminOverview === "function") loadAdminOverview();
 }
 

@@ -54,6 +54,6 @@ jobs:
           for fn in passkey test-login demo; do
             supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt
           done
-          for fn in delete-user send-invite-email; do
+          for fn in delete-user send-invite-email send-reminder; do
             supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_ID"
           done

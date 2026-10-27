@@ -172,3 +172,37 @@ body.modal-open { overflow: hidden; }
 .cp-people { margin-bottom: 14px; }
 #cpSeeAll { width: auto; }
 @media (max-width: 520px) { 
+/* Onboarding tracker (Admin > Onboarding tracker) */
+.ot-stages { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 4px 0 14px; }
+.ot-stage { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--ink-soft); font-size: 12.5px; text-align: left; }
+.ot-stage b { font-size: 15px; color: var(--ink); }
+.ot-stage.zero { opacity: 0.55; }
+.ot-stage:hover { border-color: var(--ink-faint); }
+.ot-stage.on { border-color: var(--link); background: var(--accent-soft); color: var(--ink); }
+.ot-bar .btn-primary { flex: none; width: auto; padding: 8px 14px; font-size: 13.5px; }
+.ot-list .info { flex: 1 1 320px; min-width: 0; }
+.ot-list .ot-name { background: none; border: none; padding: 0; font: inherit; font-weight: 600; text-align: left; color: var(--ink); cursor: pointer; }
+.ot-list .ot-name:hover:not(:disabled) { color: var(--link); text-decoration: underline; }
+.ot-list .ot-name:disabled { cursor: default; }
+.ot-list .actions { flex-wrap: wrap; justify-content: flex-end; }
+.ot-list .ot-todo { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.ot-list .ot-todo li { display: inline-block; padding: 3px 8px; border: none; border-radius: 6px; font-size: 12px; background: var(--warn-soft); color: var(--warn); }
+.ot-list .ot-todo li.ot-reupload { background: var(--error-soft); color: var(--error); }
+.ot-list .ot-todo li.ot-sign { background: var(--info-soft); color: var(--info); }
+.ot-note { margin-top: 4px; font-size: 12px; color: var(--ink-faint); }
+.ot-note.ot-you { color: var(--ink-soft); font-weight: 600; }
+.ot-when { font-size: 12px; color: var(--ink-faint); }
+.preview-link:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Files by person (Admin > Employees) */
+.ef-people { margin-top: 4px; display: flex; flex-direction: column; gap: 8px; }
+.ef-person { border: 1px solid var(--line); border-radius: 9px; padding: 0 12px; background: var(--surface); }
+.ef-person > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 10px 0; cursor: pointer; }
+.ef-person-name { font-weight: 600; font-size: 13.5px; color: var(--ink); }
+.ef-person-counts { flex: 1 1 auto; font-size: 12px; color: var(--ink-faint); }
+.ef-person[open] > summary { border-bottom: 1px solid var(--line); }
+.ef-person-body { padding-bottom: 8px; }
+.ef-kind-head { margin: 12px 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-faint); font-weight: 700; }
+.ef-person .ef-list { margin-top: 6px; }
+.cp-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.cp-actions .btn-secondary { width: auto; }

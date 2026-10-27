@@ -100,8 +100,8 @@
     ]},
     { label: "People", items: [
       ["Invites", "Invites", "Everyone invited: email again, copy or cancel", "mail"],
-      ["Outstanding items", "Outstanding items", "Missing documents and unsigned memos, copy a reminder", "alert"],
-      ["Employees", "Employees", "Everyone onboarded, send them forms", "users"],
+      ["Onboarding tracker", "Onboarding tracker", "Where everyone is, what they owe, email reminders", "alert"],
+      ["Employees", "Employees", "Everyone onboarded, files by person, send them forms", "users"],
       ["Announcements", "Announcements", "Post updates to the production or departments", "megaphone"],
       ["Department heads", "Department heads", "Who reviews which department", "star"],
     ]},

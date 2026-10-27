@@ -51,8 +51,11 @@ async function gatherFiles(userId) {
   return items;
 }
 
-const filterFiles = (items, { from, to, kind }) =>
-  items.filter((f) => (!kind || f.kind === kind) && (!from || f.date >= from) && (!to || f.date <= to));
+const filterFiles = (items, { from, to, kind, q }) => {
+  const term = String(q || "").trim().toLowerCase();
+  return items.filter((f) => (!kind || f.kind === kind) && (!from || f.date >= from) && (!to || f.date <= to)
+    && (!term || f.person.toLowerCase().includes(term)));
+};
 
 // A plain PDF of a signed typed-template form: its points, terms and both signatures.
 async function typedFormPdf(item) {
@@ -112,9 +115,10 @@ async function downloadFilesZip(items, zipName, byPerson, onProgress) {
   saveBlob(await zip.generateAsync({ type: "blob" }), zipName);
 }
 
-// The filter bar (type, from, to) plus a download button. Returns the controls.
-function fileFilterBar(prefix, withList) {
+// The filter bar (type, from, to, and a name search for everyone's files) plus a download button.
+function fileFilterBar(prefix, withList, withSearch) {
   return `<div class="ef-bar">
+    ${withSearch ? `<div><label for="${prefix}Search">Person</label><input type="search" id="${prefix}Search" placeholder="Search names" autocomplete="off" /></div>` : ""}
     <div><label for="${prefix}Kind">Type</label><select id="${prefix}Kind"><option value="">All files</option>${FILE_KINDS.map((k) => `<option value="${k.key}">${k.label}</option>`).join("")}</select></div>
     <div><label for="${prefix}From">From</label><input type="date" id="${prefix}From" /></div>
     <div><label for="${prefix}To">To</label><input type="date" id="${prefix}To" /></div>
@@ -127,14 +131,16 @@ function fileFilterBar(prefix, withList) {
 // Wires a filter bar to a set of files. render(list) is called whenever the filters change.
 function wireFileFilters(root, prefix, getItems, opts) {
   const $ = (id) => root.querySelector("#" + prefix + id);
-  const current = () => filterFiles(getItems(), { kind: $("Kind").value, from: $("From").value, to: $("To").value });
+  const current = () => filterFiles(getItems(), { kind: $("Kind").value, from: $("From").value, to: $("To").value, q: $("Search") ? $("Search").value : "" });
   const update = () => {
     const list = current();
-    $("Count").textContent = `${list.length} file${list.length === 1 ? "" : "s"}${$("From").value || $("To").value ? " in this date range" : ""}`;
+    const people = opts.byPerson ? new Set(list.map((f) => f.userId)).size : 0;
+    $("Count").textContent = `${list.length} file${list.length === 1 ? "" : "s"}${people ? ` from ${people} ${people === 1 ? "person" : "people"}` : ""}${$("From").value || $("To").value ? " in this date range" : ""}`;
     $("Zip").disabled = !list.length;
     if (opts.render) opts.render(list);
   };
   ["Kind", "From", "To"].forEach((id) => $(id).addEventListener("change", update));
+  if ($("Search")) $("Search").addEventListener("input", update);
   $("Zip").addEventListener("click", async () => {
     const list = current(), btn = $("Zip");
     btn.disabled = true;
@@ -166,16 +172,65 @@ function renderFileRows(listEl, items) {
   });
 }
 
-// Employees panel: everyone's files in a date range.
+// Employees panel: everyone's files, grouped under each person (then by type), in a date range.
+// A person's files are only drawn when their section is opened.
+const efOpenPeople = new Set();
+function renderFilesByPerson(el, items) {
+  const byUser = new Map();
+  items.forEach((it) => { if (!byUser.has(it.userId)) byUser.set(it.userId, []); byUser.get(it.userId).push(it); });
+  const people = [...byUser.entries()].sort((a, b) => a[1][0].person.localeCompare(b[1][0].person));
+  el.innerHTML = people.length ? "" : `<p class="ef-none">No files match.</p>`;
+  for (const [userId, files] of people) {
+    const steps = (employeeOnboarding.get(userId) || {}).steps || [];
+    const done = steps.length > 1 && steps.every((s) => s.done);
+    const stage = steps.length < 2 ? "" : done ? "Fully onboarded" : STAGE_OF[steps.find((s) => !s.done).key];
+    const counts = FILE_KINDS.map((k) => [k, files.filter((f) => f.kind === k.key).length]).filter(([, n]) => n);
+    const det = document.createElement("details");
+    det.className = "ef-person";
+    det.open = efOpenPeople.has(userId);
+    det.innerHTML = `<summary>
+        <span class="ef-person-name">${escHtml(files[0].person)}</span>
+        <span class="ef-person-counts">${counts.map(([k, n]) => `${n} ${escHtml(k.label.toLowerCase())}`).join(" · ")}</span>
+        ${stage ? `<span class="status-badge status-${done ? "approved" : "pending"}">${escHtml(stage)}</span>` : ""}
+        <button type="button" class="preview-link ef-person-zip" data-nobusy>Download .zip</button>
+      </summary>
+      <div class="ef-person-body"></div>`;
+    const draw = () => {
+      const body = det.querySelector(".ef-person-body");
+      if (body.childElementCount) return;
+      for (const [k, n] of counts) {
+        const h = document.createElement("h4");
+        h.className = "ef-kind-head"; h.textContent = `${k.label} (${n})`;
+        const ul = document.createElement("ul");
+        ul.className = "file-list ef-list";
+        body.appendChild(h); body.appendChild(ul);
+        renderFileRows(ul, files.filter((f) => f.kind === k.key));
+      }
+    };
+    det.addEventListener("toggle", () => { if (det.open) { efOpenPeople.add(userId); draw(); } else efOpenPeople.delete(userId); });
+    if (det.open) draw();
+    const zip = det.querySelector(".ef-person-zip");
+    zip.addEventListener("click", async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      zip.disabled = true;
+      try { await downloadFilesZip(files, safeName(`${files[0].person} files`) + ".zip", false, (n, total) => { zip.textContent = `Preparing ${n}/${total}…`; }); }
+      catch (err) { window.alert("Couldn't make the .zip: " + ((err && err.message) || err)); }
+      zip.textContent = "Download .zip"; zip.disabled = false;
+    });
+    el.appendChild(det);
+  }
+}
+
 let allFilesCache = null;
 async function setupAllFilesBar() {
   const box = document.getElementById("employeesFiles");
   if (!box) return;
-  box.innerHTML = fileFilterBar("efAll", false);
+  box.innerHTML = fileFilterBar("efAll", false, true) + `<div class="ef-people" id="efAllPeople"></div>`;
   allFilesCache = [];
   const update = wireFileFilters(box, "efAll", () => allFilesCache, {
     byPerson: true,
     zipName: ({ from, to }) => safeName(`${(currentCompany && currentCompany.name) || "Crew"} files${from || to ? ` ${from || "start"} to ${to || "today"}` : ""}`) + ".zip",
+    render: (list) => renderFilesByPerson(box.querySelector("#efAllPeople"), list),
   });
   allFilesCache = await gatherFiles(null);
   update();

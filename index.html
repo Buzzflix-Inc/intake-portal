@@ -330,11 +330,18 @@
       </section>
 
       <section class="panel">
-        <h2>Outstanding items</h2>
-        <p class="desc">Who still owes documents or a signature. Copy a ready-made reminder for each person.</p>
-        <button class="btn-secondary" id="outRefreshBtn" style="width:auto;">Refresh</button>
-        <ul class="file-list" id="outList"></ul>
-        <p class="empty hidden" id="outEmpty">Nothing outstanding. Everyone is up to date.</p>
+        <h2>Onboarding tracker</h2>
+        <p class="desc">Everyone at the production, where they are in onboarding and what they still owe. Email a reminder to one person or everyone at once; they also see it as a notification. Click a name to see their steps and files.</p>
+        <div class="ot-stages" id="outStages"></div>
+        <div class="ef-bar ot-bar">
+          <div><label for="outSearch">Search</label><input type="search" id="outSearch" placeholder="Name or email" autocomplete="off" /></div>
+          <div><label for="outDept">Department</label><select id="outDept"><option value="">All departments</option></select></div>
+          <button type="button" class="btn-secondary" id="outRefreshBtn">Refresh</button>
+          <button type="button" class="btn-primary" id="outRemindAll" data-nobusy disabled>Remind everyone with items outstanding</button>
+        </div>
+        <div id="outMsg"></div>
+        <ul class="file-list ot-list" id="outList"></ul>
+        <p class="empty hidden" id="outEmpty">No crew yet. Invite people to start onboarding.</p>
       </section>
 
       <section class="panel">
@@ -342,8 +349,8 @@
         <p class="desc">Everyone at the production and how far along onboarding they are. You'll get a notification when someone finishes. Click a person to see their steps and files.</p>
         <div id="employeesMsg"></div>
         <details class="ef-all">
-          <summary>Download files by date</summary>
-          <p class="desc">Documents, timesheets, invoices, paystubs and signed forms for everyone, in one .zip with a folder per person.</p>
+          <summary>Files by person</summary>
+          <p class="desc">Documents, timesheets, invoices, paystubs and signed forms, grouped under each person's name. Filter by type or date, then download one person's files or everyone's in one .zip with a folder per person.</p>
           <div id="employeesFiles"></div>
         </details>
         <ul class="file-list" id="employeesList"></ul>

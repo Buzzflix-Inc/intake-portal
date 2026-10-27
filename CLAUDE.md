@@ -73,7 +73,7 @@ The database is shared by every laptop, every preview and the staging site.
 - Changes deploy automatically on merge. Don't deploy functions by hand from a branch; previews
   share the same functions, so an unmerged deploy changes behaviour for everyone.
 - `passkey`, `test-login` and `demo` check callers themselves and are deployed with
-  `--no-verify-jwt`; `delete-user` and `send-invite-email` keep JWT verification. A new function goes
+  `--no-verify-jwt`; `delete-user`, `send-invite-email` and `send-reminder` keep JWT verification. A new function goes
   in the right list in `.github/workflows/deploy-supabase.yml`.
 - Secrets (`RESEND_API_KEY`, `INVITE_FROM`, `PORTAL_URL`, `PASSKEY_ORIGINS`) live in Supabase >
   Edge Functions > Secrets. Never put them in the repo or the browser.

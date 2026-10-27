@@ -54,6 +54,7 @@ Everything the database needs is in `supabase/`:
 | `supabase/migrations/` | Tables, row-level security, app functions, storage buckets, audit log. Apply in order. |
 | `supabase/functions/delete-user/` | Deletes auth accounts (needs the service-role key, so it runs server-side). |
 | `supabase/functions/send-invite-email/` | Emails invites through Resend. |
+| `supabase/functions/send-reminder/` | Emails crew (and posts a notification) listing what they still owe for onboarding. Uses the same Resend secrets. |
 | `supabase/functions/passkey/` | Registers passkeys and signs people in with them. Deployed without JWT verification (it checks callers itself). |
 | `supabase/functions/test-login/` | Local test mode: signs in `@example.com` addresses without email (see "Test mode"). |
 | `supabase/functions/demo/` | Demo mode: signs in the demo accounts and resets the demo production (see "Demo mode"). |
@@ -99,8 +100,23 @@ the bell. The steps are worked out in the database (`onboarding_steps`), so they
 the records change; `company_memberships.onboarded_at` records when someone finished.
 
 Each person's overview lists all their files (documents, timesheets, invoices, paystubs, signed forms),
-newest first, filterable by type and date and downloadable as a .zip. "Download files by date" at the
-top of Employees does the same for everyone, with a folder per person.
+newest first, filterable by type and date and downloadable as a .zip. "Files by person" at the top of
+Employees shows everyone's files grouped under each person's name (then by type), with a name search,
+the same type and date filters, a .zip per person and one .zip for everyone with a folder per person.
+
+## Onboarding tracker and reminders (Manage Crew > Onboarding tracker)
+
+One list of everyone at the production, including people invited who haven't signed in: their stage
+(the counts at the top filter the list), what they still owe (uploads, re-uploads of rejected
+documents, forms to sign) or whether it's waiting on an admin, and when they were last reminded. Search
+by name and filter by department. My Portal > Overview links to it.
+
+**Email reminder** (one person) or **Remind everyone with items outstanding** (everyone in the current
+filter) calls the `send-reminder` Edge Function. It works out each person's items in the database
+(`onboarding_todo`), emails them through Resend and posts an "Onboarding reminder" notification, and
+logs it in `onboarding_reminders`. Anyone reminded in the last 12 hours is skipped. While Resend only
+reaches the account owner (staging), other people still get the notification; use **Copy** to send the
+reminder yourself. People who haven't signed in get **Resend invite** / **Copy invite** instead.
 
 ## Payroll summary (Payroll tab)
 
