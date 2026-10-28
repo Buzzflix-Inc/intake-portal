@@ -86,6 +86,7 @@ async function showApp() {
   loadList("paystubs", "paystubs", false);
 
   subscribeToReviewUpdates(user.id);
+  subscribeToTimesheetReviews();
 
   if (isAdmin) renderGettingStarted();
   // Straight after setting up a production: offer to invite the crew.

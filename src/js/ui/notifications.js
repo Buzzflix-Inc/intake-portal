@@ -52,7 +52,7 @@ function subscribeToReviewUpdates(userId) {
     )
     .subscribe();
   // New notifications (the bell): written by the database for reviews, deals, paystubs and announcements.
-  // Their own channel, so a table missing from the realtime publication above can't stop them.
+  // Their own channel, so a problem with the review subscriptions above can't stop them.
   notificationChannel = client
     .channel(`notifications-${userId}`)
     .on(
@@ -68,6 +68,34 @@ function handleReviewUpdate(payload, bucket) {
   if (payload.new.status === oldStatus) return;
   // Keep the employee's own list in sync; the toast comes from the notification.
   loadList(bucket, bucket, true);
+}
+
+// Department heads and admins: refresh the timesheet review lists when anyone in the
+// production submits or a timesheet changes. RLS limits which rows arrive.
+let timesheetReviewChannel = null;
+let timesheetReviewTimer = null;
+
+function subscribeToTimesheetReviews() {
+  if (timesheetReviewChannel) {
+    client.removeChannel(timesheetReviewChannel);
+    timesheetReviewChannel = null;
+  }
+  if (!currentCompany || (!isAdmin && !myHeadDepartments.length)) return;
+  const filter = `company_id=eq.${currentCompany.id}`;
+  timesheetReviewChannel = client
+    .channel(`timesheet-reviews-${currentCompany.id}`)
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "timesheets", filter }, reloadTimesheetReviews)
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "timesheets", filter }, reloadTimesheetReviews)
+    .subscribe();
+}
+
+// A submission or a review can arrive as several changes at once; reload once.
+function reloadTimesheetReviews() {
+  clearTimeout(timesheetReviewTimer);
+  timesheetReviewTimer = setTimeout(() => {
+    if (myHeadDepartments.length) loadDeptTimesheets();
+    if (isAdmin) loadAdminList("timesheets", "timesheets");
+  }, 500);
 }
 
 // ---- Notification bell ----
