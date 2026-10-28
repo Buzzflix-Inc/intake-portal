@@ -8,7 +8,7 @@ affects everyone at once. Read the README for how features work; this file is ho
 
 | What | Where |
 |---|---|
-| Repository (source of truth) | `github.com/jackbuzzflix/intake-portal`, branch `main` |
+| Repository (source of truth) | `github.com/Buzzflix-Inc/intake-portal`, branch `main` |
 | Database, auth, storage, Edge Functions | Supabase project `htdydskyvduyroswpmee` (shared staging) |
 | Staging site (`main`) | https://intake-portal-staging-buzzflix.vercel.app |
 | Preview sites | Vercel builds every branch/PR; the Vercel bot comments the URL on the PR |
@@ -22,8 +22,8 @@ affects everyone at once. Read the README for how features work; this file is ho
 GitHub Issues are the only way to claim work. Before starting anything:
 
 ```bash
-gh issue list --repo jackbuzzflix/intake-portal --state open
-gh pr list --repo jackbuzzflix/intake-portal --state open
+gh issue list --repo Buzzflix-Inc/intake-portal --state open
+gh pr list --repo Buzzflix-Inc/intake-portal --state open
 ```
 
 - Don't start work that's assigned to someone else or already has an open PR. If it overlaps,
