@@ -142,6 +142,10 @@ async function signOutEverywhere() {
     client.removeChannel(notificationChannel);
     notificationChannel = null;
   }
+  if (typeof timesheetReviewChannel !== "undefined" && timesheetReviewChannel) {
+    client.removeChannel(timesheetReviewChannel);
+    timesheetReviewChannel = null;
+  }
   await client.auth.signOut();
   forgetTheme();
   location.reload();
