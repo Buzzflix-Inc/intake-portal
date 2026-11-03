@@ -29,6 +29,7 @@ hosted site, so a record one person creates is what everyone else sees.
 | Local copy | Copy `src/js/config.example.js` to `src/js/config.js` with the staging URL and publishable key (Project Settings > API). Ask a teammate for `testLoginKey`. |
 | Sign-in emails | Supabase's built-in sender. It only delivers to members of the Supabase organization, a few an hour, so use test mode or demo mode for most testing. |
 | Invite emails | Resend, from `onboarding@resend.dev` until a domain is verified. That sender only delivers to the Resend account owner; use **Copy Invite** for everyone else. |
+| Staying awake | Supabase pauses free-plan projects after 7 days without activity. `.github/workflows/keep-supabase-awake.yml` makes one read request a day so that never happens (run it by hand from the Actions tab if needed). Upgrading to Pro makes it unnecessary. |
 | Shared test data | Demo mode (`demo@demo.example.com`, Reset demo puts it back) and test mode (`@example.com`, local only). |
 
 **Who can sign up:** while `public.signup_allowlist_settings.enabled` is true, new accounts are only
