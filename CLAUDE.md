@@ -43,8 +43,8 @@ gh pr list --repo Buzzflix-Inc/intake-portal --state open
 - Never commit or push to `main` directly. Branch from the latest `main` as `<yourname>/<short-topic>`
   (Claude sessions: `claude/<short-topic>`), push the branch, open a PR against `main` early
   (draft is fine) so the preview URL exists.
-- One topic per PR. Merge only after the other developer has looked at the preview and the
-  "Deploy Supabase (staging)" check passes.
+- One topic per PR. Merge once you've checked the preview yourself and the
+  "Deploy Supabase (staging)" check passes. Another developer's approval isn't required.
 - Merging to `main` is a deploy: GitHub Actions applies new migrations and redeploys every Edge
   Function, and Vercel updates the staging site within a minute or two.
 - Don't rewrite shared history (no force-push to `main`, no rebasing other people's branches).
@@ -129,4 +129,4 @@ data rules.
 - Load the preview (or local copy) and check the browser console for errors.
 - If you added a migration, the PR's "check" job shows the dry run; make sure it lists only your file.
 - Update the README when behaviour, setup or a secret changes.
-- Say in the PR what to click to test it, so the other developer can check it on the preview.
+- Say in the PR what to click to test it, so anyone can check it on the preview.
