@@ -1,0 +1,34 @@
+# Supabase pauses free-plan projects after 7 days without activity. This makes one small read
+# request to the staging project every day so it never gets that far. Upgrading the project to
+# Pro removes the need for it.
+#
+# Uses the same SUPABASE_ACCESS_TOKEN secret as deploy-supabase.yml to look up the publishable
+# key, so no new secret is needed.
+name: Keep Supabase awake
+
+on:
+  schedule:
+    - cron: "40 19 * * *"
+  workflow_dispatch:
+
+env:
+  SUPABASE_PROJECT_ID: htdydskyvduyroswpmee
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Read from the staging database
+        run: |
+          key=$(supabase projects api-keys --project-ref "$SUPABASE_PROJECT_ID" -o json \
+            | jq -r 'map(select(.name == "anon"))[0].api_key // empty')
+          if [ -z "$key" ]; then echo "Couldn't find the publishable (anon) key."; exit 1; fi
+          echo "::add-mask::$key"
+          # Row-level security returns no rows to an anonymous caller; the request is what counts.
+          curl -fsS -o /dev/null -w "HTTP %{http_code}\n" \
+            "https://$SUPABASE_PROJECT_ID.supabase.co/rest/v1/companies?select=id&limit=1" \
+            -H "apikey: $key" -H "Authorization: Bearer $key"
