@@ -2,8 +2,8 @@
 # request to the staging project every day so it never gets that far. Upgrading the project to
 # Pro removes the need for it.
 #
-# Uses the same SUPABASE_ACCESS_TOKEN secret as deploy-supabase.yml to look up the publishable
-# key, so no new secret is needed.
+# Uses the staging publishable key, which is public (every visitor to the staging site gets it),
+# so it needs no secret and keeps working if the access token used for deploys changes.
 name: Keep Supabase awake
 
 on:
@@ -12,23 +12,16 @@ on:
   workflow_dispatch:
 
 env:
-  SUPABASE_PROJECT_ID: htdydskyvduyroswpmee
-  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  SUPABASE_URL: https://htdydskyvduyroswpmee.supabase.co
+  SUPABASE_PUBLISHABLE_KEY: sb_publishable_KMjuluvioCKGTt7UQ8_xRA_9qU7ZeJb
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - uses: supabase/setup-cli@v1
-        with:
-          version: latest
       - name: Read from the staging database
+        # Row-level security returns no rows to an anonymous caller; the request is what counts.
         run: |
-          key=$(supabase projects api-keys --project-ref "$SUPABASE_PROJECT_ID" -o json \
-            | jq -r 'map(select(.name == "anon"))[0].api_key // empty')
-          if [ -z "$key" ]; then echo "Couldn't find the publishable (anon) key."; exit 1; fi
-          echo "::add-mask::$key"
-          # Row-level security returns no rows to an anonymous caller; the request is what counts.
           curl -fsS -o /dev/null -w "HTTP %{http_code}\n" \
-            "https://$SUPABASE_PROJECT_ID.supabase.co/rest/v1/companies?select=id&limit=1" \
-            -H "apikey: $key" -H "Authorization: Bearer $key"
+            "$SUPABASE_URL/rest/v1/companies?select=id&limit=1" \
+            -H "apikey: $SUPABASE_PUBLISHABLE_KEY"
