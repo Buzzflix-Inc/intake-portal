@@ -48,6 +48,41 @@ async function requireTerms(user) {
   });
 }
 
+// ---------- Name for credits ----------
+// Asked once, right after the Terms. Separate from the legal name productions use on paperwork.
+async function requireCreditName(user) {
+  const { data: prof } = await client.from("profiles").select("credit_first_name, credit_last_name").eq("user_id", user.id).maybeSingle();
+  if (!prof || (prof.credit_first_name && prof.credit_last_name)) return;
+  // Start from the name they already gave (invite or earlier setup), split at the last space.
+  const { data: invite } = await client.from("company_invites").select("full_name").eq("email", user.email.toLowerCase()).maybeSingle();
+  const md = user.user_metadata || {};
+  const known = ((invite && invite.full_name) || (md.details && md.details.full_name) || md.full_name || "").trim();
+  const cut = known.lastIndexOf(" ");
+  const first = cut > 0 ? known.slice(0, cut) : known, last = cut > 0 ? known.slice(cut + 1) : "";
+  await new Promise((resolve) => {
+    obRender(`<div class="ob-card">
+      <h2>Your name in the credits</h2>
+      <p class="sub">How you'd like to be credited on screen. It can be different from your legal name, which productions still use on your paperwork. You can change it later under Account.</p>
+      <div class="ob-row">
+        <div><label for="obCreditFirst">First name</label><input type="text" id="obCreditFirst" maxlength="60" autocomplete="given-name" value="${escHtml(first)}" /></div>
+        <div><label for="obCreditLast">Last name</label><input type="text" id="obCreditLast" maxlength="60" autocomplete="family-name" value="${escHtml(last)}" /></div>
+      </div>
+      <div id="obMsg"></div>
+      <button class="btn-primary" id="obCreditGo" data-nobusy>Continue</button>
+    </div>`);
+    const go = onboardView.querySelector("#obCreditGo");
+    onboardView.querySelector("#obCreditFirst").focus();
+    go.addEventListener("click", async () => {
+      const f = onboardView.querySelector("#obCreditFirst").value.trim(), l = onboardView.querySelector("#obCreditLast").value.trim();
+      if (!f || !l) { obMsg("Enter a first and last name."); return; }
+      go.disabled = true;
+      const { error } = await client.rpc("set_my_credit_name", { p_first: f, p_last: l });
+      if (error) { go.disabled = false; obMsg(error.message); return; }
+      resolve();
+    });
+  });
+}
+
 // ---------- No production yet: create one, or wait for an invite ----------
 const OB_ICON = {
   create: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18M7 6l2-3M13 6l2-3M12 13v4M10 15h4"/></svg>',

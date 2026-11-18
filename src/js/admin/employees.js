@@ -194,11 +194,12 @@ async function openEmployeeModal(profile, accessRole, invite) {
   body.innerHTML = `<p class="empty">Loading…</p>`;
   overlay.classList.remove("hidden");
 
-  const [{ data: docs }, { data: sheets }, { data: stubs }, { data: deals }] = await Promise.all([
+  const [{ data: docs }, { data: sheets }, { data: stubs }, { data: deals }, { data: credit }] = await Promise.all([
     client.from("documents").select("id, status, file_path, created_at, doc_type").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
     client.from("timesheets").select("id, status, file_path, created_at, week_start, total_hours, entries").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
     client.from("paystubs").select("id, file_path, created_at").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
     client.from("esign_records").select("id, type, status, template_id, employee_signature, employee_signed_at, final_pdf_path, revoke_reason").eq("user_id", profile.user_id),
+    client.from("profiles").select("credit_first_name, credit_last_name").eq("user_id", profile.user_id).maybeSingle(),
     client.rpc("crew_onboarding").then(({ data }) => { if (data) employeeOnboarding = new Map(data.map((r) => [r.user_id, r])); }),
   ]);
 
@@ -234,10 +235,11 @@ async function openEmployeeModal(profile, accessRole, invite) {
     ? `<ol class="ob-stepper">${steps.map((st, i) => `<li class="${st.done ? "done" : steps.findIndex((x) => !x.done) === i ? "next" : ""}"><span class="ob-dot">${st.done ? "✓" : i + 1}</span><span>${escHtml(st.label)}${st.total ? ` <em>${st.count}/${st.total}</em>` : ""}</span></li>`).join("")}</ol>`
     : `<p class="empty" style="padding:0 0 8px;text-align:left;">Nothing to complete: no documents or forms were assigned to them.</p>`;
   const onboardedAt = (employeeOnboarding.get(profile.user_id) || {}).onboarded_at;
+  const creditName = credit ? [credit.credit_first_name, credit.credit_last_name].filter(Boolean).join(" ") : "";
 
   body.innerHTML = `
     <h2>${escHtml((invite && invite.full_name) || profile.email)}</h2>
-    <p class="modal-sub">${escHtml(profile.email)} · ${invite ? `${escHtml(invite.crew_role || accessRole)}${invite.department ? " (" + escHtml(invite.department) + ")" : ""}` : accessRole}${kitBit}</p>
+    <p class="modal-sub">${escHtml(profile.email)}${creditName ? ` · Credited as <b>${escHtml(creditName)}</b>` : ""} · ${invite ? `${escHtml(invite.crew_role || accessRole)}${invite.department ? " (" + escHtml(invite.department) + ")" : ""}` : accessRole}${kitBit}</p>
     <div class="summary-row">
       <span class="summary-chip">${accessRole}</span>
       ${dates ? `<span class="summary-chip">${dates}</span>` : ""}

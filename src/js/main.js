@@ -10,8 +10,9 @@ async function showApp() {
   currentUserEmail = user.email;
   renderDemoBar();
 
-  // First-time steps (onboarding.js): Terms, then create or join a production.
+  // First-time steps (onboarding.js): Terms, name for credits, then create or join a production.
   await requireTerms(user);
+  if (!isDemoEmail(user.email)) await requireCreditName(user);
   const [{ data: mine }, { data: isSuper }] = await Promise.all([client.rpc("my_companies"), client.rpc("is_superadmin")]);
   if (!(mine || []).length && !isSuper) { showCreateOrJoin(); return; }
 
