@@ -4,6 +4,10 @@
 # Repository secrets (Settings > Secrets and variables > Actions):
 #   SUPABASE_ACCESS_TOKEN   personal access token (supabase.com/dashboard/account/tokens)
 #   SUPABASE_DB_PASSWORD    the staging database password (Project Settings > Database)
+#
+# The CLI version is pinned: 3.0 changed `db push` to target a local database and removed
+# `functions deploy --project-ref`, which broke this workflow when it used `latest`. Upgrade on
+# purpose, in its own PR, after checking the commands below against the new version's --help.
 name: Deploy Supabase (staging)
 
 on:
@@ -33,9 +37,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.122.1
       - run: supabase link --project-ref "$SUPABASE_PROJECT_ID" -p "$SUPABASE_DB_PASSWORD"
-      - run: supabase db push --dry-run -p "$SUPABASE_DB_PASSWORD"
+      - run: supabase db push --linked --dry-run -p "$SUPABASE_DB_PASSWORD"
 
   deploy:
     if: github.event_name != 'pull_request'
@@ -44,10 +48,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.122.1
       - run: supabase link --project-ref "$SUPABASE_PROJECT_ID" -p "$SUPABASE_DB_PASSWORD"
       - name: Apply migrations
-        run: supabase db push -p "$SUPABASE_DB_PASSWORD"
+        run: supabase db push --linked -p "$SUPABASE_DB_PASSWORD"
       - name: Deploy Edge Functions
         run: |
           # These check callers themselves, so they're deployed without JWT verification.

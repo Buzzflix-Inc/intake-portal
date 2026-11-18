@@ -48,7 +48,7 @@ async function renderAccount() {
   if (!user) { closeAccount(); return; }
   const [{ data: invite }, { data: prof }, { data: companies }, totp, { data: keys }, { data: codesLeft }] = await Promise.all([
     client.from("company_invites").select("full_name, phone").eq("email", user.email.toLowerCase()).maybeSingle(),
-    client.from("profiles").select("terms_version, terms_accepted_at").eq("user_id", user.id).maybeSingle(),
+    client.from("profiles").select("terms_version, terms_accepted_at, credit_first_name, credit_last_name").eq("user_id", user.id).maybeSingle(),
     client.rpc("my_companies"),
     verifiedTotp(),
     client.from("passkeys").select("id, device_name, created_at, last_used_at").order("created_at"),
@@ -75,9 +75,11 @@ async function renderAccount() {
     <p class="modal-sub">${escHtml(user.email)}</p>
 
     <h3>Your details</h3>
-    <p class="acct-hint">Productions use these to fill in your deal memos and forms. Your email can't be changed.</p>
+    <p class="acct-hint">Productions use these to fill in your deal memos and forms. Your credit name is how you appear in screen credits. Your email can't be changed.</p>
     <div class="acct-grid">
       ${field("acctName", "Full legal name", name, 'autocomplete="name" maxlength="120"')}
+      ${field("acctCreditFirst", "Credit first name", prof && prof.credit_first_name, 'autocomplete="given-name" maxlength="60"')}
+      ${field("acctCreditLast", "Credit last name", prof && prof.credit_last_name, 'autocomplete="family-name" maxlength="60"')}
       ${field("acctPhone", "Phone", (invite && invite.phone) || det.phone, 'autocomplete="tel" maxlength="40"')}
       ${field("acctDob", "Date of birth", det.dob, 'type="date"')}
       ${field("acctAddress", "Street address", det.address, 'autocomplete="street-address"')}
@@ -152,6 +154,9 @@ async function saveAccountDetails() {
   const msg = acctBody.querySelector("#acctDetailsMsg");
   const v = (id) => acctBody.querySelector("#" + id).value.trim();
   if (!v("acctName")) { msg.textContent = "Enter your full name."; return; }
+  if (!v("acctCreditFirst") || !v("acctCreditLast")) { msg.textContent = "Enter a first and last name for your credit."; return; }
+  const { error: e0 } = await client.rpc("set_my_credit_name", { p_first: v("acctCreditFirst"), p_last: v("acctCreditLast") });
+  if (e0) { msg.textContent = e0.message; return; }
   const { error } = await client.rpc("update_my_contact", { p_full_name: v("acctName"), p_phone: v("acctPhone") });
   if (error) { msg.textContent = error.message; return; }
   const { data: { user } } = await client.auth.getUser();

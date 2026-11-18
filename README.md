@@ -153,10 +153,13 @@ reject, preview, download and delete. Approvals follow the approval chain as bef
 ## Account pane
 
 Clicking your name in the top right opens your account: your details (name, phone, address, used to
-fill in forms), your productions (switch or leave), two-step sign-in (turn on, replace the
+fill in forms, plus the first and last name you want in screen credits), your productions (switch or leave), two-step sign-in (turn on, replace the
 authenticator, make new backup codes), passkeys, sign out everywhere, download my data (.zip), the
 Terms you accepted, and deleting your account. Emails can't be changed.
 
+- The credit name is asked for once, right after the Terms, for everyone except demo accounts. It's
+  stored on `profiles` (`credit_first_name`, `credit_last_name`), separate from the legal name on the
+  invite, and admins see it as "Credited as" on a crew member's page.
 - Backup codes are only shown when they're made; only hashes are stored. Making new ones cancels the old.
 - Leaving a production, or deleting an account, keeps everything the person submitted with each
   production. The only admin of a production with other people in it must first make someone else an
